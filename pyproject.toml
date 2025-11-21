@@ -1,0 +1,59 @@
+[tool.ruff]
+line-length = 79
+target-version = "py310"
+
+[tool.ruff.format]
+quote-style = "double"
+line-ending = "lf"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+extend-select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    # "UP",  # pyupgrade
+    # "B",   # bugbear
+    # "C90", # mccabe
+    # "D",  # pydocstyle
+    "ERA",  # eradicate
+]
+ignore = [
+    "E203",
+    # "W503",
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.mypy]
+python_version = "3.10"
+strict = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--cov=modelinhos --cov-report=term-missing"
+
+[build-system]
+requires = ["setuptools", "wheel", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# NB: Keep it the same as in PyPI
+name = "modelinhos"
+dynamic = ["version"]
+description = "Model zoo for a very small models"
+dependencies = [
+    "opencv-python",
+    "numpy<2",
+    "torch",
+    "torchvision",
+]
+readme = "README.rst"
+
+[tool.setuptools]
+packages = ["modelinhos"]
+
+[tool.setuptools_scm]
+version_scheme = "post-release" # Uses Git tags for versioning
