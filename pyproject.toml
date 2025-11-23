@@ -49,6 +49,7 @@ dependencies = [
     "numpy<2",
     "torch",
     "torchvision",
+    "onnx",
 ]
 readme = "README.rst"
 
