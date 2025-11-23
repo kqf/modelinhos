@@ -4,8 +4,12 @@ import torch.onnx
 from modelinhos.blaze.blazenet import BlazeNet
 
 
-def main(
-    height=240, width=320, back_model=False, opset_version=11, stem="blazenet"
+def export(
+    height=128,
+    width=128,
+    back_model=False,
+    opset_version=11,
+    stem="blazenet",
 ):
     onnx_path = f"{stem}--{height}x{width}.onnx"
 
@@ -29,6 +33,20 @@ def main(
     )
 
     print(f"Export complete -> {onnx_path}")
+
+
+def main():
+    resolutions = [
+        (128, 128),
+        (256, 256),
+        (512, 512),
+        (480, 480),
+        (480, 640),
+        (1024, 1024),
+        # (1080, 1920), ~ This won't work
+    ]
+    for h, w in resolutions:
+        export()
 
 
 if __name__ == "__main__":
