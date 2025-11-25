@@ -4,9 +4,9 @@
 #include <chrono>
 
 int main() {
-    const std::string onnx_path = "blaze_opencv_compatible.onnx";
-    const int H = 256;
-    const int W = 256;
+    const std::string onnx_path = "blazenet--1024x1024.onnx";
+    const int H = 1024;
+    const int W = 1024;
     const int NUM_ITERS = 100;
 
     cv::Mat resized(H, W, CV_32FC3);
@@ -15,7 +15,6 @@ int main() {
     // HWC -> NCHW
     cv::Mat blob = cv::dnn::blobFromImage(resized);
     cv::dnn::Net net = cv::dnn::readNetFromONNX(onnx_path);
-
     net.setInput(blob, "image");
     net.forward();   // warmup
 
