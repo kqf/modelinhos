@@ -5,26 +5,12 @@
 
 int main() {
     const std::string onnx_path = "blaze_opencv_compatible.onnx";
-    const std::string image_path = "1face.png";
-
-    const float CONF_THRESH = 0.5f;
-    const float IOU_THRESH = 0.3f;
-    const int   MAX_DET = 25;
-
+    const int H = 256;
+    const int W = 256;
     const int NUM_ITERS = 100;
 
-    cv::Mat orig = cv::imread(image_path);
-    if (orig.empty()) {
-        std::cerr << "Failed to load image!" << std::endl;
-        return -1;
-    }
-
-    int W = orig.cols;
-    int H = orig.rows;
-
-    cv::Mat resized;
-    cv::resize(orig, resized, cv::Size(256, 256));
-    resized.convertTo(resized, CV_32F, 1.0 / 255.0);
+    cv::Mat resized(H, W, CV_32FC3);
+    cv::randu(resized, 0.0f, 1.0f);
 
     // HWC -> NCHW
     cv::Mat blob = cv::dnn::blobFromImage(resized);
@@ -55,7 +41,7 @@ int main() {
     net.forward(outputs, net.getUnconnectedOutLayersNames());
 
     cv::Mat vis;
-    orig.copyTo(vis);
+    resized.copyTo(vis);
 
     cv::Mat boxes = outputs[0].reshape(1, outputs[0].total() / 16);
     cv::Mat scores;
