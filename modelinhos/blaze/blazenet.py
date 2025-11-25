@@ -223,10 +223,10 @@ class BlazeNet(nn.Module):
             self.regressor_8 = nn.Conv2d(88, 32, 1, bias=True)
             self.regressor_16 = nn.Conv2d(96, 96, 1, bias=True)
 
-    def forward(self, x):
+    def forward(self, image):
         # TFLite uses slightly different padding on the first conv layer
         # than PyTorch, so do it manually.
-        x = F.pad(x, (1, 2, 1, 2), "constant", 0)
+        x = F.pad(image, (1, 2, 1, 2), "constant", 0)
 
         b = x.shape[0]  # batch size, needed for reshaping later
 

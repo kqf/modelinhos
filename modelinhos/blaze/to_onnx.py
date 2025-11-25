@@ -25,7 +25,7 @@ def export(
         model,
         dummy,
         onnx_path,
-        input_names=["input"],
+        input_names=["image"],
         output_names=["reg", "cls"],
         opset_version=opset_version,
         do_constant_folding=True,
@@ -46,7 +46,7 @@ def main():
         # (1080, 1920), ~ This won't work
     ]
     for h, w in resolutions:
-        export()
+        export(h, w)
 
 
 if __name__ == "__main__":
