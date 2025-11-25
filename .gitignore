@@ -6,3 +6,4 @@
 *.png
 *.onnx
 *.bin
+.DS_Store
