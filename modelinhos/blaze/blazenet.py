@@ -511,8 +511,3 @@ def intersect(box_a, box_b):
     )
     inter = torch.clamp((max_xy - min_xy), min=0)
     return inter[:, :, 0] * inter[:, :, 1]
-
-
-def overlap_similarity(box, other_boxes):
-    """Computes the IOU between a bounding box and set of other boxes."""
-    return jaccard(box.unsqueeze(0), other_boxes).squeeze(0)
