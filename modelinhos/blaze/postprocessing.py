@@ -26,3 +26,8 @@ def jaccard(box_a, box_b):
     )  # [A,B]
     union = area_a + area_b - inter
     return inter / union  # [A,B]
+
+
+def overlap_similarity(box, other_boxes):
+    """Computes the IOU between a bounding box and set of other boxes."""
+    return jaccard(box.unsqueeze(0), other_boxes).squeeze(0)
