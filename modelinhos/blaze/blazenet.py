@@ -1,3 +1,4 @@
+from modelinhos.blaze.postprocessing import jaccard
 import numpy as np
 import torch
 import torch.nn as nn
