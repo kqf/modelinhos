@@ -194,3 +194,48 @@ def predict_on_batch(self, x):
         filtered_detections.append(faces)
 
     return filtered_detections
+
+
+def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
+    """The output of the neural network is a tensor of shape (b, 896, 16)
+    containing the bounding box regressor predictions, as well as a tensor
+    of shape (b, 896, 1) with the classification confidences.
+
+    This function converts these two "raw" tensors into proper detections.
+    Returns a list of (num_detections, 17) tensors, one for each image in
+    the batch.
+
+    This is based on the source code from:
+    mediapipe/calculators/tflite/tflite_tensors_to_detections_calculator.cc
+    mediapipe/calculators/tflite/tflite_tensors_to_detections_calculator.proto
+    """
+    assert raw_box_tensor.ndimension() == 3
+    assert raw_box_tensor.shape[1] == self.num_anchors
+    assert raw_box_tensor.shape[2] == self.num_coords
+
+    assert raw_score_tensor.ndimension() == 3
+    assert raw_score_tensor.shape[1] == self.num_anchors
+    assert raw_score_tensor.shape[2] == self.num_classes
+
+    assert raw_box_tensor.shape[0] == raw_score_tensor.shape[0]
+
+    detection_boxes = self._decode_boxes(raw_box_tensor, anchors)
+
+    thresh = self.score_clipping_thresh
+    raw_score_tensor = raw_score_tensor.clamp(-thresh, thresh)
+    detection_scores = raw_score_tensor.sigmoid().squeeze(dim=-1)
+
+    # Note: we stripped off the last dimension from the scores tensor
+    # because there is only has one class. Now we can simply use a mask
+    # to filter out the boxes with too low confidence.
+    mask = detection_scores >= self.min_score_thresh
+
+    # Because each image from the batch can have a different number of
+    # detections, process them one at a time using a loop.
+    output_detections = []
+    for i in range(raw_box_tensor.shape[0]):
+        boxes = detection_boxes[i, mask[i]]
+        scores = detection_scores[i, mask[i]].unsqueeze(dim=-1)
+        output_detections.append(torch.cat((boxes, scores), dim=-1))
+
+    return output_detections
