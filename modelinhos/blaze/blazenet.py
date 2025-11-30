@@ -304,55 +304,6 @@ def predict_on_image(self, img):
     return self.predict_on_batch(img.unsqueeze(0))[0]
 
 
-def predict_on_batch(self, x):
-    """Makes a prediction on a batch of images.
-
-    Arguments:
-        x: a NumPy array of shape (b, H, W, 3) or a PyTorch tensor of
-            shape (b, 3, H, W). The height and width should be 128 pixels.
-
-    Returns:
-        A list containing a tensor of face detections for each image in
-        the batch. If no faces are found for an image, returns a tensor
-        of shape (0, 17).
-
-    Each face detection is a PyTorch tensor consisting of 17 numbers:
-        - ymin, xmin, ymax, xmax
-        - x,y-coordinates for the 6 keypoints
-        - confidence score
-    """
-    if isinstance(x, np.ndarray):
-        x = torch.from_numpy(x).permute((0, 3, 1, 2))
-
-    assert x.shape[1] == 3
-    if self.back_model:
-        assert x.shape[2] == 256
-        assert x.shape[3] == 256
-    else:
-        assert x.shape[2] == 128
-        assert x.shape[3] == 128
-
-    # 1. Preprocess the images into tensors:
-    x = x.to(self._device())
-    x = self._preprocess(x)
-
-    # 2. Run the neural network:
-    with torch.no_grad():
-        out = self.__call__(x)
-
-    # 3. Postprocess the raw predictions:
-    detections = self._tensors_to_detections(out[0], out[1], self.anchors)
-
-    # 4. Non-maximum suppression to remove overlapping detections:
-    filtered_detections = []
-    for i in range(len(detections)):
-        faces = self._weighted_non_max_suppression(detections[i])
-        faces = torch.stack(faces) if len(faces) > 0 else torch.zeros((0, 17))
-        filtered_detections.append(faces)
-
-    return filtered_detections
-
-
 def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
     """The output of the neural network is a tensor of shape (b, 896, 16)
     containing the bounding box regressor predictions, as well as a tensor
