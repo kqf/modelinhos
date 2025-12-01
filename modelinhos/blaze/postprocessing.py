@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from modelinhos.blaze.blazenet import intersect
 
@@ -239,3 +240,20 @@ def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
         output_detections.append(torch.cat((boxes, scores), dim=-1))
 
     return output_detections
+
+
+def predict_on_image(self, img):
+    """Makes a prediction on a single image.
+
+    Arguments:
+        img: a NumPy array of shape (H, W, 3) or a PyTorch tensor of
+                shape (3, H, W). The image's height and width should be
+                128 pixels.
+
+    Returns:
+        A tensor with face detections.
+    """
+    if isinstance(img, np.ndarray):
+        img = torch.from_numpy(img).permute((2, 0, 1))
+
+    return self.predict_on_batch(img.unsqueeze(0))[0]
