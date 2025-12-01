@@ -257,3 +257,8 @@ def predict_on_image(self, img):
         img = torch.from_numpy(img).permute((2, 0, 1))
 
     return self.predict_on_batch(img.unsqueeze(0))[0]
+
+
+def _preprocess(self, x):
+    """Converts the image pixels to the range [-1, 1]."""
+    return x.float() / 127.5 - 1.0
