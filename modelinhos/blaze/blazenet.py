@@ -284,20 +284,3 @@ def load_anchors(self, path):
 def _preprocess(self, x):
     """Converts the image pixels to the range [-1, 1]."""
     return x.float() / 127.5 - 1.0
-
-
-def predict_on_image(self, img):
-    """Makes a prediction on a single image.
-
-    Arguments:
-        img: a NumPy array of shape (H, W, 3) or a PyTorch tensor of
-                shape (3, H, W). The image's height and width should be
-                128 pixels.
-
-    Returns:
-        A tensor with face detections.
-    """
-    if isinstance(img, np.ndarray):
-        img = torch.from_numpy(img).permute((2, 0, 1))
-
-    return self.predict_on_batch(img.unsqueeze(0))[0]
