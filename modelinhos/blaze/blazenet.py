@@ -270,7 +270,7 @@ def load_weights(self, path):
 
 def load_anchors(self, path):
     self.anchors = torch.tensor(
-        np.load(path), dtype=torch.float32, device=self._device()
+        np.load(path), dtype=torch.float32, device=self.classifier_8.weight.device
     )
     assert self.anchors.ndimension() == 2
     assert self.anchors.shape[0] == self.num_anchors
