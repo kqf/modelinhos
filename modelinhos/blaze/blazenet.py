@@ -262,10 +262,6 @@ class BlazeNet(nn.Module):
         return [r, c]
 
 
-def _device(self):
-    """Which device (CPU or GPU) is being used by this model?"""
-    return self.classifier_8.weight.device
-
 
 def load_weights(self, path):
     self.load_state_dict(torch.load(path))
@@ -274,7 +270,7 @@ def load_weights(self, path):
 
 def load_anchors(self, path):
     self.anchors = torch.tensor(
-        np.load(path), dtype=torch.float32, device=self._device()
+        np.load(path), dtype=torch.float32, device=self.classifier_8.weight.device
     )
     assert self.anchors.ndimension() == 2
     assert self.anchors.shape[0] == self.num_anchors
