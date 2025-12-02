@@ -262,11 +262,6 @@ class BlazeNet(nn.Module):
         return [r, c]
 
 
-def _device(self):
-    """Which device (CPU or GPU) is being used by this model?"""
-    return self.classifier_8.weight.device
-
-
 def load_weights(self, path):
     self.load_state_dict(torch.load(path))
     self.eval()
