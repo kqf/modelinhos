@@ -263,15 +263,15 @@ class BlazeNet(nn.Module):
 
 
 
-def load_weights(self, path):
-    self.load_state_dict(torch.load(path))
-    self.eval()
+def load_weights(model: BlazeNet, path):
+    model.load_state_dict(torch.load(path))
+    model.eval()
 
 
-def load_anchors(self, path):
-    self.anchors = torch.tensor(
-        np.load(path), dtype=torch.float32, device=self.classifier_8.weight.device
+def load_anchors(model: BlazeNet, path):
+    model.anchors = torch.tensor(
+        np.load(path), dtype=torch.float32, device=model.classifier_8.weight.device,
     )
-    assert self.anchors.ndimension() == 2
-    assert self.anchors.shape[0] == self.num_anchors
-    assert self.anchors.shape[1] == 4
+    assert model.anchors.ndimension() == 2
+    assert model.anchors.shape[0] == model.num_anchors
+    assert model.anchors.shape[1] == 4
