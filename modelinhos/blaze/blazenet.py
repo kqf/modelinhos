@@ -262,6 +262,7 @@ class BlazeNet(nn.Module):
         return [r, c]
 
 
+
 def load_weights(self, path):
     self.load_state_dict(torch.load(path))
     self.eval()
