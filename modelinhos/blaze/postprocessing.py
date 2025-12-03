@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from modelinhos.blaze.blazenet import intersect
+from modelinhos.blaze.blazenet import BlazeNet
 
 
 def intersect(box_a, box_b):
@@ -151,7 +151,7 @@ def _decode_boxes(self, raw, anchors):
     return boxes
 
 
-def predict_on_batch(self, x, back_model):
+def predict_on_batch(model: BlazeNet, x, back_model):
     """Makes a prediction on a batch of images.
 
     Arguments:
@@ -180,15 +180,15 @@ def predict_on_batch(self, x, back_model):
         assert x.shape[3] == 128
 
     # 1. Preprocess the images into tensors:
-    x = x.to(_device())
+    x = x.to(model.classifier_8.weight.device)
     x = _preprocess(x)
 
     # 2. Run the neural network:
     with torch.no_grad():
-        out = __call__(x)
+        out = model(x)
 
     # 3. Postprocess the raw predictions:
-    detections = _tensors_to_detections(out[0], out[1], anchors)
+    detections = _tensors_to_detections(out[0], out[1], model.anchors)
 
     # 4. Non-maximum suppression to remove overlapping detections:
     filtered_detections = []
