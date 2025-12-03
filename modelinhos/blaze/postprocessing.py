@@ -1,6 +1,8 @@
 import numpy as np
 import torch
+
 from modelinhos.blaze.blazenet import intersect
+
 
 def intersect(box_a, box_b):
     """We resize both tensors to [A,B,2] without new malloc:
@@ -25,6 +27,7 @@ def intersect(box_a, box_b):
     )
     inter = torch.clamp((max_xy - min_xy), min=0)
     return inter[:, :, 0] * inter[:, :, 1]
+
 
 def jaccard(box_a, box_b):
     """Compute the jaccard overlap of two sets of boxes.  The jaccard overlap
@@ -148,7 +151,7 @@ def _decode_boxes(self, raw, anchors):
     return boxes
 
 
-def predict_on_batch(self, x):
+def predict_on_batch(self, x, back_model):
     """Makes a prediction on a batch of images.
 
     Arguments:
@@ -169,7 +172,7 @@ def predict_on_batch(self, x):
         x = torch.from_numpy(x).permute((0, 3, 1, 2))
 
     assert x.shape[1] == 3
-    if self.back_model:
+    if back_model:
         assert x.shape[2] == 256
         assert x.shape[3] == 256
     else:
@@ -177,23 +180,22 @@ def predict_on_batch(self, x):
         assert x.shape[3] == 128
 
     # 1. Preprocess the images into tensors:
-    x = x.to(self._device())
-    x = self._preprocess(x)
+    x = x.to(_device())
+    x = _preprocess(x)
 
     # 2. Run the neural network:
     with torch.no_grad():
-        out = self.__call__(x)
+        out = __call__(x)
 
     # 3. Postprocess the raw predictions:
-    detections = self._tensors_to_detections(out[0], out[1], self.anchors)
+    detections = _tensors_to_detections(out[0], out[1], anchors)
 
     # 4. Non-maximum suppression to remove overlapping detections:
     filtered_detections = []
     for i in range(len(detections)):
-        faces = self._weighted_non_max_suppression(detections[i])
-        faces = torch.stack(faces) if len(faces) > 0 else torch.zeros((0, 17))
-        filtered_detections.append(faces)
-
+        faces = _weighted_non_max_suppression(detections[i])
+    faces = torch.stack(faces) if len(faces) > 0 else torch.zeros((0, 17))
+    filtered_detections.append(faces)
     return filtered_detections
 
 
