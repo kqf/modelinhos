@@ -219,25 +219,25 @@ def _tensors_to_detections(
     mediapipe/calculators/tflite/tflite_tensors_to_detections_calculator.proto
     """
     assert raw_box_tensor.ndimension() == 3
-    assert raw_box_tensor.shape[1] == self.num_anchors
-    assert raw_box_tensor.shape[2] == self.num_coords
+    assert raw_box_tensor.shape[1] == model.num_anchors
+    assert raw_box_tensor.shape[2] == model.num_coords
 
     assert raw_score_tensor.ndimension() == 3
-    assert raw_score_tensor.shape[1] == self.num_anchors
-    assert raw_score_tensor.shape[2] == self.num_classes
+    assert raw_score_tensor.shape[1] == model.num_anchors
+    assert raw_score_tensor.shape[2] == model.num_classes
 
     assert raw_box_tensor.shape[0] == raw_score_tensor.shape[0]
 
-    detection_boxes = self._decode_boxes(raw_box_tensor, anchors)
+    detection_boxes = _decode_boxes(model, raw_box_tensor, anchors)
 
-    thresh = self.score_clipping_thresh
+    thresh = model.score_clipping_thresh
     raw_score_tensor = raw_score_tensor.clamp(-thresh, thresh)
     detection_scores = raw_score_tensor.sigmoid().squeeze(dim=-1)
 
     # Note: we stripped off the last dimension from the scores tensor
     # because there is only has one class. Now we can simply use a mask
     # to filter out the boxes with too low confidence.
-    mask = detection_scores >= self.min_score_thresh
+    mask = detection_scores >= model.min_score_thresh
 
     # Because each image from the batch can have a different number of
     # detections, process them one at a time using a loop.
