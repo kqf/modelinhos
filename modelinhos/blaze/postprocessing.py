@@ -188,7 +188,7 @@ def predict_on_batch(model: BlazeNet, x, back_model):
         out = model(x)
 
     # 3. Postprocess the raw predictions:
-    detections = _tensors_to_detections(out[0], out[1], model.anchors)
+    detections = _tensors_to_detections(model, out[0], out[1], model.anchors)
 
     # 4. Non-maximum suppression to remove overlapping detections:
     filtered_detections = []
@@ -199,7 +199,12 @@ def predict_on_batch(model: BlazeNet, x, back_model):
     return filtered_detections
 
 
-def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
+def _tensors_to_detections(
+    model: BlazeNet,
+    raw_box_tensor,
+    raw_score_tensor,
+    anchors,
+):
     """The output of the neural network is a tensor of shape (b, 896, 16)
     containing the bounding box regressor predictions, as well as a tensor
     of shape (b, 896, 1) with the classification confidences.
@@ -261,6 +266,6 @@ def predict_on_image(self, img):
     return self.predict_on_batch(img.unsqueeze(0))[0]
 
 
-def _preprocess(self, x):
+def _preprocess(x):
     """Converts the image pixels to the range [-1, 1]."""
     return x.float() / 127.5 - 1.0
