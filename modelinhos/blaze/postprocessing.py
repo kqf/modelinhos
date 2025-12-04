@@ -4,7 +4,6 @@ import torch
 from modelinhos.blaze.blazenet import BlazeNet
 
 
-
 def intersect(box_a, box_b):
     """We resize both tensors to [A,B,2] without new malloc:
     [A,2] -> [A,1,2] -> [A,B,2]
@@ -121,17 +120,17 @@ def _weighted_non_max_suppression(self, detections):
     return output_detections
 
 
-def _decode_boxes(self, raw, anchors):
+def _decode_boxes(model: BlazeNet, raw, anchors):
     """Converts the predictions into actual coordinates using
     the anchor boxes. Processes the entire batch at once.
     """
     boxes = torch.zeros_like(raw)
 
-    x_center = raw[..., 0] / self.x_scale * anchors[:, 2] + anchors[:, 0]
-    y_center = raw[..., 1] / self.y_scale * anchors[:, 3] + anchors[:, 1]
+    x_center = raw[..., 0] / model.x_scale * anchors[:, 2] + anchors[:, 0]
+    y_center = raw[..., 1] / model.y_scale * anchors[:, 3] + anchors[:, 1]
 
-    w = raw[..., 2] / self.w_scale * anchors[:, 2]
-    h = raw[..., 3] / self.h_scale * anchors[:, 3]
+    w = raw[..., 2] / model.w_scale * anchors[:, 2]
+    h = raw[..., 3] / model.h_scale * anchors[:, 3]
 
     boxes[..., 0] = y_center - h / 2.0  # ymin
     boxes[..., 1] = x_center - w / 2.0  # xmin
@@ -141,10 +140,10 @@ def _decode_boxes(self, raw, anchors):
     for k in range(6):
         offset = 4 + k * 2
         keypoint_x = (
-            raw[..., offset] / self.x_scale * anchors[:, 2] + anchors[:, 0]
-        )
+            raw[..., offset] / model.x_scale * anchors[:, 2] + anchors[:, 0]
+        )  # noqa
         keypoint_y = (
-            raw[..., offset + 1] / self.y_scale * anchors[:, 3] + anchors[:, 1]
+            raw[..., offset + 1] / model.y_scale * anchors[:, 3] + anchors[:, 1]  # noqa
         )
         boxes[..., offset] = keypoint_x
         boxes[..., offset + 1] = keypoint_y
