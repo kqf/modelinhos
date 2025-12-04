@@ -143,7 +143,8 @@ def _decode_boxes(model: BlazeNet, raw, anchors):
             raw[..., offset] / model.x_scale * anchors[:, 2] + anchors[:, 0]
         )  # noqa
         keypoint_y = (
-            raw[..., offset + 1] / model.y_scale * anchors[:, 3] + anchors[:, 1]  # noqa
+            raw[..., offset + 1] / model.y_scale * anchors[:, 3]
+            + anchors[:, 1]  # noqa
         )
         boxes[..., offset] = keypoint_x
         boxes[..., offset + 1] = keypoint_y
@@ -188,7 +189,7 @@ def predict_on_batch(model: BlazeNet, x, back_model):
         out = model(x)
 
     # 3. Postprocess the raw predictions:
-    detections = _tensors_to_detections(out[0], out[1], model.anchors)
+    detections = _tensors_to_detections(model, out[0], out[1], model.anchors)
 
     # 4. Non-maximum suppression to remove overlapping detections:
     filtered_detections = []
@@ -199,7 +200,12 @@ def predict_on_batch(model: BlazeNet, x, back_model):
     return filtered_detections
 
 
-def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
+def _tensors_to_detections(
+    model: BlazeNet,
+    raw_box_tensor,
+    raw_score_tensor,
+    anchors,
+):
     """The output of the neural network is a tensor of shape (b, 896, 16)
     containing the bounding box regressor predictions, as well as a tensor
     of shape (b, 896, 1) with the classification confidences.
@@ -213,25 +219,25 @@ def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
     mediapipe/calculators/tflite/tflite_tensors_to_detections_calculator.proto
     """
     assert raw_box_tensor.ndimension() == 3
-    assert raw_box_tensor.shape[1] == self.num_anchors
-    assert raw_box_tensor.shape[2] == self.num_coords
+    assert raw_box_tensor.shape[1] == model.num_anchors
+    assert raw_box_tensor.shape[2] == model.num_coords
 
     assert raw_score_tensor.ndimension() == 3
-    assert raw_score_tensor.shape[1] == self.num_anchors
-    assert raw_score_tensor.shape[2] == self.num_classes
+    assert raw_score_tensor.shape[1] == model.num_anchors
+    assert raw_score_tensor.shape[2] == model.num_classes
 
     assert raw_box_tensor.shape[0] == raw_score_tensor.shape[0]
 
-    detection_boxes = self._decode_boxes(raw_box_tensor, anchors)
+    detection_boxes = _decode_boxes(model, raw_box_tensor, anchors)
 
-    thresh = self.score_clipping_thresh
+    thresh = model.score_clipping_thresh
     raw_score_tensor = raw_score_tensor.clamp(-thresh, thresh)
     detection_scores = raw_score_tensor.sigmoid().squeeze(dim=-1)
 
     # Note: we stripped off the last dimension from the scores tensor
     # because there is only has one class. Now we can simply use a mask
     # to filter out the boxes with too low confidence.
-    mask = detection_scores >= self.min_score_thresh
+    mask = detection_scores >= model.min_score_thresh
 
     # Because each image from the batch can have a different number of
     # detections, process them one at a time using a loop.
@@ -261,6 +267,6 @@ def predict_on_image(self, img):
     return self.predict_on_batch(img.unsqueeze(0))[0]
 
 
-def _preprocess(self, x):
+def _preprocess(x):
     """Converts the image pixels to the range [-1, 1]."""
     return x.float() / 127.5 - 1.0
