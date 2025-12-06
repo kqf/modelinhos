@@ -191,13 +191,10 @@ def predict_on_batch(model: BlazeNet, x, back_model):
     # 3. Postprocess the raw predictions:
     detections = _tensors_to_detections(model, out[0], out[1], model.anchors)
 
-    # 4. Non-maximum suppression to remove overlapping detections:
-    filtered_detections = []
     for i in range(len(detections)):
         faces = _weighted_non_max_suppression(model, detections[i])
     faces = torch.stack(faces) if len(faces) > 0 else torch.zeros((0, 17))
-    filtered_detections.append(faces)
-    return filtered_detections
+    return [faces]
 
 
 def _tensors_to_detections(
@@ -250,7 +247,7 @@ def _tensors_to_detections(
     return output_detections
 
 
-def predict_on_image(self, img):
+def predict_on_image(model: BlazeNet, image):
     """Makes a prediction on a single image.
 
     Arguments:
@@ -261,10 +258,10 @@ def predict_on_image(self, img):
     Returns:
         A tensor with face detections.
     """
-    if isinstance(img, np.ndarray):
-        img = torch.from_numpy(img).permute((2, 0, 1))
+    if isinstance(image, np.ndarray):
+        image = torch.from_numpy(image).permute((2, 0, 1))
 
-    return self.predict_on_batch(img.unsqueeze(0))[0]
+    return predict_on_batch(model, image.unsqueeze(0))[0]
 
 
 def _preprocess(x):
