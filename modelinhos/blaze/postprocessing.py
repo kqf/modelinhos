@@ -61,7 +61,7 @@ def overlap_similarity(box, other_boxes):
     return jaccard(box.unsqueeze(0), other_boxes).squeeze(0)
 
 
-def _weighted_non_max_suppression(self, detections):
+def _weighted_non_max_suppression(model: BlazeNet, detections):
     """The alternative NMS method as mentioned in the BlazeFace paper:
 
     "We replace the suppression algorithm with a blending strategy that
@@ -194,7 +194,7 @@ def predict_on_batch(model: BlazeNet, x, back_model):
     # 4. Non-maximum suppression to remove overlapping detections:
     filtered_detections = []
     for i in range(len(detections)):
-        faces = _weighted_non_max_suppression(detections[i])
+        faces = _weighted_non_max_suppression(model, detections[i])
     faces = torch.stack(faces) if len(faces) > 0 else torch.zeros((0, 17))
     filtered_detections.append(faces)
     return filtered_detections
