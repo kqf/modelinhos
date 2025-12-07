@@ -202,6 +202,7 @@ def _tensors_to_detections(
     raw_box_tensor,
     raw_score_tensor,
     anchors,
+    min_score_thresh,
 ):
     """The output of the neural network is a tensor of shape (b, 896, 16)
     containing the bounding box regressor predictions, as well as a tensor
@@ -234,7 +235,7 @@ def _tensors_to_detections(
     # Note: we stripped off the last dimension from the scores tensor
     # because there is only has one class. Now we can simply use a mask
     # to filter out the boxes with too low confidence.
-    mask = detection_scores >= model.min_score_thresh
+    mask = detection_scores >= min_score_thresh
 
     # Because each image from the batch can have a different number of
     # detections, process them one at a time using a loop.
