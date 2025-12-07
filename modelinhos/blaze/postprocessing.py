@@ -100,7 +100,7 @@ def _weighted_non_max_suppression(model: BlazeNet, detections):
 
         # If two detections don't overlap enough, they are considered
         # to be from different faces.
-        mask = ious > self.min_suppression_threshold
+        mask = ious > model.min_suppression_threshold
         overlapping = remaining[mask]
         remaining = remaining[~mask]
 
