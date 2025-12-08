@@ -61,7 +61,11 @@ def overlap_similarity(box, other_boxes):
     return jaccard(box.unsqueeze(0), other_boxes).squeeze(0)
 
 
-def _weighted_non_max_suppression(model: BlazeNet, detections):
+def _weighted_non_max_suppression(
+    model: BlazeNet,
+    detections,
+    min_suppression_threshold: int,
+):
     """The alternative NMS method as mentioned in the BlazeFace paper:
 
     "We replace the suppression algorithm with a blending strategy that
@@ -100,7 +104,7 @@ def _weighted_non_max_suppression(model: BlazeNet, detections):
 
         # If two detections don't overlap enough, they are considered
         # to be from different faces.
-        mask = ious > model.min_suppression_threshold
+        mask = ious > min_suppression_threshold
         overlapping = remaining[mask]
         remaining = remaining[~mask]
 
@@ -143,8 +147,7 @@ def _decode_boxes(model: BlazeNet, raw, anchors):
             raw[..., offset] / model.x_scale * anchors[:, 2] + anchors[:, 0]
         )  # noqa
         keypoint_y = (
-            raw[..., offset + 1] / model.y_scale * anchors[:, 3]
-            + anchors[:, 1]  # noqa
+            raw[..., offset + 1] / model.y_scale * anchors[:, 3] + anchors[:, 1]  # noqa
         )
         boxes[..., offset] = keypoint_x
         boxes[..., offset + 1] = keypoint_y
