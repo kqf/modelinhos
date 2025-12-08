@@ -155,7 +155,12 @@ def _decode_boxes(model: BlazeNet, raw, anchors):
     return boxes
 
 
-def predict_on_batch(model: BlazeNet, x, back_model):
+def predict_on_batch(
+    model: BlazeNet,
+    x,
+    back_model,
+    min_suppression_threshold: int,
+):
     """Makes a prediction on a batch of images.
 
     Arguments:
@@ -195,7 +200,11 @@ def predict_on_batch(model: BlazeNet, x, back_model):
     detections = _tensors_to_detections(model, out[0], out[1], model.anchors)
 
     for i in range(len(detections)):
-        faces = _weighted_non_max_suppression(model, detections[i])
+        faces = _weighted_non_max_suppression(
+            model,
+            detections[i],
+            min_suppression_threshold=min_suppression_threshold,
+        )
     faces = torch.stack(faces) if len(faces) > 0 else torch.zeros((0, 17))
     return [faces]
 
