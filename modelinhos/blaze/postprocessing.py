@@ -197,7 +197,13 @@ def predict_on_batch(
         out = model(x)
 
     # 3. Postprocess the raw predictions:
-    detections = _tensors_to_detections(model, out[0], out[1], model.anchors)
+    detections = _tensors_to_detections(
+        model,
+        out[0],
+        out[1],
+        model.anchors,
+        min_score_thresh,
+    )
 
     for i in range(len(detections)):
         faces = _weighted_non_max_suppression(
