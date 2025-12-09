@@ -160,6 +160,7 @@ def predict_on_batch(
     x,
     back_model,
     min_suppression_threshold: int,
+    min_score_thresh: float,
 ):
     """Makes a prediction on a batch of images.
 
