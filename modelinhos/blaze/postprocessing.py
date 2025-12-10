@@ -267,7 +267,13 @@ def _tensors_to_detections(
     return output_detections
 
 
-def predict_on_image(model: BlazeNet, image):
+def predict_on_image(
+    model: BlazeNet,
+    image,
+    back_model,
+    min_suppression_threshold: int,
+    min_score_thresh: float,
+):
     """Makes a prediction on a single image.
 
     Arguments:
@@ -281,7 +287,12 @@ def predict_on_image(model: BlazeNet, image):
     if isinstance(image, np.ndarray):
         image = torch.from_numpy(image).permute((2, 0, 1))
 
-    return predict_on_batch(model, image.unsqueeze(0))[0]
+    return predict_on_batch(
+        model,
+        image.unsqueeze(0),
+        back_model=back_model,
+        min_suppression_threshold=min_suppression_threshold,
+    )[0]
 
 
 def _preprocess(x):
