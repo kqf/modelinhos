@@ -292,6 +292,7 @@ def predict_on_image(
         image.unsqueeze(0),
         back_model=back_model,
         min_suppression_threshold=min_suppression_threshold,
+        min_score_thresh=min_score_thresh,
     )[0]
 
 
