@@ -147,7 +147,8 @@ def _decode_boxes(model: BlazeNet, raw, anchors):
             raw[..., offset] / model.x_scale * anchors[:, 2] + anchors[:, 0]
         )  # noqa
         keypoint_y = (
-            raw[..., offset + 1] / model.y_scale * anchors[:, 3] + anchors[:, 1]  # noqa
+            raw[..., offset + 1] / model.y_scale * anchors[:, 3]
+            + anchors[:, 1]  # noqa
         )
         boxes[..., offset] = keypoint_x
         boxes[..., offset + 1] = keypoint_y
