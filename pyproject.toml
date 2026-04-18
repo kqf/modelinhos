@@ -51,10 +51,7 @@ dependencies = [
     "torchvision",
     "onnx",
 ]
-readme = "README.rst"
-
-[tool.setuptools]
-packages = ["modelinhos"]
+readme = { file = "README.rst", content-type = "text/x-rst" }
 
 [tool.setuptools_scm]
 version_scheme = "post-release" # Uses Git tags for versioning
