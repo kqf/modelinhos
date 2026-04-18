@@ -28,7 +28,7 @@ jobs:
 
       - name: Run the tests
         run: |
-          pytest --cov=dadinhos tests/
+          pytest tests/
 
       - name: Run pre-commit checks
         uses: pre-commit/action@v3.0.1
