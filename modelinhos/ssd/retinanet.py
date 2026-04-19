@@ -1,0 +1,134 @@
+from functools import partial
+
+import torch
+import torchvision
+from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
+from torchvision.models.detection.ssdlite import (
+    SSDLiteClassificationHead,
+    SSDLiteRegressionHead,
+)
+
+
+def load_with_mismatch(model, pretrained_state_dict):
+    def repeat(pretrained_param, model_param):
+        if pretrained_param.shape == model_param.shape:
+            return pretrained_param
+
+        ns = model_param.shape
+        expanded = pretrained_param
+        for dim in range(len(ns)):
+            if pretrained_param.shape[dim] < ns[dim]:
+                repeats = ns[dim] // pretrained_param.shape[dim]
+                expanded = expanded.repeat_interleave(repeats, dim=dim)
+            if pretrained_param.shape[dim] > ns[dim]:
+                expanded = torch.narrow(pretrained_param, dim, 0, ns[dim])
+        return expanded
+
+    model_state_dict = model.state_dict()
+
+    for name, pretrained_param in pretrained_state_dict.items():
+        if name in model_state_dict:
+            model_state_dict[name] = repeat(
+                pretrained_param.clone(),
+                model_state_dict[name],
+            )
+
+    model.load_state_dict(model_state_dict)
+    return model
+
+
+# Transformations adjusted for 640x640 images
+def get_transform(train):
+    transforms = [
+        torchvision.transforms.Resize((640, 480)),
+        torchvision.transforms.ToTensor(),
+    ]
+    if train:
+        transforms.append(torchvision.transforms.RandomHorizontalFlip(0.5))
+    return torchvision.transforms.Compose(transforms)
+
+
+class SSDPureHead(torch.nn.Module):
+    def __init__(self, out_channels, num_anchors, norm_layer, n_classes):
+        super().__init__()
+        self.classification_head = SSDLiteClassificationHead(
+            in_channels=out_channels,
+            num_anchors=num_anchors,
+            norm_layer=norm_layer,
+            num_classes=n_classes,
+        )
+        self.regression_head = SSDLiteRegressionHead(
+            in_channels=out_channels,
+            num_anchors=num_anchors,
+            norm_layer=norm_layer,
+        )
+
+    def forward(self, features):
+        classes = self.classification_head(features)
+        boxes = self.regression_head(features)
+        return boxes, classes
+
+
+class RetinaNetPureHead(torch.nn.Module):
+    def __init__(self, out_channels, num_anchors, norm_layer, n_classes):
+        super().__init__()
+        from torchvision.models.detection.retinanet import (
+            RetinaNetClassificationHead,
+            RetinaNetRegressionHead,
+        )
+
+        self.classification_head = RetinaNetClassificationHead(
+            in_channels=out_channels,
+            num_anchors=num_anchors,
+            norm_layer=norm_layer,
+            num_classes=n_classes,
+        )
+        self.regression_head = RetinaNetRegressionHead(
+            in_channels=out_channels,
+            num_anchors=num_anchors,
+            norm_layer=norm_layer,
+        )
+
+    def forward(self, features):
+        classes = self.classification_head(features)
+        boxes = self.regression_head(features)
+        return boxes, classes
+
+
+class RetinaNetPure(torch.nn.Module):
+    def __init__(self, resolution, n_classes):
+        super().__init__()
+        from torchvision.models.detection.retinanet import (
+            RetinaNet_ResNet50_FPN_V2_Weights,
+        )
+        from torchvision.models.resnet import ResNet50_Weights, resnet50
+
+        backbone = resnet50(
+            weights=ResNet50_Weights.IMAGENET1K_V1,
+            progress=True,
+            norm_layer=torch.nn.BatchNorm2d,
+        )
+        # skip P2 because it generates too many anchors
+        self.backbone = _resnet_fpn_extractor(
+            backbone,
+            5,
+            returned_layers=[2, 3, 4],
+        )
+
+        self.head = RetinaNetPureHead(
+            self.backbone.out_channels,
+            2,
+            n_classes=n_classes,
+            norm_layer=partial(torch.nn.GroupNorm, 32),
+        )
+        load_with_mismatch(
+            self,
+            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1.get_state_dict(
+                progress=True,
+            ),
+        )
+
+    def forward(self, images):
+        features = self.backbone(images.float())
+        features = list(features.values())[:-1]
+        return self.head(features)
