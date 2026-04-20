@@ -35,7 +35,7 @@ def test_rentinanet(
     load_weights,
     resolution=(640, 480),
 ):
-    priors = build_anchors(resolution)
+    priors = build_anchors(image_size=resolution[::-1])
     print(priors.shape)
     model = build_model(resolution)
     model = load_weights(model)
