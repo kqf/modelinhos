@@ -6,7 +6,8 @@ from torchvision.models.detection.retinanet import (
 )
 
 from modelinhos.ssd.anchors import anchors
-from modelinhos.ssd.retinanet import RetinaNetPure, load_with_mismatch
+from modelinhos.ssd.load import load_with_mismatch
+from modelinhos.ssd.retinanet import RetinaNetPure
 
 
 @pytest.mark.parametrize(
