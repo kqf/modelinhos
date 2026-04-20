@@ -1,12 +1,17 @@
 from functools import partial
 
 import torch
-import torchvision
 from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
+from torchvision.models.detection.retinanet import (
+    RetinaNet_ResNet50_FPN_V2_Weights,
+    RetinaNetClassificationHead,
+    RetinaNetRegressionHead,
+)
 from torchvision.models.detection.ssdlite import (
     SSDLiteClassificationHead,
     SSDLiteRegressionHead,
 )
+from torchvision.models.resnet import ResNet50_Weights, resnet50
 
 
 def load_with_mismatch(model, pretrained_state_dict):
@@ -37,17 +42,6 @@ def load_with_mismatch(model, pretrained_state_dict):
     return model
 
 
-# Transformations adjusted for 640x640 images
-def get_transform(train):
-    transforms = [
-        torchvision.transforms.Resize((640, 480)),
-        torchvision.transforms.ToTensor(),
-    ]
-    if train:
-        transforms.append(torchvision.transforms.RandomHorizontalFlip(0.5))
-    return torchvision.transforms.Compose(transforms)
-
-
 class SSDPureHead(torch.nn.Module):
     def __init__(self, out_channels, num_anchors, norm_layer, n_classes):
         super().__init__()
@@ -72,10 +66,6 @@ class SSDPureHead(torch.nn.Module):
 class RetinaNetPureHead(torch.nn.Module):
     def __init__(self, out_channels, num_anchors, norm_layer, n_classes):
         super().__init__()
-        from torchvision.models.detection.retinanet import (
-            RetinaNetClassificationHead,
-            RetinaNetRegressionHead,
-        )
 
         self.classification_head = RetinaNetClassificationHead(
             in_channels=out_channels,
@@ -98,11 +88,6 @@ class RetinaNetPureHead(torch.nn.Module):
 class RetinaNetPure(torch.nn.Module):
     def __init__(self, resolution, n_classes):
         super().__init__()
-        from torchvision.models.detection.retinanet import (
-            RetinaNet_ResNet50_FPN_V2_Weights,
-        )
-        from torchvision.models.resnet import ResNet50_Weights, resnet50
-
         backbone = resnet50(
             weights=ResNet50_Weights.IMAGENET1K_V1,
             progress=True,
