@@ -22,7 +22,7 @@ from modelinhos.ssd.retinanet import RetinaNetPure, load_with_mismatch
             ),
             partial(
                 load_with_mismatch,
-                RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1.get_state_dict(
+                pretrained_state_dict=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1.get_state_dict(
                     progress=True,
                 ),
             ),
@@ -37,5 +37,5 @@ def test_rentinanet(
 ):
     priors = build_anchors(image_size=resolution[::-1])
     print(priors.shape)
-    model = build_model(resolution)
+    model = build_model(resolution, n_classes=2)
     model = load_weights(model)
