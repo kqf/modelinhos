@@ -10,7 +10,7 @@ from modelinhos.ssd.retinanet import RetinaNetPure, load_with_mismatch
 
 
 @pytest.mark.parametrize(
-    "build_model, anchors, load_weights",
+    "build_model, build_anchors, load_weights",
     [
         (
             RetinaNetPure,
