@@ -6,7 +6,9 @@ from torchvision.models.detection.retinanet import (
 )
 
 from modelinhos.ssd.anchors import anchors
-from modelinhos.ssd.load import load_with_mismatch
+from modelinhos.ssd.load import (
+    load_with_mismatch_from_weights,
+)
 from modelinhos.ssd.retinanet import RetinaNetPure
 
 
@@ -22,10 +24,9 @@ from modelinhos.ssd.retinanet import RetinaNetPure
                 clip=False,
             ),
             partial(
-                load_with_mismatch,
-                pretrained_state_dict=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1.get_state_dict(
-                    progress=True,
-                ),
+                load_with_mismatch_from_weights,
+                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+                progress=False,
             ),
         )
     ],
