@@ -27,3 +27,8 @@ def load_with_mismatch(model, pretrained_state_dict):
 
     model.load_state_dict(model_state_dict)
     return model
+
+
+def load_with_mismatch_from_weights(model, weights, progress: bool = True):
+    pretrained_state_dict = weights.get_state_dict(progress=progress)
+    return load_with_mismatch(model, pretrained_state_dict)
