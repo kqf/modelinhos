@@ -1,7 +1,6 @@
 from functools import partial
 
 import torch
-import torchvision
 from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
 from torchvision.models.detection.ssdlite import (
     SSDLiteClassificationHead,
@@ -35,17 +34,6 @@ def load_with_mismatch(model, pretrained_state_dict):
 
     model.load_state_dict(model_state_dict)
     return model
-
-
-# Transformations adjusted for 640x640 images
-def get_transform(train):
-    transforms = [
-        torchvision.transforms.Resize((640, 480)),
-        torchvision.transforms.ToTensor(),
-    ]
-    if train:
-        transforms.append(torchvision.transforms.RandomHorizontalFlip(0.5))
-    return torchvision.transforms.Compose(transforms)
 
 
 class SSDPureHead(torch.nn.Module):
