@@ -40,7 +40,7 @@ def batch(resolution: tuple[int, int]) -> torch.Tensor:
         )
     ],
 )
-@pytest.mark.skip()
+# @pytest.mark.skip()
 @pytest.mark.parametrize(
     "resolution",
     [
