@@ -28,6 +28,7 @@ def build_retinanet_torchvision(resolution: tuple[int, int]):
             128,
         ],
         image_size=resolution,
+        clip=False,
     )
 
     return model, priors
