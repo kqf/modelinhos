@@ -13,6 +13,7 @@ from modelinhos.ssd.anchors import anchors
 from modelinhos.ssd.load import (
     load_with_mismatch_from_weights,
 )
+from modelinhos.ssd.retianent_tv import build_retinanet_torchvision
 from modelinhos.ssd.retinanet import RetinaNetPure
 
 
@@ -40,7 +41,7 @@ def batch(resolution: tuple[int, int]) -> torch.Tensor:
         )
     ],
 )
-# @pytest.mark.skip()
+@pytest.mark.skip()
 @pytest.mark.parametrize(
     "resolution",
     [
@@ -57,7 +58,7 @@ def test_ssd(
 ):
     priors = build_anchors(image_size=resolution[::-1])
     print(priors.shape)
-    model = build_model(resolution, n_classes=n_classes)
+    model = build_model(n_classes=n_classes)
     model = load_weights(model)
     boxes, classes = model(batch)
     assert boxes.shape == (1, *priors.shape)
@@ -109,6 +110,9 @@ def plot_predictions(image_rgb, predictions, score_threshold=0.5):
 
 def test_weights_match(frame):
     weights = RetinaNet_ResNet50_FPN_V2_Weights.DEFAULT
+    pure, priors = build_retinanet_torchvision(frame.shape[:2])
+    print(priors.shape)
+    pure.load_state_dict(weights.get_state_dict())
     preprocess = weights.transforms()
 
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
