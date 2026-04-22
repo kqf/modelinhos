@@ -57,7 +57,7 @@ class RetinaNetPureHead(torch.nn.Module):
 
 
 class RetinaNetPure(torch.nn.Module):
-    def __init__(self, resolution, n_classes):
+    def __init__(self, n_classes, extra_blocks=None, num_anchors=2):
         super().__init__()
         backbone = resnet50(
             weights=ResNet50_Weights.IMAGENET1K_V1,
@@ -69,11 +69,12 @@ class RetinaNetPure(torch.nn.Module):
             backbone,
             5,
             returned_layers=[2, 3, 4],
+            extra_blocks=extra_blocks,
         )
 
         self.head = RetinaNetPureHead(
             self.backbone.out_channels,
-            2,
+            num_anchors=num_anchors,
             n_classes=n_classes,
             norm_layer=partial(torch.nn.GroupNorm, 32),
         )
