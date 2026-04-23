@@ -122,3 +122,14 @@ def postprocess(preds, priors, image_size, score_thresh=0.4, iou_thresh=0.5):
             }
         )
     return results
+
+
+def normalize(
+    image: torch.Tensor,
+    image_mean=(0.485, 0.456, 0.406),
+    image_std=(0.229, 0.224, 0.225),
+):
+    dtype, device = image.dtype, image.device
+    mean = torch.as_tensor(image_mean, dtype=dtype, device=device)
+    std = torch.as_tensor(image_std, dtype=dtype, device=device)
+    return (image - mean[:, None, None]) / std[:, None, None]
