@@ -13,7 +13,10 @@ from modelinhos.ssd.anchors import anchors
 from modelinhos.ssd.load import (
     load_with_mismatch_from_weights,
 )
-from modelinhos.ssd.retianent_tv import build_retinanet_torchvision
+from modelinhos.ssd.retianent_tv import (
+    build_retinanet_torchvision,
+    postprocess,
+)
 from modelinhos.ssd.retinanet import RetinaNetPure
 
 
@@ -97,9 +100,11 @@ def plot_predictions(image_rgb, predictions, score_threshold=0.5):
     boxes = pred["boxes"].numpy()
     scores = pred["scores"].numpy()
     image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+    print("here")
     for box, score in zip(boxes, scores):
         if score < score_threshold:
             continue
+        print(score)
         x1, y1, x2, y2 = box.astype(int)
         cv2.rectangle(image_bgr, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
@@ -121,8 +126,15 @@ def test_weights_match(frame):
 
     model = retinanet_resnet50_fpn_v2(weights=weights)
     model.eval()
+    pure.eval()
 
     with torch.no_grad():
         predictions = model(input_tensor)
+        predictions_tv = postprocess(
+            pure(input_tensor),
+            priors,
+            image_size=frame.shape[:2],
+        )
 
     plot_predictions(frame_rgb, predictions)
+    plot_predictions(frame_rgb, predictions_tv)
