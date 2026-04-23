@@ -15,12 +15,8 @@ def retinanet_anchors(image_size, steps, aspect_ratios):
     H, W = image_size
     scales = [1.0, 2 ** (1 / 3), 2 ** (2 / 3)]
     base_sizes = [32, 64, 128, 256, 512]
-
-    # int() truncation matches torchvision's _default_anchorgen
     sizes_per_level = [[int(base * s) for s in scales] for base in base_sizes]
-
     feature_maps = [[math.ceil(H / s), math.ceil(W / s)] for s in steps]
-
     for k, (fm_h, fm_w) in enumerate(feature_maps):
         stride_x = W // fm_w
         stride_y = H // fm_h
