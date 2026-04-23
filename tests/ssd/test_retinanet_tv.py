@@ -30,7 +30,7 @@ def xyxy_to_cxcywh(boxes):
     )
 
 
-def test_retinanet_tv_anchors(resolution=(800, 1088)):
+def test_retinanet_tv_anchors(resolution):
     ag = _default_anchorgen()
     H, W = resolution
 

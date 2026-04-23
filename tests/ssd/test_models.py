@@ -69,7 +69,7 @@ def test_ssd(
     assert classes.shape == (1, priors.shape[0], n_classes)
 
 
-def pad(image: np.ndarray, target_h=800, target_w=1088) -> np.ndarray:
+def pad(image: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
     h, w = image.shape[:2]
 
     t = (target_h - h) // 2
@@ -89,11 +89,11 @@ def pad(image: np.ndarray, target_h=800, target_w=1088) -> np.ndarray:
 
 
 @pytest.fixture
-def frame(path: str = "tests/assets/person.jpg") -> np.ndarray:
+def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
     image = cv2.imread(path)
     if image is None:
         pytest.skip(f"Asset not found: {path}")
-    return pad(image)
+    return pad(image, *resolution)
 
 
 def plot_predictions(image_rgb, predictions, score_threshold=0.5):
