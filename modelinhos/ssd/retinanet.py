@@ -6,32 +6,7 @@ from torchvision.models.detection.retinanet import (
     RetinaNetClassificationHead,
     RetinaNetRegressionHead,
 )
-from torchvision.models.detection.ssdlite import (
-    SSDLiteClassificationHead,
-    SSDLiteRegressionHead,
-)
 from torchvision.models.resnet import ResNet50_Weights, resnet50
-
-
-class SSDPureHead(torch.nn.Module):
-    def __init__(self, out_channels, num_anchors, norm_layer, n_classes):
-        super().__init__()
-        self.classification_head = SSDLiteClassificationHead(
-            in_channels=out_channels,
-            num_anchors=num_anchors,
-            norm_layer=norm_layer,
-            num_classes=n_classes,
-        )
-        self.regression_head = SSDLiteRegressionHead(
-            in_channels=out_channels,
-            num_anchors=num_anchors,
-            norm_layer=norm_layer,
-        )
-
-    def forward(self, features):
-        classes = self.classification_head(features)
-        boxes = self.regression_head(features)
-        return boxes, classes
 
 
 class RetinaNetPureHead(torch.nn.Module):
