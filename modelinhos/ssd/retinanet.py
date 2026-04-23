@@ -78,8 +78,9 @@ class RetinaNetPure(torch.nn.Module):
             n_classes=n_classes,
             norm_layer=partial(torch.nn.GroupNorm, 32),
         )
+        self.last_feature = -1 if extra_blocks is None else None
 
     def forward(self, images):
         features = self.backbone(images.float())
-        features = list(features.values())[:-1]
+        features = list(features.values())[: self.last_feature]
         return self.head(features)
