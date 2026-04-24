@@ -81,7 +81,7 @@ def test_matches_torchvision_anchors(build_anchors, tv_anchors, resolution):
     )
 
 
-def test_anchors(resolution):
+def test_original_ssd_anchors(resolution):
     priors = anchors(
         image_size=resolution,
         sizes=[[16, 32], [64, 128], [256, 512]],
