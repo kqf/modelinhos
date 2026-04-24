@@ -1,5 +1,4 @@
 import math
-from itertools import product
 
 import torch
 import torchvision
@@ -7,32 +6,8 @@ from torchvision.models.detection.retinanet import (
     LastLevelP6P7,
 )
 
+from modelinhos.ssd.anchors import retinanet_anchors
 from modelinhos.ssd.retinanet import RetinaNetPure
-
-
-def retinanet_anchors(image_size, steps, aspect_ratios):
-    anchors = []
-    H, W = image_size
-    scales = [1.0, 2 ** (1 / 3), 2 ** (2 / 3)]
-    base_sizes = [32, 64, 128, 256, 512]
-    sizes_per_level = [[int(base * s) for s in scales] for base in base_sizes]
-    feature_maps = [[math.ceil(H / s), math.ceil(W / s)] for s in steps]
-    for k, (fm_h, fm_w) in enumerate(feature_maps):
-        stride_x = W // fm_w
-        stride_y = H // fm_h
-
-        for i, j in product(range(fm_h), range(fm_w)):
-            cx = j * stride_x
-            cy = i * stride_y
-            for ar in aspect_ratios:
-                w_ratio = 1.0 / math.sqrt(ar)
-                h_ratio = math.sqrt(ar)
-                for size in sizes_per_level[k]:
-                    w = round(w_ratio * size / 2) * 2
-                    h = round(h_ratio * size / 2) * 2
-                    anchors.append([cx / W, cy / H, w / W, h / H])
-
-    return torch.tensor(anchors, dtype=torch.float32).view(-1, 4)
 
 
 def build_retinanet_torchvision(resolution: tuple[int, int]):
@@ -45,6 +20,8 @@ def build_retinanet_torchvision(resolution: tuple[int, int]):
         image_size=resolution,
         steps=[8, 16, 32, 64, 128],
         aspect_ratios=[0.5, 1.0, 2.0],
+        scales=[1.0, 2 ** (1 / 3), 2 ** (2 / 3)],
+        base_sizes=[32, 64, 128, 256, 512],
     )
 
     return model, priors

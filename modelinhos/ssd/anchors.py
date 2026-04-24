@@ -1,3 +1,4 @@
+import math
 from itertools import product
 from math import ceil, sqrt
 
@@ -5,27 +6,23 @@ import torch
 
 
 def anchors(
-    min_sizes: list[list[int]],
+    image_size: tuple[int, int],  # (height, width)
+    sizes: list[list[int]],
     steps: list[int],
     clip: bool,
-    image_size: tuple[int, int],  # (height, width)
 ) -> torch.Tensor:
-    feature_maps = [
-        [ceil(image_size[0] / step), ceil(image_size[1] / step)]
-        for step in steps
-    ]
+    H, W = image_size
+    feature_maps = [[ceil(H / step), ceil(W / step)] for step in steps]
 
     anchors: list[float] = []
     for k, f in enumerate(feature_maps):
-        t_min_sizes = min_sizes[k]
         for i, j in product(range(f[0]), range(f[1])):
-            for min_size in t_min_sizes:
-                s_kx = min_size / image_size[1]
-                s_ky = min_size / image_size[0]
-                dense_cx = [x * steps[k] / image_size[1] for x in [j + 0.5]]
-                dense_cy = [y * steps[k] / image_size[0] for y in [i + 0.5]]
-                for cy, cx in product(dense_cy, dense_cx):
-                    anchors += [cx, cy, s_kx, s_ky]
+            for size in sizes[k]:
+                s_kx = size / W
+                s_ky = size / H
+                cx = (j + 0.5) * steps[k] / W
+                cy = (i + 0.5) * steps[k] / H
+                anchors += [cx, cy, s_kx, s_ky]
 
     # back to torch land
     output = torch.Tensor(anchors).view(-1, 4)
@@ -34,10 +31,40 @@ def anchors(
     return output
 
 
+def retinanet_anchors(
+    image_size,
+    steps,
+    aspect_ratios,
+    scales,
+    base_sizes,
+):
+    anchors = []
+    H, W = image_size
+    sizes_per_level = [[int(base * s) for s in scales] for base in base_sizes]
+    feature_maps = [[math.ceil(H / s), math.ceil(W / s)] for s in steps]
+    for k, (fm_h, fm_w) in enumerate(feature_maps):
+        stride_x = W // fm_w
+        stride_y = H // fm_h
+
+        for i, j in product(range(fm_h), range(fm_w)):
+            cx = j * stride_x
+            cy = i * stride_y
+            for ar in aspect_ratios:
+                w_ratio = 1.0 / math.sqrt(ar)
+                h_ratio = math.sqrt(ar)
+                for size in sizes_per_level[k]:
+                    w = round(w_ratio * size / 2) * 2
+                    h = round(h_ratio * size / 2) * 2
+                    anchors.append([cx / W, cy / H, w / W, h / H])
+
+    return torch.tensor(anchors, dtype=torch.float32).view(-1, 4)
+
+
 def anchors2(
+    image_size: tuple[int, int],
     sizes: list[list[int]],
     steps: list[int],
-    image_size: tuple[int, int],
+    # New, to match RetinaNet
     aspect_ratios: list[float],
     scales: list[float],
     clip=False,

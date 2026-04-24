@@ -6,7 +6,7 @@ from modelinhos.ssd.anchors import anchors, anchors2
 def test_anchors(resolution):
     priors = anchors(
         image_size=resolution,
-        min_sizes=[[16, 32], [64, 128], [256, 512]],
+        sizes=[[16, 32], [64, 128], [256, 512]],
         steps=[8, 16, 32],
         clip=False,
     )
