@@ -1,5 +1,5 @@
-import math
 from functools import partial
+from math import ceil
 
 import numpy as np
 import pytest
@@ -9,9 +9,7 @@ from torchvision.models.detection.image_list import ImageList
 
 from modelinhos.ssd.anchors import (
     anchors,
-    anchors2,
-    retinanet_anchors,
-    retinanet_anchors_,
+    tvison_anchors,
 )
 
 
@@ -46,17 +44,11 @@ def xyxy_to_cxcywh(boxes):
 
 def build_tv_anchors(ag, resolution, strides):
     H, W = resolution
-
-    features = [
-        torch.zeros(1, 256, math.ceil(H / s), math.ceil(W / s))
-        for s in strides
-    ]
-
+    features = [torch.zeros(1, 256, ceil(H / s), ceil(W / s)) for s in strides]
     images = ImageList(
         torch.zeros(1, 3, H, W),
         image_sizes=[(H, W)],
     )
-
     ret_tv_anchors = ag(images, features)
     ret_tv_anchors = xyxy_to_cxcywh(torch.cat(ret_tv_anchors, dim=1))
     ret_tv_anchors = ret_tv_anchors / torch.tensor([W, H, W, H])
@@ -79,14 +71,7 @@ def ssd_tv_anchors(resolution):
     "build_anchors",
     [
         partial(
-            retinanet_anchors,
-            steps=[8, 16, 32, 64, 128],
-            aspect_ratios=[0.5, 1.0, 2.0],
-            scales=[1.0, 2 ** (1 / 3), 2 ** (2 / 3)],
-            base_sizes=[32, 64, 128, 256, 512],
-        ),
-        partial(
-            retinanet_anchors_,
+            tvison_anchors,
             steps=[8, 16, 32, 64, 128],
             aspect_ratios=[0.5, 1.0, 2.0],
             scales=[1.0, 2 ** (1 / 3), 2 ** (2 / 3)],
@@ -95,7 +80,9 @@ def ssd_tv_anchors(resolution):
     ],
 )
 def test_matches_torchvision_anchors(
-    build_anchors, ret_tv_anchors, resolution
+    build_anchors,
+    ret_tv_anchors,
+    resolution,
 ):
     priors = build_anchors(resolution)
     custom = priors
@@ -118,27 +105,6 @@ def test_original_ssd_anchors(resolution, ssd_tv_anchors):
         image_size=resolution,
         sizes=[[16, 32], [64, 128], [256, 512]],
         steps=[8, 16, 32],
-        clip=False,
-    )
-
-    priors2 = anchors2(
-        image_size=resolution,
-        sizes=[[16, 32], [64, 128], [256, 512]],
-        steps=[8, 16, 32],
-        aspect_ratios=[1.0],
-        clip=False,
-    )
-
-    np.testing.assert_almost_equal(
-        priors.cpu().numpy(),
-        priors2.cpu().numpy(),
-        decimal=4,
-    )
-
-    priors3 = anchors2(
-        image_size=resolution,
-        sizes=[[16, 32], [64, 128], [256, 512]],
-        steps=[8, 16, 32],
         aspect_ratios=[1.0],
         clip=False,
         offset=0,
@@ -146,6 +112,6 @@ def test_original_ssd_anchors(resolution, ssd_tv_anchors):
 
     np.testing.assert_almost_equal(
         ssd_tv_anchors.cpu().numpy(),
-        priors3.cpu().numpy(),
+        priors.cpu().numpy(),
         decimal=4,
     )
