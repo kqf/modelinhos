@@ -6,7 +6,7 @@ import torch
 
 
 def anchors(
-    image_size: tuple[int, int],  # h, w
+    resolution: tuple[int, int],  # h, w
     sizes: list[list[int]],
     steps: list[int],
     # New, to match RetinaNet, min_sizes * ratios I calculate manually
@@ -14,7 +14,20 @@ def anchors(
     clip=False,
     offset=0.5,
 ):
-    H, W = image_size
+    """Generates anchros according to the most common conventions.
+
+    The offset parameter is needed to keep compatibility with torchvision.
+    Mental model:
+    n_anchors =
+        └── Feature maps   (len(feature_maps) chunks)
+                └── Rows   (fm_h[i])
+                └── Cols   (fm_w[i])
+                        └── Anchors per cell  (len(aspect_ratios) * len(sizes))
+
+    The flat index:
+        mem_loc(fm=i) + row*fm_w[i]*A + col*A + ar_idx*len(sizes) + size_idx
+    """
+    H, W = resolution
     feature_maps = [[ceil(H / step), ceil(W / step)] for step in steps]
     out = []
     for k, (fm_h, fm_w) in enumerate(feature_maps):
@@ -47,11 +60,11 @@ def anchors(
 
 
 def tvison_anchors(
-    image_size,
+    resolution,
     base_sizes,
     steps,
     aspect_ratios,
     scales,
 ):
     sizes = [[int(base * s) for s in scales] for base in base_sizes]
-    return anchors(image_size, sizes, steps, aspect_ratios, offset=0)
+    return anchors(resolution, sizes, steps, aspect_ratios, offset=0)

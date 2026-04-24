@@ -17,7 +17,7 @@ def build_retinanet_torchvision(resolution: tuple[int, int]):
         num_anchors=9,
     )
     priors = tvison_anchors(
-        image_size=resolution,
+        resolution=resolution,
         steps=[8, 16, 32, 64, 128],
         aspect_ratios=[0.5, 1.0, 2.0],
         scales=[1.0, 2 ** (1 / 3), 2 ** (2 / 3)],
