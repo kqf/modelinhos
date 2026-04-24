@@ -7,7 +7,12 @@ import torch
 from torchvision.models.detection.anchor_utils import AnchorGenerator
 from torchvision.models.detection.image_list import ImageList
 
-from modelinhos.ssd.anchors import anchors, anchors2, retinanet_anchors
+from modelinhos.ssd.anchors import (
+    anchors,
+    anchors2,
+    retinanet_anchors,
+    retinanet_anchors_,
+)
 
 
 def _default_anchorgen():
@@ -61,7 +66,14 @@ def tv_anchors(resolution):
             aspect_ratios=[0.5, 1.0, 2.0],
             scales=[1.0, 2 ** (1 / 3), 2 ** (2 / 3)],
             base_sizes=[32, 64, 128, 256, 512],
-        )
+        ),
+        partial(
+            retinanet_anchors_,
+            steps=[8, 16, 32, 64, 128],
+            aspect_ratios=[0.5, 1.0, 2.0],
+            scales=[1.0, 2 ** (1 / 3), 2 ** (2 / 3)],
+            base_sizes=[32, 64, 128, 256, 512],
+        ),
     ],
 )
 def test_matches_torchvision_anchors(build_anchors, tv_anchors, resolution):
@@ -81,6 +93,7 @@ def test_matches_torchvision_anchors(build_anchors, tv_anchors, resolution):
     )
 
 
+# @pytest.mark.skip()
 def test_original_ssd_anchors(resolution):
     priors = anchors(
         image_size=resolution,
@@ -90,11 +103,10 @@ def test_original_ssd_anchors(resolution):
     )
 
     priors2 = anchors2(
+        image_size=resolution,
         sizes=[[16, 32], [64, 128], [256, 512]],
         steps=[8, 16, 32],
-        image_size=resolution,
         aspect_ratios=[1.0],
-        scales=[1.0],
         clip=False,
     )
 
