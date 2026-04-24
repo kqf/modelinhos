@@ -15,6 +15,7 @@ from modelinhos.ssd.load import (
 )
 from modelinhos.ssd.retianent_tv import (
     build_retinanet_torchvision,
+    normalize,
     postprocess,
 )
 from modelinhos.ssd.retinanet import RetinaNetPure
@@ -68,7 +69,7 @@ def test_ssd(
     assert classes.shape == (1, priors.shape[0], n_classes)
 
 
-def pad(image: np.ndarray, target_h=480, target_w=640) -> np.ndarray:
+def pad(image: np.ndarray, target_h=800, target_w=1066) -> np.ndarray:
     h, w = image.shape[:2]
 
     t = (target_h - h) // 2
@@ -129,9 +130,9 @@ def test_weights_match(frame):
     pure.eval()
 
     with torch.no_grad():
-        predictions = model(input_tensor)
+        predictions = model(input_tensor.clone())
         predictions_tv = postprocess(
-            pure(input_tensor),
+            pure(normalize(input_tensor)),
             priors,
             image_size=frame.shape[:2],
         )
