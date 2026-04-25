@@ -102,7 +102,13 @@ def normalize(
     return (image - mean[:, None, None]) / std[:, None, None]
 
 
-def build_inference_model(build_model, weights, th=0.4):
+def build_inference_model(
+    build_model,
+    weights,
+    th=0.4,
+    postprocess=postprocess,
+    normalize=normalize,
+):
     @wraps(build_inference_model)
     def build_inference(resolution):
         model, priors = build_model(resolution=resolution, weights=weights)
