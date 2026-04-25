@@ -1,5 +1,4 @@
 from functools import partial
-from math import ceil
 
 import torch
 import torchvision
@@ -71,12 +70,16 @@ class SSDPure(torch.nn.Module):
         return self.head(features)
 
 
-def ssd_anchors(resolution: tuple[int, int]) -> torch.Tensor:
+def ssd_anchors(resolution: tuple[int, int], backbone) -> torch.Tensor:
     from torchvision.models.detection.anchor_utils import DefaultBoxGenerator
     from torchvision.models.detection.image_list import ImageList
 
     H, W = resolution
-    steps = [16, 32, 64, 107, 160, 320]
+
+    # Get real feature map sizes from the backbone
+    with torch.no_grad():
+        dummy = torch.zeros(1, 3, H, W)
+        features = list(backbone(dummy).values())
 
     generator = DefaultBoxGenerator(
         aspect_ratios=[[2, 3]] * 6,
@@ -86,9 +89,7 @@ def ssd_anchors(resolution: tuple[int, int]) -> torch.Tensor:
     )
 
     dummy_images = ImageList(torch.zeros(1, 3, H, W), [(H, W)])
-    dummy_fmaps = [torch.zeros(1, 1, ceil(H / s), ceil(W / s)) for s in steps]
-
-    dboxes = generator(dummy_images, dummy_fmaps)[0]
+    dboxes = generator(dummy_images, features)[0]
 
     scale = torch.tensor([W, H, W, H], dtype=dboxes.dtype)
     boxes = dboxes / scale
@@ -200,9 +201,7 @@ def build_lite_torchvision(
         resolution=resolution,
         n_classes=n_classes,
     )
-    priors = ssd_anchors(
-        resolution,
-    )
+    priors = ssd_anchors(resolution, model.backbone)
 
     if weights is not None:
         model.load_state_dict(weights.get_state_dict())
