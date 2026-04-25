@@ -107,6 +107,14 @@ def to_blob(frame: np.ndarray, weights) -> torch.Tensor:
     [
         lambda weights, resolution: retinanet_resnet50_fpn_v2(weights=weights),
         build_inference_model(build_retinanet_torchvision),
+        build_inference_model(
+            partial(build_vanilla_ssd, n_classes=91),
+            th=0.05,
+        ),
+        build_inference_model(
+            partial(build_vanilla_ssd, n_classes=2),
+            th=0.01,
+        ),
     ],
 )
 def test_weights_match(frame, build_model):
@@ -116,4 +124,4 @@ def test_weights_match(frame, build_model):
     blob = to_blob(frame, weights)
     with torch.no_grad():
         predictions = model(blob.clone())
-    plot_predictions(frame, predictions)
+    plot_predictions(frame, predictions, score_threshold=0.01)

@@ -100,7 +100,7 @@ def normalize(
     return (image - mean[:, None, None]) / std[:, None, None]
 
 
-def build_inference_model(build_model):
+def build_inference_model(build_model, th=0.4):
     class InferenceModel(torch.nn.Module):
         def __init__(self, model, priors, resolution):
             super().__init__()
@@ -113,6 +113,7 @@ def build_inference_model(build_model):
                 self.model(normalize(x)),
                 self.anchors,
                 resolution=self.resolution,
+                score_thresh=th,
             )
 
     @wraps(build_inference_model)
