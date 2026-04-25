@@ -10,7 +10,7 @@ def anchors(
     sizes: list[list[int]],
     steps: list[int],
     # New, to match RetinaNet, min_sizes * ratios I calculate manually
-    aspect_ratios: list[float],
+    aspect_ratios: tuple[float] | None = None,
     clip=False,
     offset=0.5,
 ):
@@ -27,6 +27,7 @@ def anchors(
     The flat index:
         mem_loc(fm=i) + row*fm_w[i]*A + col*A + ar_idx*len(sizes) + size_idx
     """
+    aspect_ratios = aspect_ratios or (1.0,)
     H, W = resolution
     feature_maps = [[ceil(H / step), ceil(W / step)] for step in steps]
     out = []
