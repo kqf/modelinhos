@@ -4,6 +4,10 @@ import cv2
 import numpy as np
 import pytest
 import torch
+from torchvision.models.detection import (
+    SSDLite320_MobileNet_V3_Large_Weights,
+    ssdlite320_mobilenet_v3_large,
+)
 from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
     retinanet_resnet50_fpn_v2,
@@ -113,6 +117,10 @@ def build_inference_model_torchvision(model_builder, weights):
 @pytest.mark.parametrize(
     "build_model",
     [
+        build_inference_model_torchvision(
+            ssdlite320_mobilenet_v3_large,
+            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+        ),
         build_inference_model_torchvision(
             retinanet_resnet50_fpn_v2,
             weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
