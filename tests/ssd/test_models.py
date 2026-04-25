@@ -59,6 +59,13 @@ def test_ssd(
 def pad(image: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
     h, w = image.shape[:2]
 
+    square = target_h == target_w
+    target_h = max(target_h, h)
+    target_w = max(target_w, w)
+    if square:
+        target_h = max(target_h, target_w)
+        target_w = max(target_w, target_w)
+
     t = (target_h - h) // 2
     b = target_h - h - t
     l = (target_w - w) // 2  # noqa
@@ -80,7 +87,7 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
     image = cv2.imread(path)
     if image is None:
         pytest.skip(f"Asset not found: {path}")
-    return pad(image, *resolution)
+    return cv2.resize(pad(image, *resolution), resolution[::-1])
 
 
 def plot_predictions(image_bgr, predictions, score_threshold=0.5):

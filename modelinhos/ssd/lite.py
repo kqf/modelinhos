@@ -12,6 +12,8 @@ from torchvision.models.detection.ssdlite import (
     mobilenet_v3_large,
 )
 
+from modelinhos.ssd.anchors import anchors
+
 
 class SSDPureHead(torch.nn.Module):
     def __init__(self, out_channels, num_anchors, norm_layer, n_classes):
@@ -68,3 +70,23 @@ class SSDPure(torch.nn.Module):
         features = self.backbone(images.float())
         features = list(features.values())[:-3]
         return self.head(features)
+
+
+def build_lite_torchvision(
+    n_classes=91,
+    resolution: tuple[int, int] = (320, 320),
+    weights=None,
+):
+    model = SSDPure(
+        resolution=resolution,
+        n_classes=n_classes,
+    )
+    priors = anchors(
+        resolution=resolution,
+        sizes=[[64, 128], [256, 512], [1024, 2048]],
+        steps=[16, 32, 64],
+        clip=False,
+    )
+    if weights is not None:
+        model.load_state_dict(weights.get_state_dict())
+    return model, priors
