@@ -1,6 +1,8 @@
 import math
 from functools import wraps
 
+import cv2
+import numpy as np
 import torch
 import torchvision
 from torchvision.models.detection.retinanet import (
@@ -100,25 +102,28 @@ def normalize(
     return (image - mean[:, None, None]) / std[:, None, None]
 
 
-def build_inference_model(build_model, th=0.4):
-    class InferenceModel(torch.nn.Module):
-        def __init__(self, model, priors, resolution):
-            super().__init__()
-            self.model = model
-            self.register_buffer("anchors", priors)
-            self.resolution = resolution
+def build_inference_model(build_model, weights, th=0.4):
+    @wraps(build_inference_model)
+    def build_inference(resolution):
+        model, priors = build_model(resolution=resolution, weights=weights)
+        model.eval()
 
-        def forward(self, x: torch.Tensor):
+        def infer(frame: np.ndarray):
+            blob = to_blob(frame, weights)
             return postprocess(
-                self.model(normalize(x)),
-                self.anchors,
-                resolution=self.resolution,
+                model(normalize(blob)),
+                priors,
+                resolution=resolution,
                 score_thresh=th,
             )
 
-    @wraps(build_inference_model)
-    def build_inference(weights, resolution):
-        model, priors = build_model(resolution=resolution, weights=weights)
-        return InferenceModel(model, priors, resolution)
+        return infer
 
     return build_inference
+
+
+def to_blob(frame: np.ndarray, weights) -> torch.Tensor:
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).float() / 255.0
+    preprocess = weights.transforms()
+    return preprocess(tensor).unsqueeze(0)
