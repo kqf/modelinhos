@@ -14,6 +14,7 @@ from modelinhos.ssd.retinanet import RetinaNetPure
 def build_retinanet_torchvision(
     n_classes=91,
     resolution: tuple[int, int] = (800, 1088),
+    weights=None,
 ):
     model = RetinaNetPure(
         n_classes,
@@ -27,7 +28,8 @@ def build_retinanet_torchvision(
         scales=[1.0, 2 ** (1 / 3), 2 ** (2 / 3)],
         base_sizes=[32, 64, 128, 256, 512],
     )
-
+    if weights is not None:
+        model.load_state_dict(weights.get_state_dict())
     return model, priors
 
 
@@ -115,8 +117,7 @@ def build_inference_model(build_model):
 
     @wraps(build_inference_model)
     def build_inference(weights, resolution):
-        model, priors = build_model(resolution=resolution)
-        model.load_state_dict(weights.get_state_dict())
+        model, priors = build_model(resolution=resolution, weights=weights)
         return InferenceModel(model, priors, resolution)
 
     return build_inference

@@ -9,9 +9,6 @@ from torchvision.models.detection.retinanet import (
     retinanet_resnet50_fpn_v2,
 )
 
-from modelinhos.ssd.load import (
-    load_with_mismatch_from_weights,
-)
 from modelinhos.ssd.retianent_tv import (
     build_inference_model,
     build_retinanet_torchvision,
@@ -26,33 +23,29 @@ def batch(resolution: tuple[int, int]) -> torch.Tensor:
 
 @pytest.mark.skip
 @pytest.mark.parametrize(
-    "build_model, load_weights",
+    "build_model",
     [
         (
-            build_vanilla_ssd,
             partial(
-                load_with_mismatch_from_weights,
+                build_vanilla_ssd,
                 weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-                progress=False,
             ),
         ),
         (
-            build_retinanet_torchvision,
-            lambda model: model.load_state_dict(
-                RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1.get_state_dict(),
-            ),
+            partial(
+                build_retinanet_torchvision,
+                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+            )
         ),
     ],
 )
 def test_ssd(
     build_model,
-    load_weights,
     resolution,
     batch,
     n_classes=91,
 ):
     model, priors = build_model(n_classes=n_classes, resolution=resolution)
-    load_weights(model)
     boxes, classes = model(batch)
     assert boxes.shape == (1, *priors.shape)
     assert classes.shape == (1, priors.shape[0], n_classes)
@@ -117,7 +110,7 @@ def to_blob(frame: np.ndarray, weights) -> torch.Tensor:
     ],
 )
 def test_weights_match(frame, build_model):
-    weights = RetinaNet_ResNet50_FPN_V2_Weights.DEFAULT
+    weights = RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1
     model = build_model(weights=weights, resolution=frame.shape[:2])
     model.eval()
     blob = to_blob(frame, weights)
