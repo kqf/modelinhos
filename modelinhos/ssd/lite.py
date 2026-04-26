@@ -12,6 +12,8 @@ from torchvision.models.detection.ssdlite import (
     mobilenet_v3_large,
 )
 
+from modelinhos.ssd.anchors import anchors
+from modelinhos.ssd.load import load_with_mismatch
 from modelinhos.ssd.retianent_tv import decode_boxes, normalize
 
 
@@ -37,7 +39,7 @@ class SSDPureHead(torch.nn.Module):
 
 
 class SSDPure(torch.nn.Module):
-    def __init__(self, resolution, n_classes, num_anchors=6):
+    def __init__(self, resolution, n_classes, num_anchors=2, extra=-3):
         super().__init__()
         self.n_classes = n_classes
         norm_layer = partial(torch.nn.BatchNorm2d, eps=0.001, momentum=0.03)
@@ -63,10 +65,11 @@ class SSDPure(torch.nn.Module):
             norm_layer=norm_layer,
             n_classes=n_classes,
         )
+        self.extra = extra
 
     def forward(self, images):
         features = self.backbone(images.float())
-        features = list(features.values())
+        features = list(features.values())[: self.extra]
         return self.head(features)
 
 
@@ -192,6 +195,7 @@ ssd_normalize = partial(
 )
 
 
+# This configures ssd as it was trained
 def build_lite_torchvision(
     n_classes=91,
     resolution: tuple[int, int] = (320, 320),
@@ -200,10 +204,30 @@ def build_lite_torchvision(
     model = SSDPure(
         resolution=resolution,
         n_classes=n_classes,
+        num_anchors=6,
+        extra=None,
     )
     priors = ssd_anchors(resolution, model.backbone)
 
     if weights is not None:
         model.load_state_dict(weights.get_state_dict())
     model.eval()
+    return model, priors
+
+
+# This configures retina-net like network
+def build_pure_ssd_lite(
+    resolution: tuple[int, int],
+    n_classes: int = 92,
+    weights=None,
+):
+    model = SSDPure(resolution, n_classes=n_classes)
+    priors = anchors(
+        sizes=[[64, 128], [256, 512], [1024, 2048]],
+        steps=[16, 32, 64],
+        clip=False,
+        resolution=resolution,
+    )
+    if weights is not None:
+        model = load_with_mismatch(model, weights.get_state_dict())
     return model, priors
