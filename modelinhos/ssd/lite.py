@@ -223,11 +223,12 @@ def build_pure_ssd_lite(
 ):
     model = SSDPure(resolution, n_classes=n_classes)
     priors = anchors(
-        sizes=[[64, 128], [256, 512], [1024, 2048]],
+        resolution,
+        sizes=[[32, 64], [64, 128], [128, 256]],
         steps=[16, 32, 64],
         clip=False,
-        resolution=resolution,
     )
+
     if weights is not None:
         model = load_with_mismatch(model, weights.get_state_dict())
     return model, priors
