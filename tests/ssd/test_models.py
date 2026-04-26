@@ -69,7 +69,7 @@ def test_ssd(
     assert classes.shape == (1, priors.shape[0], n_classes)
 
 
-def pad(image: np.ndarray, target_h=800, target_w=1066) -> np.ndarray:
+def pad(image: np.ndarray, target_h=800, target_w=1088) -> np.ndarray:
     h, w = image.shape[:2]
 
     t = (target_h - h) // 2
