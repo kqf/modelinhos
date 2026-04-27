@@ -19,11 +19,10 @@ def xyxy_to_cxcywh(boxes):
 
 
 def build_tv_anchors(ag, resolution, strides):
-    H, W = resolution
-    features = [torch.zeros(1, 256, ceil(H / s), ceil(W / s)) for s in strides]
-    images = ImageList(torch.zeros(1, 3, H, W), image_sizes=[(H, W)])
-    tv = xyxy_to_cxcywh(torch.cat(ag(images, features), dim=1))
-    return tv / torch.tensor([W, H, W, H])
+    h, w = resolution
+    features = [torch.zeros(1, 256, ceil(h / s), ceil(w / s)) for s in strides]
+    images = ImageList(torch.zeros(1, 3, h, w), image_sizes=[(h, w)])
+    return torch.cat(ag(images, features), dim=1)
 
 
 def _default_anchorgen():
@@ -74,8 +73,12 @@ def _ssd_anchorgen():
     ],
 )
 def test_anchors_match_torchvision(resolution, build_tv, build_custom):
-    expected = build_tv(resolution)
-    actual = build_custom(resolution)
+    # Convert to cx, cy, w, h (pixels) -- for easier debugging
+    expected = xyxy_to_cxcywh(build_tv(resolution))
+
+    # Convert to pixel coordinates, for easier debugging
+    h, w = resolution
+    actual = build_custom(resolution) * torch.tensor([w, h, w, h])
     np.testing.assert_almost_equal(
         actual.cpu().numpy(), expected.cpu().numpy(), decimal=4
     )
