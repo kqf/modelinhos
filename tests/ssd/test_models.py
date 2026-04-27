@@ -11,6 +11,7 @@ from torchvision.models.detection import (
 )
 from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
+    retinanet_resnet50_fpn_v2,
 )
 
 from modelinhos.ssd.lite import (
