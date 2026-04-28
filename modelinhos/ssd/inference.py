@@ -4,8 +4,7 @@ from functools import wraps
 import cv2
 import numpy as np
 import torch
-
-from modelinhos.ssd.retinanet import postprocess
+import torchvision
 
 
 def to_blob(frame: np.ndarray, weights) -> torch.Tensor:
@@ -59,6 +58,27 @@ def decode_boxes(
         [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2],
         dim=-1,
     )
+
+
+def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
+    raw_deltas, raw_logits = preds
+    boxes = decode_boxes(raw_deltas, priors.to(raw_deltas.device), resolution)
+    scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
+
+    results = []
+    for b in range(scores.shape[0]):
+        s, l, bx = scores[b], labels[b], boxes[b]  # noqa
+        keep = s > score_thresh
+        s, l, bx = s[keep], l[keep], bx[keep]  # noqa
+        keep = torchvision.ops.batched_nms(bx, s, l, iou_thresh)
+        results.append(
+            {
+                "boxes": bx[keep],
+                "scores": s[keep],
+                "labels": l[keep],
+            }
+        )
+    return results
 
 
 def build_inference_model(
