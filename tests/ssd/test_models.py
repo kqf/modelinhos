@@ -6,7 +6,6 @@ import pytest
 import torch
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
-    retinanet_resnet50_fpn_v2,
     ssdlite320_mobilenet_v3_large,
 )
 from torchvision.models.detection.retinanet import (
@@ -14,6 +13,7 @@ from torchvision.models.detection.retinanet import (
     retinanet_resnet50_fpn_v2,
 )
 
+from modelinhos.ssd.inference import build_inference_model, to_blob
 from modelinhos.ssd.lite import (
     build_lite_torchvision,
     build_pure_ssd_lite,
@@ -21,9 +21,7 @@ from modelinhos.ssd.lite import (
     ssd_postprocess,
 )
 from modelinhos.ssd.retianent_tv import (
-    build_inference_model,
     build_retinanet_torchvision,
-    to_blob,
 )
 from modelinhos.ssd.retinanet import build_vanilla_ssd
 

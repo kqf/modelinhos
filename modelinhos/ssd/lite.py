@@ -13,8 +13,8 @@ from torchvision.models.detection.ssdlite import (
 )
 
 from modelinhos.ssd.anchors import anchors
+from modelinhos.ssd.inference import decode_boxes, normalize
 from modelinhos.ssd.load import load_with_mismatch
-from modelinhos.ssd.retianent_tv import decode_boxes, normalize
 
 
 class SSDPureHead(torch.nn.Module):
