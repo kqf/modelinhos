@@ -45,13 +45,6 @@ def batch(resolution: tuple[int, int]) -> torch.Tensor:
         )
     ],
 )
-@pytest.mark.skip()
-@pytest.mark.parametrize(
-    "resolution",
-    [
-        (640, 480),
-    ],
-)
 def test_ssd(
     build_model,
     build_anchors,
@@ -60,7 +53,7 @@ def test_ssd(
     batch,
     n_classes=2,
 ):
-    priors = build_anchors(image_size=resolution[::-1])
+    priors = build_anchors(image_size=resolution)
     print(priors.shape)
     model = build_model(n_classes=n_classes)
     model = load_weights(model)
