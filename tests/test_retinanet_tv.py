@@ -5,7 +5,7 @@ import torch
 from torchvision.models.detection.anchor_utils import AnchorGenerator
 from torchvision.models.detection.image_list import ImageList
 
-from modelinhos.ssd.retianent_tv import build_retinanet_torchvision
+from modelinhos.ssd.retinanet import build_retinanet_torchvision
 
 
 def _default_anchorgen():

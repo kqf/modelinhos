@@ -20,10 +20,10 @@ from modelinhos.ssd.lite import (
     ssd_normalize,
     ssd_postprocess,
 )
-from modelinhos.ssd.retianent_tv import (
+from modelinhos.ssd.retinanet import (
     build_retinanet_torchvision,
+    build_vanilla_ssd,
 )
-from modelinhos.ssd.retinanet import build_vanilla_ssd
 
 
 @pytest.fixture

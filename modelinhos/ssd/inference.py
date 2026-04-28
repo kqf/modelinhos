@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import torch
 
-from modelinhos.ssd.retianent_tv import postprocess
+from modelinhos.ssd.retinanet import postprocess
 
 
 def to_blob(frame: np.ndarray, weights) -> torch.Tensor:
