@@ -67,21 +67,6 @@ class RetinaNetPure(torch.nn.Module):
         return self.head(features)
 
 
-def build_vanilla_ssd(n_classes, resolution: tuple[int, int], weights):
-    model = RetinaNetPure(n_classes)
-    if weights is not None:
-        load_with_mismatch_from_weights(model, weights=weights, progress=False)
-    return (
-        model,
-        anchors(
-            resolution,
-            sizes=[[16, 32], [64, 128], [256, 512]],
-            steps=[8, 16, 32],
-            clip=False,
-        ),
-    )
-
-
 def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
     raw_deltas, raw_logits = preds
     boxes = decode_boxes(raw_deltas, priors.to(raw_deltas.device), resolution)
@@ -103,7 +88,22 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
     return results
 
 
-def build_retinanet_torchvision(
+def bulid_retinanet(n_classes, resolution: tuple[int, int], weights):
+    model = RetinaNetPure(n_classes)
+    if weights is not None:
+        load_with_mismatch_from_weights(model, weights=weights, progress=False)
+    return (
+        model,
+        anchors(
+            resolution,
+            sizes=[[16, 32], [64, 128], [256, 512]],
+            steps=[8, 16, 32],
+            clip=False,
+        ),
+    )
+
+
+def build_torchvision_retinanet(
     n_classes=91,
     resolution: tuple[int, int] = (800, 1088),
     weights=None,
