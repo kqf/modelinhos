@@ -24,6 +24,13 @@ def _default_anchorgen():
     return AnchorGenerator(anchor_sizes, aspect_ratios)
 
 
+def _ssd_anchorgen():
+    return AnchorGenerator(
+        ((16, 32), (64, 128), (256, 512)),
+        ((1,), (1,), (1,)),
+    )
+
+
 def xyxy_to_cxcywh(boxes):
     x1, y1, x2, y2 = boxes.unbind(-1)
     return torch.stack(
@@ -37,14 +44,12 @@ def xyxy_to_cxcywh(boxes):
     )
 
 
-@pytest.fixture
-def tv_anchors(resolution):
-    ag = _default_anchorgen()
+def build_tv_anchors(ag, resolution, strides):
     H, W = resolution
 
     features = [
         torch.zeros(1, 256, math.ceil(H / s), math.ceil(W / s))
-        for s in [8, 16, 32, 64, 128]
+        for s in strides
     ]
 
     images = ImageList(
@@ -52,9 +57,22 @@ def tv_anchors(resolution):
         image_sizes=[(H, W)],
     )
 
-    tv_anchors = ag(images, features)
-    tv_anchors = xyxy_to_cxcywh(torch.cat(tv_anchors, dim=1))
-    return tv_anchors
+    ret_tv_anchors = ag(images, features)
+    ret_tv_anchors = xyxy_to_cxcywh(torch.cat(ret_tv_anchors, dim=1))
+    ret_tv_anchors = ret_tv_anchors / torch.tensor([W, H, W, H])
+    return ret_tv_anchors
+
+
+@pytest.fixture
+def ret_tv_anchors(resolution):
+    ag = _default_anchorgen()
+    return build_tv_anchors(ag, resolution, strides=[8, 16, 32, 64, 128])
+
+
+@pytest.fixture
+def ssd_tv_anchors(resolution):
+    ag = _ssd_anchorgen()
+    return build_tv_anchors(ag, resolution, strides=[8, 16, 32])
 
 
 @pytest.mark.parametrize(
@@ -76,25 +94,26 @@ def tv_anchors(resolution):
         ),
     ],
 )
-def test_matches_torchvision_anchors(build_anchors, tv_anchors, resolution):
-    H, W = resolution
+def test_matches_torchvision_anchors(
+    build_anchors, ret_tv_anchors, resolution
+):
     priors = build_anchors(resolution)
-    custom = priors * torch.tensor([W, H, W, H], dtype=priors.dtype)
-    print("mean abs diff:", (custom - tv_anchors).abs().mean())
-    print("mean abs diff:", (custom - tv_anchors).abs().max())
+    custom = priors
+    print("mean abs diff:", (custom - ret_tv_anchors).abs().mean())
+    print("mean abs diff:", (custom - ret_tv_anchors).abs().max())
     print("Original:")
-    print(tv_anchors[:10])
+    print(ret_tv_anchors[:10])
     print("Current")
     print(custom[:10])
     np.testing.assert_almost_equal(
         custom.cpu().numpy(),
-        tv_anchors.cpu().numpy(),
+        ret_tv_anchors.cpu().numpy(),
         decimal=4,
     )
 
 
 # @pytest.mark.skip()
-def test_original_ssd_anchors(resolution):
+def test_original_ssd_anchors(resolution, ssd_tv_anchors):
     priors = anchors(
         image_size=resolution,
         sizes=[[16, 32], [64, 128], [256, 512]],
@@ -113,5 +132,20 @@ def test_original_ssd_anchors(resolution):
     np.testing.assert_almost_equal(
         priors.cpu().numpy(),
         priors2.cpu().numpy(),
+        decimal=4,
+    )
+
+    priors3 = anchors2(
+        image_size=resolution,
+        sizes=[[16, 32], [64, 128], [256, 512]],
+        steps=[8, 16, 32],
+        aspect_ratios=[1.0],
+        clip=False,
+        offset=0,
+    )
+
+    np.testing.assert_almost_equal(
+        ssd_tv_anchors.cpu().numpy(),
+        priors3.cpu().numpy(),
         decimal=4,
     )
