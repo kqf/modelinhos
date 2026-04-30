@@ -6,7 +6,7 @@ from torchvision.models.detection.retinanet import (
     LastLevelP6P7,
 )
 
-from modelinhos.ssd.anchors import retinanet_anchors
+from modelinhos.ssd.anchors import tvison_anchors
 from modelinhos.ssd.retinanet import RetinaNetPure
 
 
@@ -16,7 +16,7 @@ def build_retinanet_torchvision(resolution: tuple[int, int]):
         extra_blocks=LastLevelP6P7(2048, 256),
         num_anchors=9,
     )
-    priors = retinanet_anchors(
+    priors = tvison_anchors(
         image_size=resolution,
         steps=[8, 16, 32, 64, 128],
         aspect_ratios=[0.5, 1.0, 2.0],

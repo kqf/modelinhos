@@ -6,74 +6,7 @@ import torch
 
 
 def anchors(
-    image_size: tuple[int, int],  # (height, width)
-    sizes: list[list[int]],
-    steps: list[int],
-    clip: bool,
-) -> torch.Tensor:
-    H, W = image_size
-    feature_maps = [[ceil(H / step), ceil(W / step)] for step in steps]
-
-    anchors: list[float] = []
-    for k, f in enumerate(feature_maps):
-        for i, j in product(range(f[0]), range(f[1])):
-            for size in sizes[k]:
-                s_kx = size / W
-                s_ky = size / H
-                cx = (j + 0.5) * steps[k] / W
-                cy = (i + 0.5) * steps[k] / H
-                anchors += [cx, cy, s_kx, s_ky]
-
-    # back to torch land
-    output = torch.Tensor(anchors).view(-1, 4)
-    if clip:
-        output.clamp_(max=1, min=0)
-    return output
-
-
-def retinanet_anchors_(
-    image_size,
-    steps,
-    aspect_ratios,
-    scales,
-    base_sizes,
-):
-    anchors = []
-    H, W = image_size
-    sizes = [[int(base * s) for s in scales] for base in base_sizes]
-    feature_maps = [[math.ceil(H / s), math.ceil(W / s)] for s in steps]
-    for k, (fm_h, fm_w) in enumerate(feature_maps):
-        stride_x = W // fm_w
-        stride_y = H // fm_h
-
-        for i, j in product(range(fm_h), range(fm_w)):
-            cx = j * stride_x / W
-            cy = i * stride_y / H
-            for ar in aspect_ratios:
-                w_ratio = 1.0 / math.sqrt(ar)
-                h_ratio = math.sqrt(ar)
-                for size in sizes[k]:
-                    w = round(w_ratio * size / 2) * 2 / W
-                    h = round(h_ratio * size / 2) * 2 / H
-                    anchors.append([cx, cy, w, h])
-
-    return torch.tensor(anchors, dtype=torch.float32).view(-1, 4)
-
-
-def retinanet_anchors(
-    image_size,
-    base_sizes,
-    steps,
-    aspect_ratios,
-    scales,
-):
-    sizes = [[int(base * s) for s in scales] for base in base_sizes]
-    print(sizes)
-    return anchors2(image_size, sizes, steps, aspect_ratios, offset=0)
-
-
-def anchors2(
-    image_size: tuple[int, int],
+    image_size: tuple[int, int],  # h, w
     sizes: list[list[int]],
     steps: list[int],
     # New, to match RetinaNet, min_sizes * ratios I calculate manually
@@ -111,3 +44,14 @@ def anchors2(
         output.clamp_(0, 1)
 
     return output
+
+
+def tvison_anchors(
+    image_size,
+    base_sizes,
+    steps,
+    aspect_ratios,
+    scales,
+):
+    sizes = [[int(base * s) for s in scales] for base in base_sizes]
+    return anchors(image_size, sizes, steps, aspect_ratios, offset=0)
