@@ -1,6 +1,6 @@
 import math
 from itertools import product
-from math import ceil
+from math import ceil, sqrt
 
 import torch
 
