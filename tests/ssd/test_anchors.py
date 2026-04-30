@@ -102,7 +102,7 @@ def test_matches_torchvision_anchors(
 # @pytest.mark.skip()
 def test_original_ssd_anchors(resolution, ssd_tv_anchors):
     priors = anchors(
-        image_size=resolution,
+        resolution=resolution,
         sizes=[[16, 32], [64, 128], [256, 512]],
         steps=[8, 16, 32],
         aspect_ratios=[1.0],
