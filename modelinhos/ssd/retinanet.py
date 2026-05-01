@@ -9,6 +9,7 @@ from torchvision.models.detection.retinanet import (
 from torchvision.models.resnet import ResNet50_Weights, resnet50
 
 from modelinhos.ssd.anchors import anchors
+from modelinhos.ssd.load import load_with_mismatch_from_weights
 
 
 class RetinaNetPureHead(torch.nn.Module):
@@ -63,9 +64,12 @@ class RetinaNetPure(torch.nn.Module):
         return self.head(features)
 
 
-def build_vanilla_ssd(n_classes, resolution: tuple[int, int]):
+def build_vanilla_ssd(n_classes, resolution: tuple[int, int], weights):
+    model = RetinaNetPure(n_classes)
+    if weights is not None:
+        load_with_mismatch_from_weights(model, weights=weights, progress=False)
     return (
-        RetinaNetPure(n_classes),
+        model,
         anchors(
             resolution,
             sizes=[[16, 32], [64, 128], [256, 512]],

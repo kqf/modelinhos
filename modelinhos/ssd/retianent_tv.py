@@ -1,4 +1,5 @@
 import math
+from functools import wraps
 
 import torch
 import torchvision
@@ -13,6 +14,7 @@ from modelinhos.ssd.retinanet import RetinaNetPure
 def build_retinanet_torchvision(
     n_classes=91,
     resolution: tuple[int, int] = (800, 1088),
+    weights=None,
 ):
     model = RetinaNetPure(
         n_classes,
@@ -26,7 +28,8 @@ def build_retinanet_torchvision(
         scales=[1.0, 2 ** (1 / 3), 2 ** (2 / 3)],
         base_sizes=[32, 64, 128, 256, 512],
     )
-
+    if weights is not None:
+        model.load_state_dict(weights.get_state_dict())
     return model, priors
 
 
@@ -65,9 +68,9 @@ def decode_boxes(
     )
 
 
-def postprocess(preds, priors, image_size, score_thresh=0.4, iou_thresh=0.5):
+def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
     raw_deltas, raw_logits = preds
-    boxes = decode_boxes(raw_deltas, priors.to(raw_deltas.device), image_size)
+    boxes = decode_boxes(raw_deltas, priors.to(raw_deltas.device), resolution)
     scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
 
     results = []
@@ -95,3 +98,27 @@ def normalize(
     mean = torch.as_tensor(image_mean, dtype=dtype, device=device)
     std = torch.as_tensor(image_std, dtype=dtype, device=device)
     return (image - mean[:, None, None]) / std[:, None, None]
+
+
+def build_inference_model(build_model, th=0.4):
+    class InferenceModel(torch.nn.Module):
+        def __init__(self, model, priors, resolution):
+            super().__init__()
+            self.model = model
+            self.register_buffer("anchors", priors)
+            self.resolution = resolution
+
+        def forward(self, x: torch.Tensor):
+            return postprocess(
+                self.model(normalize(x)),
+                self.anchors,
+                resolution=self.resolution,
+                score_thresh=th,
+            )
+
+    @wraps(build_inference_model)
+    def build_inference(weights, resolution):
+        model, priors = build_model(resolution=resolution, weights=weights)
+        return InferenceModel(model, priors, resolution)
+
+    return build_inference

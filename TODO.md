@@ -1,6 +1,6 @@
 Things to do:
 
-- [ ] See what happens when we remove anchors from retina-net
+- [x] See what happens when we remove anchors from retina-net -> man is not detected, ties are kinda detected
 - [ ] Add the ssd model
 - [ ] Simplify the anchor tests
 - [ ] Add the fit/transform/predict wrappers

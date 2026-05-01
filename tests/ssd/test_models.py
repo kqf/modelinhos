@@ -9,13 +9,9 @@ from torchvision.models.detection.retinanet import (
     retinanet_resnet50_fpn_v2,
 )
 
-from modelinhos.ssd.load import (
-    load_with_mismatch_from_weights,
-)
 from modelinhos.ssd.retianent_tv import (
+    build_inference_model,
     build_retinanet_torchvision,
-    normalize,
-    postprocess,
 )
 from modelinhos.ssd.retinanet import build_vanilla_ssd
 
@@ -25,34 +21,31 @@ def batch(resolution: tuple[int, int]) -> torch.Tensor:
     return torch.rand(1, 3, *resolution)
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize(
-    "build_model, load_weights",
+    "build_model",
     [
         (
-            build_vanilla_ssd,
             partial(
-                load_with_mismatch_from_weights,
+                build_vanilla_ssd,
                 weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-                progress=False,
             ),
         ),
         (
-            build_retinanet_torchvision,
-            lambda model: model.load_state_dict(
-                RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1.get_state_dict(),
-            ),
+            partial(
+                build_retinanet_torchvision,
+                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+            )
         ),
     ],
 )
 def test_ssd(
     build_model,
-    load_weights,
     resolution,
     batch,
     n_classes=91,
 ):
     model, priors = build_model(n_classes=n_classes, resolution=resolution)
-    load_weights(model)
     boxes, classes = model(batch)
     assert boxes.shape == (1, *priors.shape)
     assert classes.shape == (1, priors.shape[0], n_classes)
@@ -85,12 +78,11 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
     return pad(image, *resolution)
 
 
-def plot_predictions(image_rgb, predictions, score_threshold=0.5):
+def plot_predictions(image_bgr, predictions, score_threshold=0.5):
     pred = predictions[0]
     boxes = pred["boxes"].numpy()
     scores = pred["scores"].numpy()
-    image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-    print("here")
+    print()
     for box, score in zip(boxes, scores):
         if score < score_threshold:
             continue
@@ -103,28 +95,33 @@ def plot_predictions(image_rgb, predictions, score_threshold=0.5):
     cv2.destroyAllWindows()
 
 
-@pytest.mark.skip
-def test_weights_match(frame):
-    weights = RetinaNet_ResNet50_FPN_V2_Weights.DEFAULT
-    cleaned, cpriors = build_retinanet_torchvision(resolution=frame.shape[:2])
-    cleaned.load_state_dict(weights.get_state_dict())
-    preprocess = weights.transforms()
-
+def to_blob(frame: np.ndarray, weights) -> torch.Tensor:
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).float() / 255.0
-    input_tensor = preprocess(tensor).unsqueeze(0)
+    preprocess = weights.transforms()
+    return preprocess(tensor).unsqueeze(0)
 
-    model = retinanet_resnet50_fpn_v2(weights=weights)
+
+@pytest.mark.parametrize(
+    "build_model",
+    [
+        lambda weights, resolution: retinanet_resnet50_fpn_v2(weights=weights),
+        build_inference_model(build_retinanet_torchvision),
+        build_inference_model(
+            partial(build_vanilla_ssd, n_classes=91),
+            th=0.05,
+        ),
+        build_inference_model(
+            partial(build_vanilla_ssd, n_classes=2),
+            th=0.01,
+        ),
+    ],
+)
+def test_weights_match(frame, build_model):
+    weights = RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1
+    model = build_model(weights=weights, resolution=frame.shape[:2])
     model.eval()
-    cleaned.eval()
-
+    blob = to_blob(frame, weights)
     with torch.no_grad():
-        predictions = model(input_tensor.clone())
-        predictions_tv = postprocess(
-            cleaned(normalize(input_tensor)),
-            cpriors,
-            image_size=frame.shape[:2],
-        )
-
-    plot_predictions(frame_rgb, predictions)
-    plot_predictions(frame_rgb, predictions_tv)
+        predictions = model(blob.clone())
+    plot_predictions(frame, predictions, score_threshold=0.01)
