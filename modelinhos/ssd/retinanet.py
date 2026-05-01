@@ -8,6 +8,8 @@ from torchvision.models.detection.retinanet import (
 )
 from torchvision.models.resnet import ResNet50_Weights, resnet50
 
+from modelinhos.ssd.anchors import anchors
+
 
 class RetinaNetPureHead(torch.nn.Module):
     def __init__(self, out_channels, num_anchors, norm_layer, n_classes):
@@ -59,3 +61,15 @@ class RetinaNetPure(torch.nn.Module):
         features = self.backbone(images.float())
         features = list(features.values())[: self.last_feature]
         return self.head(features)
+
+
+def build_vanilla_ssd(n_classes, resolution: tuple[int, int]):
+    return (
+        RetinaNetPure(n_classes),
+        anchors(
+            resolution,
+            sizes=[[16, 32], [64, 128], [256, 512]],
+            steps=[8, 16, 32],
+            clip=False,
+        ),
+    )

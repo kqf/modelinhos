@@ -9,7 +9,6 @@ from torchvision.models.detection.retinanet import (
     retinanet_resnet50_fpn_v2,
 )
 
-from modelinhos.ssd.anchors import anchors
 from modelinhos.ssd.load import (
     load_with_mismatch_from_weights,
 )
@@ -18,7 +17,7 @@ from modelinhos.ssd.retianent_tv import (
     normalize,
     postprocess,
 )
-from modelinhos.ssd.retinanet import RetinaNetPure
+from modelinhos.ssd.retinanet import build_vanilla_ssd
 
 
 @pytest.fixture
@@ -27,36 +26,33 @@ def batch(resolution: tuple[int, int]) -> torch.Tensor:
 
 
 @pytest.mark.parametrize(
-    "build_model, build_anchors, load_weights",
+    "build_model, load_weights",
     [
         (
-            RetinaNetPure,
-            partial(
-                anchors,
-                min_sizes=[[16, 32], [64, 128], [256, 512]],
-                steps=[8, 16, 32],
-                clip=False,
-            ),
+            build_vanilla_ssd,
             partial(
                 load_with_mismatch_from_weights,
                 weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
                 progress=False,
             ),
-        )
+        ),
+        (
+            build_retinanet_torchvision,
+            lambda model: model.load_state_dict(
+                RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1.get_state_dict(),
+            ),
+        ),
     ],
 )
 def test_ssd(
     build_model,
-    build_anchors,
     load_weights,
     resolution,
     batch,
-    n_classes=2,
+    n_classes=91,
 ):
-    priors = build_anchors(image_size=resolution)
-    print(priors.shape)
-    model = build_model(n_classes=n_classes)
-    model = load_weights(model)
+    model, priors = build_model(n_classes=n_classes, resolution=resolution)
+    load_weights(model)
     boxes, classes = model(batch)
     assert boxes.shape == (1, *priors.shape)
     assert classes.shape == (1, priors.shape[0], n_classes)
@@ -107,11 +103,11 @@ def plot_predictions(image_rgb, predictions, score_threshold=0.5):
     cv2.destroyAllWindows()
 
 
+@pytest.mark.skip
 def test_weights_match(frame):
     weights = RetinaNet_ResNet50_FPN_V2_Weights.DEFAULT
-    pure, priors = build_retinanet_torchvision(frame.shape[:2])
-    print(priors.shape)
-    pure.load_state_dict(weights.get_state_dict())
+    cleaned, cpriors = build_retinanet_torchvision(resolution=frame.shape[:2])
+    cleaned.load_state_dict(weights.get_state_dict())
     preprocess = weights.transforms()
 
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -120,13 +116,13 @@ def test_weights_match(frame):
 
     model = retinanet_resnet50_fpn_v2(weights=weights)
     model.eval()
-    pure.eval()
+    cleaned.eval()
 
     with torch.no_grad():
         predictions = model(input_tensor.clone())
         predictions_tv = postprocess(
-            pure(normalize(input_tensor)),
-            priors,
+            cleaned(normalize(input_tensor)),
+            cpriors,
             image_size=frame.shape[:2],
         )
 

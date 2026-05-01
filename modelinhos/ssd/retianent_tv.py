@@ -10,9 +10,12 @@ from modelinhos.ssd.anchors import tvison_anchors
 from modelinhos.ssd.retinanet import RetinaNetPure
 
 
-def build_retinanet_torchvision(resolution: tuple[int, int]):
+def build_retinanet_torchvision(
+    n_classes=91,
+    resolution: tuple[int, int] = (800, 1088),
+):
     model = RetinaNetPure(
-        91,
+        n_classes,
         extra_blocks=LastLevelP6P7(2048, 256),
         num_anchors=9,
     )
