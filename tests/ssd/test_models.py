@@ -4,6 +4,10 @@ import cv2
 import numpy as np
 import pytest
 import torch
+from torchvision.models.detection import (
+    SSDLite320_MobileNet_V3_Large_Weights,
+    ssdlite320_mobilenet_v3_large,
+)
 from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
     retinanet_resnet50_fpn_v2,
@@ -12,6 +16,7 @@ from torchvision.models.detection.retinanet import (
 from modelinhos.ssd.retianent_tv import (
     build_inference_model,
     build_retinanet_torchvision,
+    to_blob,
 )
 from modelinhos.ssd.retinanet import build_vanilla_ssd
 
@@ -95,33 +100,49 @@ def plot_predictions(image_bgr, predictions, score_threshold=0.5):
     cv2.destroyAllWindows()
 
 
-def to_blob(frame: np.ndarray, weights) -> torch.Tensor:
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).float() / 255.0
-    preprocess = weights.transforms()
-    return preprocess(tensor).unsqueeze(0)
+def build_inference_model_torchvision(model_builder, weights):
+    model = model_builder(weights=weights)
+    model.eval()
+
+    def build(resolution):
+        def infer(frame: np.ndarray):
+            blob = to_blob(frame, weights)
+            return model(blob)
+
+        return infer
+
+    return build
 
 
 @pytest.mark.parametrize(
     "build_model",
     [
-        lambda weights, resolution: retinanet_resnet50_fpn_v2(weights=weights),
-        build_inference_model(build_retinanet_torchvision),
+        build_inference_model_torchvision(
+            ssdlite320_mobilenet_v3_large,
+            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+        ),
+        build_inference_model_torchvision(
+            retinanet_resnet50_fpn_v2,
+            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+        ),
+        build_inference_model(
+            build_retinanet_torchvision,
+            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+        ),
         build_inference_model(
             partial(build_vanilla_ssd, n_classes=91),
             th=0.05,
+            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         ),
         build_inference_model(
             partial(build_vanilla_ssd, n_classes=2),
             th=0.01,
+            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         ),
     ],
 )
 def test_weights_match(frame, build_model):
-    weights = RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1
-    model = build_model(weights=weights, resolution=frame.shape[:2])
-    model.eval()
-    blob = to_blob(frame, weights)
+    model = build_model(frame.shape[:2])
     with torch.no_grad():
-        predictions = model(blob.clone())
-    plot_predictions(frame, predictions, score_threshold=0.01)
+        predictions = model(frame)
+    plot_predictions(frame, predictions, score_threshold=0.4)
