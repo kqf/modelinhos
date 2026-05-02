@@ -13,7 +13,10 @@ from torchvision.models.detection.retinanet import (
     retinanet_resnet50_fpn_v2,
 )
 
-from modelinhos.ssd.inference import build_inference_model, to_blob
+from modelinhos.ssd.inference import (
+    build_inference_model,
+    build_inference_model_torchvision,
+)
 from modelinhos.ssd.lite import (
     build_ssdlite,
     build_torchvision_ssdlite,
@@ -115,20 +118,6 @@ def plot_predictions(image_bgr, predictions, score_threshold=0.5):
     cv2.imshow("Predictions", image_bgr)
     cv2.waitKey(1)
     cv2.destroyAllWindows()
-
-
-def build_inference_model_torchvision(model_builder, weights):
-    model = model_builder(weights=weights)
-    model.eval()
-
-    def build(resolution):
-        def infer(frame: np.ndarray):
-            blob = to_blob(frame, weights)
-            return model(blob)
-
-        return infer
-
-    return build
 
 
 @pytest.mark.parametrize(
