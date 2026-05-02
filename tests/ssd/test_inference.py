@@ -114,4 +114,4 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
 def test_weights_match(frame, build_model):
     model = build_model(frame.shape[:2])
     predictions = model.transform(frame)
-    plot(frame, predictions, score_threshold=0.4)
+    plot(frame, predictions)

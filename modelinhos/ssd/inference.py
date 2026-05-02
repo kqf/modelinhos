@@ -66,13 +66,13 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
     boxes = decode_boxes(raw_deltas, priors.to(raw_deltas.device), resolution)
     scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
 
-    results = []
+    annotations = []
     for b in range(scores.shape[0]):
         s, l, bx = scores[b], labels[b], boxes[b]  # noqa
         keep = s > score_thresh
         s, l, bx = s[keep], l[keep], bx[keep]  # noqa
         keep = torchvision.ops.batched_nms(bx, s, l, iou_thresh)
-        results.append(
+        annotations.append(
             Annotation(
                 bbox=bbox,
                 label=label,
@@ -80,7 +80,7 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
             )
             for bbox, score, label in zip(bx[keep], s[keep], l[keep])
         )
-    return Sample(file_name=None, annotations=results)
+    return Sample(file_name=None, annotations=list(annotations[0]))
 
 
 class Detector:
@@ -131,7 +131,7 @@ def torchvison_to_samples(predictions, anchors, resolution, score_thresh):
         )
         if s > score_thresh
     ]
-    return Sample(file_name="fake-file.png", annotations=annotations)
+    return Sample(file_name="fake-file.png", annotations=list(annotations))
 
 
 class TorchvisionDetector(Detector):
