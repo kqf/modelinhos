@@ -1,5 +1,4 @@
 import math
-from functools import wraps
 
 import cv2
 import numpy as np
@@ -81,41 +80,57 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
     return results
 
 
-def build_inference_model(
-    build_model,
-    weights,
-    th=0.4,
-    postprocess=postprocess,
-    normalize=normalize,
-):
-    @wraps(build_inference_model)
-    def build_inference(resolution):
-        model, priors = build_model(resolution=resolution, weights=weights)
-        model.eval()
+class Detector:
+    def __init__(
+        self,
+        resolution: tuple[int, int],
+        build_model,
+        weights,
+        th=0.4,
+        postprocess=postprocess,
+        normalize=normalize,
+    ):
+        self.model, self.priors = build_model(
+            resolution=resolution,
+            weights=weights,
+        )
+        # Needed for postprocessing
+        self.weights = weights
+        self.postprocess = postprocess
+        self.normalize = normalize
+        self.th = th
+        self.resolution = resolution
 
-        def infer(frame: np.ndarray):
-            blob = to_blob(frame, weights)
-            return postprocess(
-                model(normalize(blob)),
-                priors,
-                resolution=resolution,
-                score_thresh=th,
+    def transform(self, frame: np.ndarray):
+        self.model.eval()
+        blob = to_blob(frame, self.weights)
+        with torch.no_grad():
+            return self.postprocess(
+                self.model(self.normalize(blob)),
+                self.priors,
+                resolution=self.resolution,
+                score_thresh=self.th,
             )
 
-        return infer
 
-    return build_inference
-
-
-def build_inference_model_torchvision(model_builder, weights):
-    model = model_builder(weights=weights)
-    model.eval()
-
-    def build(resolution):
-        def infer(frame: np.ndarray):
-            blob = to_blob(frame, weights)
-            return model(blob)
-
-        return infer
-
-    return build
+class TorchvisionDetector(Detector):
+    def __init__(
+        self,
+        resolution: tuple[int, int],
+        build_model,
+        weights,
+        th=0.4,
+        postprocess=lambda x, *args, **kwargs: x,
+        normalize=lambda x: x,
+    ):
+        self.model = build_model(
+            resolution=resolution,
+            weights=weights,
+        )
+        self.priors = None
+        # Needed for postprocessing
+        self.weights = weights
+        self.postprocess = postprocess
+        self.normalize = normalize
+        self.th = th
+        self.resolution = resolution

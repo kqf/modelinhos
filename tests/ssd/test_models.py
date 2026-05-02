@@ -14,8 +14,8 @@ from torchvision.models.detection.retinanet import (
 )
 
 from modelinhos.ssd.inference import (
-    build_inference_model,
-    build_inference_model_torchvision,
+    Detector,
+    TorchvisionDetector,
 )
 from modelinhos.ssd.lite import (
     build_ssdlite,
@@ -123,41 +123,49 @@ def plot_predictions(image_bgr, predictions, score_threshold=0.5):
 @pytest.mark.parametrize(
     "build_model",
     [
-        build_inference_model_torchvision(
-            ssdlite320_mobilenet_v3_large,
-            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+        partial(
+            TorchvisionDetector,
+            build_model=ssdlite320_mobilenet_v3_large,
+            weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
         ),
-        build_inference_model(
-            build_torchvision_ssdlite,
-            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+        partial(
+            Detector,
+            build_model=build_torchvision_ssdlite,
+            weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             postprocess=ssd_postprocess,
             normalize=ssd_normalize,
         ),
-        build_inference_model(
-            partial(build_ssdlite, n_classes=91),
+        partial(
+            Detector,
+            build_model=partial(build_ssdlite, n_classes=91),
             th=0.01,
             weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
         ),
-        build_inference_model_torchvision(
-            retinanet_resnet50_fpn_v2,
+        partial(
+            TorchvisionDetector,
+            build_model=retinanet_resnet50_fpn_v2,
             weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         ),
-        build_inference_model(
-            build_torchvision_retinanet,
+        partial(
+            Detector,
+            build_model=build_torchvision_retinanet,
             weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         ),
-        build_inference_model(
-            partial(bulid_retinanet, n_classes=91),
+        partial(
+            Detector,
+            build_model=partial(bulid_retinanet, n_classes=91),
             th=0.05,
             weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         ),
-        build_inference_model(
-            partial(bulid_retinanet, n_classes=2),
+        partial(
+            Detector,
+            build_model=partial(bulid_retinanet, n_classes=2),
             th=0.01,
             weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         ),
-        build_inference_model(
-            partial(bulid_retinanet, n_classes=92 * 2),
+        partial(
+            Detector,
+            build_model=partial(bulid_retinanet, n_classes=92 * 2),
             th=0.01,
             weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         ),
@@ -165,6 +173,5 @@ def plot_predictions(image_bgr, predictions, score_threshold=0.5):
 )
 def test_weights_match(frame, build_model):
     model = build_model(frame.shape[:2])
-    with torch.no_grad():
-        predictions = model(frame)
+    predictions = model.transform(frame)
     plot_predictions(frame, predictions, score_threshold=0.4)
