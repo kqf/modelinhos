@@ -4,7 +4,7 @@ Things to do:
 - [x] Add the ssd model
 - [x] Simplify the anchor tests
 - [x] Fix the load with mismatch for when new(n_classes) > old(n_classes)
-- [ ] Add the fit/transform/predict wrappers
+- [x] Add the fit/transform/predict wrappers
 - [ ] Add the notion of samples instead of operating on dicts
 - [ ] Fix plotting with Samples
 - [ ] Adapt the mAP calculation??
