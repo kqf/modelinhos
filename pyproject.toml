@@ -50,6 +50,8 @@ dependencies = [
     "torch",
     "torchvision",
     "onnx",
+    "dacite",
+    "dataclasses-json",
 ]
 readme = { file = "README.rst", content-type = "text/x-rst" }
 
