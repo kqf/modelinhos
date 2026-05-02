@@ -13,6 +13,11 @@ from torchvision.models.detection.retinanet import (
     retinanet_resnet50_fpn_v2,
 )
 
+from modelinhos.ssd.lite import (
+    build_lite_torchvision,
+    ssd_normalize,
+    ssd_postprocess,
+)
 from modelinhos.ssd.retianent_tv import (
     build_inference_model,
     build_retinanet_torchvision,
@@ -34,12 +39,18 @@ def batch(resolution: tuple[int, int]) -> torch.Tensor:
             partial(
                 build_vanilla_ssd,
                 weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-            ),
+            )
         ),
         (
             partial(
                 build_retinanet_torchvision,
                 weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+            )
+        ),
+        (
+            partial(
+                build_lite_torchvision,
+                weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             )
         ),
     ],
@@ -58,6 +69,13 @@ def test_ssd(
 
 def pad(image: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
     h, w = image.shape[:2]
+
+    square = target_h == target_w
+    target_h = max(target_h, h)
+    target_w = max(target_w, w)
+    if square:
+        target_h = max(target_h, target_w)
+        target_w = max(target_w, target_w)
 
     t = (target_h - h) // 2
     b = target_h - h - t
@@ -80,7 +98,7 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
     image = cv2.imread(path)
     if image is None:
         pytest.skip(f"Asset not found: {path}")
-    return pad(image, *resolution)
+    return cv2.resize(pad(image, *resolution), resolution[::-1])
 
 
 def plot_predictions(image_bgr, predictions, score_threshold=0.5):
@@ -120,6 +138,12 @@ def build_inference_model_torchvision(model_builder, weights):
         build_inference_model_torchvision(
             ssdlite320_mobilenet_v3_large,
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+        ),
+        build_inference_model(
+            build_lite_torchvision,
+            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+            postprocess=ssd_postprocess,
+            normalize=ssd_normalize,
         ),
         build_inference_model_torchvision(
             retinanet_resnet50_fpn_v2,
