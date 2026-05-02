@@ -12,6 +12,7 @@ from torchvision.models.detection.retinanet import (
     retinanet_resnet50_fpn_v2,
 )
 
+from modelinhos.plot import plot
 from modelinhos.ssd.inference import Detector, TorchvisionDetector
 from modelinhos.ssd.lite import (
     build_ssdlite,
@@ -57,23 +58,6 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
     if image is None:
         pytest.skip(f"Asset not found: {path}")
     return cv2.resize(pad(image, *resolution), resolution[::-1])
-
-
-def plot_predictions(image_bgr, predictions, score_threshold=0.5):
-    pred = predictions[0]
-    boxes = pred["boxes"].numpy()
-    scores = pred["scores"].numpy()
-    print()
-    for box, score in zip(boxes, scores):
-        if score < score_threshold:
-            continue
-        print(score)
-        x1, y1, x2, y2 = box.astype(int)
-        cv2.rectangle(image_bgr, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-    cv2.imshow("Predictions", image_bgr)
-    cv2.waitKey(1)
-    cv2.destroyAllWindows()
 
 
 @pytest.mark.parametrize(
@@ -130,4 +114,4 @@ def plot_predictions(image_bgr, predictions, score_threshold=0.5):
 def test_weights_match(frame, build_model):
     model = build_model(frame.shape[:2])
     predictions = model.transform(frame)
-    plot_predictions(frame, predictions, score_threshold=0.4)
+    plot(frame, predictions, score_threshold=0.4)

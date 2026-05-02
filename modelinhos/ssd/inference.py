@@ -5,6 +5,8 @@ import numpy as np
 import torch
 import torchvision
 
+from modelinhos.sample import Annotation, Sample
+
 
 def to_blob(frame: np.ndarray, weights) -> torch.Tensor:
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -71,13 +73,14 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
         s, l, bx = s[keep], l[keep], bx[keep]  # noqa
         keep = torchvision.ops.batched_nms(bx, s, l, iou_thresh)
         results.append(
-            {
-                "boxes": bx[keep],
-                "scores": s[keep],
-                "labels": l[keep],
-            }
+            Annotation(
+                bbox=bbox,
+                label=label,
+                score=score,
+            )
+            for bbox, score, label in zip(bx[keep], s[keep], l[keep])
         )
-    return results
+    return Sample(file_name=None, annotations=results)
 
 
 class Detector:
@@ -101,7 +104,7 @@ class Detector:
         self.th = th
         self.resolution = resolution
 
-    def transform(self, frame: np.ndarray):
+    def transform(self, frame: np.ndarray) -> Sample:
         self.model.eval()
         blob = to_blob(frame, self.weights)
         with torch.no_grad():
@@ -113,6 +116,24 @@ class Detector:
             )
 
 
+def torchvison_to_samples(predictions, anchors, resolution, score_thresh):
+    pred = predictions[0]
+    annotations = [
+        Annotation(
+            bbox=b,
+            label=ll,
+            score=s,
+        )
+        for b, s, ll in zip(
+            pred["boxes"].numpy(),
+            pred["scores"].numpy(),
+            pred["labels"].numpy(),
+        )
+        if s > score_thresh
+    ]
+    return Sample(file_name="fake-file.png", annotations=annotations)
+
+
 class TorchvisionDetector(Detector):
     def __init__(
         self,
@@ -120,7 +141,7 @@ class TorchvisionDetector(Detector):
         build_model,
         weights,
         th=0.4,
-        postprocess=lambda x, *args, **kwargs: x,
+        postprocess=torchvison_to_samples,
         normalize=lambda x: x,
     ):
         self.model = build_model(
