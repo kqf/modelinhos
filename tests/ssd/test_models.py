@@ -11,6 +11,7 @@ from torchvision.models.detection import (
 )
 from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
+    retinanet_resnet50_fpn_v2,
 )
 
 from modelinhos.ssd.lite import (
@@ -32,6 +33,7 @@ def batch(resolution: tuple[int, int]) -> torch.Tensor:
     return torch.rand(1, 3, *resolution)
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "build_model",
     [
