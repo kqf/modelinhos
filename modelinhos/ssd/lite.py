@@ -37,7 +37,7 @@ class SSDPureHead(torch.nn.Module):
 
 
 class SSDPure(torch.nn.Module):
-    def __init__(self, resolution, n_classes):
+    def __init__(self, resolution, n_classes, num_anchors=6):
         super().__init__()
         self.n_classes = n_classes
         norm_layer = partial(torch.nn.BatchNorm2d, eps=0.001, momentum=0.03)
@@ -56,7 +56,7 @@ class SSDPure(torch.nn.Module):
             self.backbone,
             resolution,
         )
-        num_anchors = [6 for _ in out_channels]
+        num_anchors = [num_anchors for _ in out_channels]
         self.head = SSDPureHead(
             out_channels=out_channels,
             num_anchors=num_anchors,
