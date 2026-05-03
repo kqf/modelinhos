@@ -6,6 +6,7 @@ import pytest
 import torch
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
+    retinanet_resnet50_fpn_v2,
     ssdlite320_mobilenet_v3_large,
 )
 from torchvision.models.detection.retinanet import (
@@ -15,6 +16,7 @@ from torchvision.models.detection.retinanet import (
 
 from modelinhos.ssd.lite import (
     build_lite_torchvision,
+    build_pure_ssd_lite,
     ssd_normalize,
     ssd_postprocess,
 )
@@ -114,7 +116,7 @@ def plot_predictions(image_bgr, predictions, score_threshold=0.5):
         cv2.rectangle(image_bgr, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
     cv2.imshow("Predictions", image_bgr)
-    cv2.waitKey(0)
+    cv2.waitKey(1)
     cv2.destroyAllWindows()
 
 
@@ -144,6 +146,11 @@ def build_inference_model_torchvision(model_builder, weights):
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             postprocess=ssd_postprocess,
             normalize=ssd_normalize,
+        ),
+        build_inference_model(
+            partial(build_pure_ssd_lite, n_classes=91),
+            th=0.01,
+            weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
         ),
         build_inference_model_torchvision(
             retinanet_resnet50_fpn_v2,
