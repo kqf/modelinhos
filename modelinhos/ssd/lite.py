@@ -13,8 +13,8 @@ from torchvision.models.detection.ssdlite import (
 )
 
 from modelinhos.ssd.anchors import anchors
+from modelinhos.ssd.inference import decode_boxes, normalize
 from modelinhos.ssd.load import load_with_mismatch
-from modelinhos.ssd.retianent_tv import decode_boxes, normalize
 
 
 class SSDPureHead(torch.nn.Module):
@@ -196,7 +196,7 @@ ssd_normalize = partial(
 
 
 # This configures ssd as it was trained
-def build_lite_torchvision(
+def build_torchvision_ssdlite(
     n_classes=91,
     resolution: tuple[int, int] = (320, 320),
     weights=None,
@@ -216,7 +216,7 @@ def build_lite_torchvision(
 
 
 # This configures retina-net like network
-def build_pure_ssd_lite(
+def build_ssdlite(
     resolution: tuple[int, int],
     n_classes: int = 92,
     weights=None,
