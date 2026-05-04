@@ -2,7 +2,7 @@ Things to do:
 
 - [x] See what happens when we remove anchors from retina-net -> man is not detected, ties are kinda detected
 - [x] Add the ssd model
-- [ ] Simplify the anchor tests
+- [x] Simplify the anchor tests
 - [ ] Fix the load with mismatch for when new(n_classes) > old(n_classes)
 - [ ] Add the fit/transform/predict wrappers
 - [ ] Add the notion of samples instead of operating on dicts
