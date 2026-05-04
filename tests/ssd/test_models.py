@@ -168,6 +168,11 @@ def build_inference_model_torchvision(model_builder, weights):
             th=0.01,
             weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         ),
+        build_inference_model(
+            partial(bulid_retinanet, n_classes=92 * 2),
+            th=0.01,
+            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+        ),
     ],
 )
 def test_weights_match(frame, build_model):

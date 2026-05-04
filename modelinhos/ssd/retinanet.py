@@ -11,7 +11,6 @@ from torchvision.models.detection.retinanet import (
 from torchvision.models.resnet import ResNet50_Weights, resnet50
 
 from modelinhos.ssd.anchors import anchors, tvison_anchors
-from modelinhos.ssd.inference import decode_boxes
 from modelinhos.ssd.load import load_with_mismatch_from_weights
 
 
@@ -65,27 +64,6 @@ class RetinaNetPure(torch.nn.Module):
         features = self.backbone(images.float())
         features = list(features.values())[: self.last_feature]
         return self.head(features)
-
-
-def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
-    raw_deltas, raw_logits = preds
-    boxes = decode_boxes(raw_deltas, priors.to(raw_deltas.device), resolution)
-    scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
-
-    results = []
-    for b in range(scores.shape[0]):
-        s, l, bx = scores[b], labels[b], boxes[b]  # noqa
-        keep = s > score_thresh
-        s, l, bx = s[keep], l[keep], bx[keep]  # noqa
-        keep = torchvision.ops.batched_nms(bx, s, l, iou_thresh)
-        results.append(
-            {
-                "boxes": bx[keep],
-                "scores": s[keep],
-                "labels": l[keep],
-            }
-        )
-    return results
 
 
 def bulid_retinanet(n_classes, resolution: tuple[int, int], weights):
