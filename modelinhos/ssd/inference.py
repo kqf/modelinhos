@@ -105,3 +105,17 @@ def build_inference_model(
         return infer
 
     return build_inference
+
+
+def build_inference_model_torchvision(model_builder, weights):
+    model = model_builder(weights=weights)
+    model.eval()
+
+    def build(resolution):
+        def infer(frame: np.ndarray):
+            blob = to_blob(frame, weights)
+            return model(blob)
+
+        return infer
+
+    return build
