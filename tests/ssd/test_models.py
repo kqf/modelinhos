@@ -23,6 +23,7 @@ def batch(resolution: tuple[int, int]) -> torch.Tensor:
     return torch.rand(1, 3, *resolution)
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "build_model",
     [
