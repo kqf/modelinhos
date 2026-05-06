@@ -12,6 +12,7 @@ from torchvision.models.detection.ssdlite import (
     mobilenet_v3_large,
 )
 
+from modelinhos.sample import Annotation, Sample
 from modelinhos.ssd.anchors import anchors
 from modelinhos.ssd.inference import decode_boxes, normalize
 from modelinhos.ssd.load import load_with_mismatch
@@ -117,7 +118,6 @@ def ssd_postprocess(
     device = raw_deltas.device
     priors = priors.to(device)
 
-    # decode all boxes once
     boxes = decode_boxes(
         raw_deltas,
         priors,
@@ -125,10 +125,9 @@ def ssd_postprocess(
         weights=(10.0, 10.0, 5.0, 5.0),
     )
 
-    # softmax over classes (SSD style)
     scores_all = torch.softmax(raw_logits, dim=-1)
 
-    results = []
+    annotations = []
 
     for b in range(scores_all.shape[0]):
         boxes_b = boxes[b]
@@ -138,36 +137,21 @@ def ssd_postprocess(
         image_scores = []
         image_labels = []
 
-        for cls in range(1, scores_b.shape[1]):
+        for cls in range(1, scores_b.shape[1]):  # skip background
             cls_scores = scores_b[:, cls]
 
             keep = cls_scores > score_thresh
             if not keep.any():
                 continue
 
-            cls_scores = cls_scores[keep]
-            cls_boxes = boxes_b[keep]
-
-            image_boxes.append(cls_boxes)
-            image_scores.append(cls_scores)
+            image_boxes.append(boxes_b[keep])
+            image_scores.append(cls_scores[keep])
             image_labels.append(
-                torch.full_like(
-                    cls_scores,
-                    cls,
-                    dtype=torch.int64,
-                )
+                torch.full_like(cls_scores[keep], cls, dtype=torch.int64)
             )
 
-        # handle empty detections
         if not image_boxes:
-            results.append(
-                {
-                    "boxes": torch.empty((0, 4)),
-                    "scores": torch.empty((0,)),
-                    "labels": torch.empty((0,), dtype=torch.int64),
-                }
-            )
-            continue
+            continue  # just skip empty images
 
         image_boxes = torch.cat(image_boxes, dim=0)
         image_scores = torch.cat(image_scores, dim=0)
@@ -177,15 +161,23 @@ def ssd_postprocess(
             image_boxes, image_scores, image_labels, iou_thresh
         )
 
-        results.append(
-            {
-                "boxes": image_boxes[keep],
-                "scores": image_scores[keep],
-                "labels": image_labels[keep],
-            }
+        # convert to Annotation objects
+        annotations.extend(
+            Annotation(
+                bbox=bbox,
+                score=score,
+                label=label,
+            )
+            for bbox, score, label in zip(
+                image_boxes[keep],
+                image_scores[keep],
+                image_labels[keep],
+            )
         )
-
-    return results
+    return Sample(
+        file_name="fake.png",
+        annotations=list(annotations),
+    )
 
 
 ssd_normalize = partial(
