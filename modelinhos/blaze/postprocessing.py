@@ -1,6 +1,8 @@
 import numpy as np
 import torch
-from modelinhos.blaze.blazenet import intersect
+
+from modelinhos.blaze.blazenet import BlazeNet
+
 
 def intersect(box_a, box_b):
     """We resize both tensors to [A,B,2] without new malloc:
@@ -25,6 +27,7 @@ def intersect(box_a, box_b):
     )
     inter = torch.clamp((max_xy - min_xy), min=0)
     return inter[:, :, 0] * inter[:, :, 1]
+
 
 def jaccard(box_a, box_b):
     """Compute the jaccard overlap of two sets of boxes.  The jaccard overlap
@@ -58,7 +61,11 @@ def overlap_similarity(box, other_boxes):
     return jaccard(box.unsqueeze(0), other_boxes).squeeze(0)
 
 
-def _weighted_non_max_suppression(self, detections):
+def _weighted_non_max_suppression(
+    model: BlazeNet,
+    detections,
+    min_suppression_threshold: int,
+):
     """The alternative NMS method as mentioned in the BlazeFace paper:
 
     "We replace the suppression algorithm with a blending strategy that
@@ -97,7 +104,7 @@ def _weighted_non_max_suppression(self, detections):
 
         # If two detections don't overlap enough, they are considered
         # to be from different faces.
-        mask = ious > self.min_suppression_threshold
+        mask = ious > min_suppression_threshold
         overlapping = remaining[mask]
         remaining = remaining[~mask]
 
@@ -117,17 +124,17 @@ def _weighted_non_max_suppression(self, detections):
     return output_detections
 
 
-def _decode_boxes(self, raw, anchors):
+def _decode_boxes(model: BlazeNet, raw, anchors):
     """Converts the predictions into actual coordinates using
     the anchor boxes. Processes the entire batch at once.
     """
     boxes = torch.zeros_like(raw)
 
-    x_center = raw[..., 0] / self.x_scale * anchors[:, 2] + anchors[:, 0]
-    y_center = raw[..., 1] / self.y_scale * anchors[:, 3] + anchors[:, 1]
+    x_center = raw[..., 0] / model.x_scale * anchors[:, 2] + anchors[:, 0]
+    y_center = raw[..., 1] / model.y_scale * anchors[:, 3] + anchors[:, 1]
 
-    w = raw[..., 2] / self.w_scale * anchors[:, 2]
-    h = raw[..., 3] / self.h_scale * anchors[:, 3]
+    w = raw[..., 2] / model.w_scale * anchors[:, 2]
+    h = raw[..., 3] / model.h_scale * anchors[:, 3]
 
     boxes[..., 0] = y_center - h / 2.0  # ymin
     boxes[..., 1] = x_center - w / 2.0  # xmin
@@ -137,10 +144,11 @@ def _decode_boxes(self, raw, anchors):
     for k in range(6):
         offset = 4 + k * 2
         keypoint_x = (
-            raw[..., offset] / self.x_scale * anchors[:, 2] + anchors[:, 0]
-        )
+            raw[..., offset] / model.x_scale * anchors[:, 2] + anchors[:, 0]
+        )  # noqa
         keypoint_y = (
-            raw[..., offset + 1] / self.y_scale * anchors[:, 3] + anchors[:, 1]
+            raw[..., offset + 1] / model.y_scale * anchors[:, 3]
+            + anchors[:, 1]  # noqa
         )
         boxes[..., offset] = keypoint_x
         boxes[..., offset + 1] = keypoint_y
@@ -148,7 +156,13 @@ def _decode_boxes(self, raw, anchors):
     return boxes
 
 
-def predict_on_batch(self, x):
+def predict_on_batch(
+    model: BlazeNet,
+    x,
+    back_model,
+    min_suppression_threshold: int,
+    min_score_thresh: float,
+):
     """Makes a prediction on a batch of images.
 
     Arguments:
@@ -169,7 +183,7 @@ def predict_on_batch(self, x):
         x = torch.from_numpy(x).permute((0, 3, 1, 2))
 
     assert x.shape[1] == 3
-    if self.back_model:
+    if back_model:
         assert x.shape[2] == 256
         assert x.shape[3] == 256
     else:
@@ -177,27 +191,39 @@ def predict_on_batch(self, x):
         assert x.shape[3] == 128
 
     # 1. Preprocess the images into tensors:
-    x = x.to(self._device())
-    x = self._preprocess(x)
+    x = x.to(model.classifier_8.weight.device)
+    x = _preprocess(x)
 
     # 2. Run the neural network:
     with torch.no_grad():
-        out = self.__call__(x)
+        out = model(x)
 
     # 3. Postprocess the raw predictions:
-    detections = self._tensors_to_detections(out[0], out[1], self.anchors)
+    detections = _tensors_to_detections(
+        model,
+        out[0],
+        out[1],
+        model.anchors,
+        min_score_thresh,
+    )
 
-    # 4. Non-maximum suppression to remove overlapping detections:
-    filtered_detections = []
     for i in range(len(detections)):
-        faces = self._weighted_non_max_suppression(detections[i])
-        faces = torch.stack(faces) if len(faces) > 0 else torch.zeros((0, 17))
-        filtered_detections.append(faces)
+        faces = _weighted_non_max_suppression(
+            model,
+            detections[i],
+            min_suppression_threshold=min_suppression_threshold,
+        )
+    faces = torch.stack(faces) if len(faces) > 0 else torch.zeros((0, 17))
+    return [faces]
 
-    return filtered_detections
 
-
-def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
+def _tensors_to_detections(
+    model: BlazeNet,
+    raw_box_tensor,
+    raw_score_tensor,
+    anchors,
+    min_score_thresh,
+):
     """The output of the neural network is a tensor of shape (b, 896, 16)
     containing the bounding box regressor predictions, as well as a tensor
     of shape (b, 896, 1) with the classification confidences.
@@ -211,25 +237,25 @@ def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
     mediapipe/calculators/tflite/tflite_tensors_to_detections_calculator.proto
     """
     assert raw_box_tensor.ndimension() == 3
-    assert raw_box_tensor.shape[1] == self.num_anchors
-    assert raw_box_tensor.shape[2] == self.num_coords
+    assert raw_box_tensor.shape[1] == model.num_anchors
+    assert raw_box_tensor.shape[2] == model.num_coords
 
     assert raw_score_tensor.ndimension() == 3
-    assert raw_score_tensor.shape[1] == self.num_anchors
-    assert raw_score_tensor.shape[2] == self.num_classes
+    assert raw_score_tensor.shape[1] == model.num_anchors
+    assert raw_score_tensor.shape[2] == model.num_classes
 
     assert raw_box_tensor.shape[0] == raw_score_tensor.shape[0]
 
-    detection_boxes = self._decode_boxes(raw_box_tensor, anchors)
+    detection_boxes = _decode_boxes(model, raw_box_tensor, anchors)
 
-    thresh = self.score_clipping_thresh
+    thresh = model.score_clipping_thresh
     raw_score_tensor = raw_score_tensor.clamp(-thresh, thresh)
     detection_scores = raw_score_tensor.sigmoid().squeeze(dim=-1)
 
     # Note: we stripped off the last dimension from the scores tensor
     # because there is only has one class. Now we can simply use a mask
     # to filter out the boxes with too low confidence.
-    mask = detection_scores >= self.min_score_thresh
+    mask = detection_scores >= min_score_thresh
 
     # Because each image from the batch can have a different number of
     # detections, process them one at a time using a loop.
@@ -242,7 +268,13 @@ def _tensors_to_detections(self, raw_box_tensor, raw_score_tensor, anchors):
     return output_detections
 
 
-def predict_on_image(self, img):
+def predict_on_image(
+    model: BlazeNet,
+    image,
+    back_model,
+    min_suppression_threshold: int,
+    min_score_thresh: float,
+):
     """Makes a prediction on a single image.
 
     Arguments:
@@ -253,12 +285,18 @@ def predict_on_image(self, img):
     Returns:
         A tensor with face detections.
     """
-    if isinstance(img, np.ndarray):
-        img = torch.from_numpy(img).permute((2, 0, 1))
+    if isinstance(image, np.ndarray):
+        image = torch.from_numpy(image).permute((2, 0, 1))
 
-    return self.predict_on_batch(img.unsqueeze(0))[0]
+    return predict_on_batch(
+        model,
+        image.unsqueeze(0),
+        back_model=back_model,
+        min_suppression_threshold=min_suppression_threshold,
+        min_score_thresh=min_score_thresh,
+    )[0]
 
 
-def _preprocess(self, x):
+def _preprocess(x):
     """Converts the image pixels to the range [-1, 1]."""
     return x.float() / 127.5 - 1.0
