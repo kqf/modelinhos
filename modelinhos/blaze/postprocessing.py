@@ -147,8 +147,7 @@ def _decode_boxes(model: BlazeNet, raw, anchors):
             raw[..., offset] / model.x_scale * anchors[:, 2] + anchors[:, 0]
         )  # noqa
         keypoint_y = (
-            raw[..., offset + 1] / model.y_scale * anchors[:, 3]
-            + anchors[:, 1]  # noqa
+            raw[..., offset + 1] / model.y_scale * anchors[:, 3] + anchors[:, 1]  # noqa
         )
         boxes[..., offset] = keypoint_x
         boxes[..., offset + 1] = keypoint_y
@@ -199,13 +198,7 @@ def predict_on_batch(
         out = model(x)
 
     # 3. Postprocess the raw predictions:
-    detections = _tensors_to_detections(
-        model,
-        out[0],
-        out[1],
-        model.anchors,
-        min_score_thresh,
-    )
+    detections = _tensors_to_detections(model, out[0], out[1], model.anchors)
 
     for i in range(len(detections)):
         faces = _weighted_non_max_suppression(
@@ -222,7 +215,6 @@ def _tensors_to_detections(
     raw_box_tensor,
     raw_score_tensor,
     anchors,
-    min_score_thresh,
 ):
     """The output of the neural network is a tensor of shape (b, 896, 16)
     containing the bounding box regressor predictions, as well as a tensor
