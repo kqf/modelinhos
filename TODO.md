@@ -5,8 +5,8 @@ Things to do:
 - [x] Simplify the anchor tests
 - [x] Fix the load with mismatch for when new(n_classes) > old(n_classes)
 - [x] Add the fit/transform/predict wrappers
-- [ ] Add the notion of samples instead of operating on dicts
-- [ ] Fix plotting with Samples
+- [x] Add the notion of samples instead of operating on dicts
+- [x] Fix plotting with Samples
 - [ ] Adapt the mAP calculation??
 - [ ] Add the precision recall calculation????
 - [ ] Add per-sample map calculation.
