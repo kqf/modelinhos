@@ -1,7 +1,6 @@
 from functools import partial
 
 import torch
-import torchvision
 from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
 from torchvision.models.detection.retinanet import (
     LastLevelP6P7,
