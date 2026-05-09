@@ -36,7 +36,7 @@ def to_sample(entry: dict[str, Any]) -> Sample:
         raise e
 
 
-def read_dataset(path: Path | str) -> list[Sample]:
+def read_samples(path: Path | str) -> list[Sample]:
     path = Path(path)
     with open(path) as f:
         df = json.load(f)
