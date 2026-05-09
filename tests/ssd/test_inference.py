@@ -111,7 +111,13 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
         ),
     ],
 )
-def test_weights_match(frame, build_model):
+def test_weights_match(frame, build_model, headless):
     model = build_model(frame.shape[:2])
     predictions = model.transform(frame)
-    plot(frame, predictions)
+    frame = plot(frame, predictions)
+
+    # sourcery skip: no-conditionals-in-tests
+    if not headless:
+        cv2.imshow("Predictions", frame)
+        cv2.waitKey(1)
+        cv2.destroyAllWindows()
