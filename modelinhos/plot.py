@@ -15,7 +15,4 @@ def plot(image_bgr: np.ndarray, sample: Sample) -> np.ndarray:
             2,
         )
 
-    cv2.imshow("Predictions", image_bgr)
-    cv2.waitKey(1)
-    cv2.destroyAllWindows()
     return image_bgr
