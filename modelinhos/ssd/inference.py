@@ -74,9 +74,9 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
         keep = torchvision.ops.batched_nms(bx, s, l, iou_thresh)
         annotations.append(
             Annotation(
-                bbox=bbox,
-                label=label,
-                score=score,
+                bbox=bbox.tolist(),
+                label=label.item(),
+                score=score.item(),
             )
             for bbox, score, label in zip(bx[keep], s[keep], l[keep])
         )
@@ -120,9 +120,9 @@ def torchvison_to_samples(predictions, anchors, resolution, score_thresh):
     pred = predictions[0]
     annotations = [
         Annotation(
-            bbox=b,
-            label=ll,
-            score=s,
+            bbox=b.tolist(),
+            label=ll.item(),
+            score=s.item(),
         )
         for b, s, ll in zip(
             pred["boxes"].numpy(),
