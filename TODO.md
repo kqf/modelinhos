@@ -7,8 +7,9 @@ Things to do:
 - [x] Add the fit/transform/predict wrappers
 - [x] Add the notion of samples instead of operating on dicts
 - [x] Fix plotting with Samples
-- [ ] Add the toy-example
+- [x] Add the toy-example
 - [ ] Download the COCO evaluation dataset
+- [ ] Use the batched version by default
 - [ ] Adapt the mAP calculation??
 - [ ] Add the precision recall calculation????
 - [ ] Add per-sample map calculation.

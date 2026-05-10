@@ -42,3 +42,8 @@ def read_samples(path: Path | str) -> list[Sample]:
         df = json.load(f)
     samples = [to_sample(x) for x in df if x]
     return list(samples)
+
+
+def save_samples(samples: list[Sample], path: Path | str) -> None:
+    with open(path, "w") as f:
+        json.dump([sample.to_dict() for sample in samples], f)  # type: ignore
