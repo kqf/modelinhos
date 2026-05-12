@@ -41,7 +41,6 @@ def dataset(tmp_path) -> pathlib.Path:
 
 def test_pipeline(model, dataset):
     samples = read_samples(dataset)
-    print(samples)
     samples = LabelEncoder().fit_transform(samples)
     train, valid = train_test_split(samples)
     # We don't fit in this repo ~
