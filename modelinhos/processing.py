@@ -8,6 +8,12 @@ class LabelEncoder:
     l2i: dict[str, int] = field(default_factory=dict)
     i2l: dict[int, str] = field(default_factory=dict)
 
+    def __post_init__(self):
+        if self.l2i and not self.i2l:
+            self.i2l = {v: k for k, v in self.l2i.items()}
+        elif self.i2l and not self.l2i:
+            self.l2i = {v: k for k, v in self.i2l.items()}
+
     def fit(self, samples: list[Sample]) -> "LabelEncoder":
         ul = sorted({ann.label for s in samples for ann in s.annotations})
         self.l2i = {label: idx for idx, label in enumerate(ul)}
