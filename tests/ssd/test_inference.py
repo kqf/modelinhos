@@ -113,7 +113,7 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
 )
 def test_weights_match(frame, build_model, headless):
     model = build_model(frame.shape[:2])
-    predictions = model.transform(frame)
+    predictions = model.transform([frame])[0]
     frame = plot(frame, predictions)
 
     # sourcery skip: no-conditionals-in-tests

@@ -104,7 +104,10 @@ class Detector:
         self.th = th
         self.resolution = resolution
 
-    def transform(self, frame: np.ndarray) -> Sample:
+    def transform(self, frames: list[np.ndarray]) -> list[Sample]:
+        return [self.transform_single(frame) for frame in frames]
+
+    def transform_single(self, frame: np.ndarray) -> Sample:
         self.model.eval()
         blob = to_blob(frame, self.weights)
         with torch.no_grad():
