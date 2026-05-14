@@ -52,6 +52,7 @@ dependencies = [
     "onnx",
     "dacite",
     "dataclasses-json",
+    "mean_average_precision",
 ]
 readme = { file = "README.rst", content-type = "text/x-rst" }
 

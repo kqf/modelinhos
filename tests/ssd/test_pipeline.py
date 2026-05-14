@@ -34,12 +34,12 @@ def dataset(tmp_path) -> pathlib.Path:
 
 def test_pipeline(model, dataset):
     samples = read_samples(dataset)
-    le = LabelEncoder(i2l={"person": 1, "tie": 34})
+    le = LabelEncoder(l2i={"person": 1, "tie": 34})
     train, valid = train_test_split(samples)
     # We don't fit in this repo ~
     # model.fit(X_train, y_train) ~
     y_pred = model.transform(
         [cv2.imread(sample.file_name) for sample in valid]
     )
-    print(le.transform(y_pred))
-    mean_average_precision(y_pred, valid)
+    print(le.inverse_transform(y_pred))
+    mean_average_precision(valid, y_pred, l2i=le.l2i)
