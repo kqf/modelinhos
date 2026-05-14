@@ -8,11 +8,12 @@ Things to do:
 - [x] Add the notion of samples instead of operating on dicts
 - [x] Fix plotting with Samples
 - [x] Add the toy-example
+- [x] Adapt the mAP calculation
+- [ ] Add the precision recall calculation
+- [ ] Add per-sample map calculation.
+- [ ] Add a tool to select the thresholds
 - [ ] Download the COCO evaluation dataset
 - [ ] Use the batched version by default
-- [ ] Adapt the mAP calculation??
-- [ ] Add the precision recall calculation????
-- [ ] Add per-sample map calculation.
 - [ ] Add the fcos inference
 - [ ] Add the BlazeNet inference (anchors parametrization)
 - [ ] Implement the BlazeNet tests
