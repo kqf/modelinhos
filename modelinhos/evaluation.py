@@ -57,3 +57,32 @@ def mean_average_precision(
         metric_fn.add(pred, true)
 
     return metric_fn.value(iou_thresholds=iou_thresholds, *args, **kwargs)
+
+
+def per_sample_ap(
+    y_true: list[Sample],
+    y_pred: list[Sample],
+    l2i: dict[str, int],
+    iou_thresholds: list[float] | None = None,
+    mpolicy: str = "greedy",
+) -> list[float]:
+    iou_thresholds = iou_thresholds or [0.5]
+    num_classes = max(l2i.values()) + 1
+    maps = []
+    for true_sample, pred_sample in zip(y_true, y_pred):
+        metric_fn = MetricBuilder.build_evaluation_metric(
+            "map_2d",
+            async_mode=False,
+            num_classes=num_classes,
+        )
+
+        metric_fn.add(
+            _annotations_to_pred(pred_sample, l2i),
+            _annotations_to_true(true_sample, l2i),
+        )
+        result = metric_fn.value(
+            iou_thresholds=iou_thresholds,
+            mpolicy=mpolicy,
+        )
+        maps.append(float(result["mAP"]))
+    return maps
