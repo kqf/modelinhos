@@ -48,7 +48,7 @@ def mean_average_precision(
         )
     num_classes = max(l2i.values()) + 1
     metric_fn = MetricBuilder.build_evaluation_metric(
-        "map_2d", async_mode=True, num_classes=num_classes
+        "map_2d", async_mode=False, num_classes=num_classes
     )
 
     for true_sample, pred_sample in zip(y_true, y_pred):

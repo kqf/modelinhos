@@ -41,5 +41,6 @@ def test_pipeline(model, dataset):
     y_pred = model.transform(
         [cv2.imread(sample.file_name) for sample in valid]
     )
-    print(le.inverse_transform(y_pred))
-    mean_average_precision(valid, y_pred, l2i=le.l2i)
+    y_pred = le.inverse_transform(y_pred)
+    m_ap = mean_average_precision(valid, y_pred, l2i=le.l2i)
+    assert m_ap["mAP"] == pytest.approx(0.028571429)
