@@ -7,6 +7,7 @@ from torchvision.models.detection import (
     ssdlite320_mobilenet_v3_large,
 )
 
+from modelinhos.evaluation import mean_average_precision
 from modelinhos.processing import LabelEncoder
 from modelinhos.sample import read_samples
 from modelinhos.ssd.inference import TorchvisionDetector
@@ -19,10 +20,6 @@ def model(resolution: tuple[int, int]):
         build_model=ssdlite320_mobilenet_v3_large,
         weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
     )
-
-
-def mean_average_precision(*args, **kwargs):
-    print("Not implemented")
 
 
 def train_test_split(data):
