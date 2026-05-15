@@ -9,9 +9,12 @@ Things to do:
 - [x] Fix plotting with Samples
 - [x] Add the toy-example
 - [x] Adapt the mAP calculation
-- [ ] Add the precision recall calculation
-- [ ] Add per-sample map calculation.
+- [x] Add per-sample map calculation.
 - [ ] Add a tool to select the thresholds
+    - [ ] Add FP / FN calculation @ threshold for each image to detect the failures
+    - [ ] Plot PR curve -- looking at these plots select the threshold
+    - [ ] Add FP / FN calculation per image @ threshold -- already evaluation
+    - [ ] Add the precision recall calculation @ threshold -- already evaluation
 - [ ] Download the COCO evaluation dataset
 - [ ] Use the batched version by default
 - [ ] Add the fcos inference
