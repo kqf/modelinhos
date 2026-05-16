@@ -121,10 +121,10 @@ def download_validation(root: Path) -> Path:
 
     # val2017.zip unpacks to <root>/val2017/; move it under images/ to match
     # the expected layout described in the docstring above.
-    extracted_images_dir = root / "val2017"
-    if extracted_images_dir.exists():
+    extracted = root / "val2017"
+    if extracted.exists():
         images.parent.mkdir(parents=True, exist_ok=True)
-        extracted_images_dir.rename(images)
+        extracted.rename(images)
 
     return annotations
 
@@ -146,7 +146,7 @@ def to_samples(annotations_path: Path) -> list[Sample]:
 
     return [
         Sample(
-            file_name=image.file_name,
+            file_name=f"images/val2017/{image.file_name}",
             annotations=[
                 Annotation(
                     bbox=_bbox_xywh_to_xyxy(ann.bbox),
