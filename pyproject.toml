@@ -53,6 +53,8 @@ dependencies = [
     "dacite",
     "dataclasses-json",
     "mean_average_precision",
+    "tqdm",
+    "requests",
 ]
 readme = { file = "README.rst", content-type = "text/x-rst" }
 
