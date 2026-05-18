@@ -10,12 +10,12 @@ Things to do:
 - [x] Add the toy-example
 - [x] Adapt the mAP calculation
 - [x] Add per-sample map calculation.
+- [x] Download the COCO evaluation dataset
 - [ ] Add a tool to select the thresholds
     - [ ] Add FP / FN calculation @ threshold for each image to detect the failures
     - [ ] Plot PR curve -- looking at these plots select the threshold
     - [ ] Add FP / FN calculation per image @ threshold -- already evaluation
     - [ ] Add the precision recall calculation @ threshold -- already evaluation
-- [ ] Download the COCO evaluation dataset
 - [ ] Use the batched version by default
 - [ ] Add the fcos inference
 - [ ] Add the BlazeNet inference (anchors parametrization)

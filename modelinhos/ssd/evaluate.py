@@ -1,3 +1,5 @@
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import cv2
@@ -22,6 +24,20 @@ def build_model(resolution: tuple[int, int] = (300, 300)):
     )
 
 
+@contextmanager
+def timer(name):
+    t0 = time.time()
+    yield
+    print(
+        "{color}[{name}] done in {et:.0f} s{nocolor}".format(
+            name=name,
+            et=time.time() - t0,
+            color="\033[1;33m",
+            nocolor="\033[0m",
+        )
+    )
+
+
 def main():
     annotations = Path("datasets/coco/annotations.json")
     samples = load_samples(annotations)
@@ -34,18 +50,21 @@ def main():
         cv2.waitKey()
 
     model = build_model()
-    y_pred = model.transform(
-        [
-            cv2.imread(str(annotations.parent / s.file_name))
-            for s in tqdm.tqdm(samples)
-        ]
-    )
+    with timer("inference"):
+        y_pred = model.transform(
+            [
+                cv2.imread(str(annotations.parent / s.file_name))
+                for s in tqdm.tqdm(samples)
+            ]
+        )
     le = LabelEncoder(
         l2i={label: i for i, label in enumerate(weights.meta["categories"])}
     )
     y_pred = le.inverse_transform(y_pred)
-    m_ap = mean_average_precision(samples, y_pred, l2i=le.l2i)
-    print(m_ap["mAP"])
+
+    with timer("mAP calculation"):
+        m_ap = mean_average_precision(samples, y_pred, l2i=le.l2i)
+    print("mAP", m_ap["mAP"])
 
 
 if __name__ == "__main__":
