@@ -11,7 +11,7 @@ from torchvision.models.detection import (
 )
 
 from modelinhos.coco import load_samples
-from modelinhos.evaluation import mean_average_precision
+from modelinhos.evaluation import mean_average_precision, visualize_pr
 from modelinhos.plot import plot
 from modelinhos.processing import LabelEncoder
 from modelinhos.sample import Sample
@@ -69,10 +69,15 @@ def main():
         l2i={label: i for i, label in enumerate(weights.meta["categories"])}
     )
     y_pred = infer(samples, annotations)
-    y_pred = le.inverse_transform(y_pred)
+
+    with timer("inverse transform"):
+        y_pred = le.inverse_transform(y_pred)
 
     with timer("mAP calculation"):
         m_ap = mean_average_precision(samples, y_pred, l2i=le.l2i)
+
+    with timer("Visualize"):
+        visualize_pr(m_ap, i2l=le.i2l)
     print("mAP", m_ap["mAP"])
 
 

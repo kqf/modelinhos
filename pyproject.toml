@@ -55,6 +55,7 @@ dependencies = [
     "mean_average_precision",
     "tqdm",
     "requests",
+    "matplotlib",
     "joblib"
 ]
 readme = { file = "README.rst", content-type = "text/x-rst" }
