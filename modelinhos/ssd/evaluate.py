@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import cv2
+import joblib
 import tqdm
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
@@ -13,7 +14,10 @@ from modelinhos.coco import load_samples
 from modelinhos.evaluation import mean_average_precision
 from modelinhos.plot import plot
 from modelinhos.processing import LabelEncoder
+from modelinhos.sample import Sample
 from modelinhos.ssd.inference import TorchvisionDetector
+
+memory = joblib.Memory("./cachedir", verbose=0)
 
 
 def build_model(resolution: tuple[int, int] = (300, 300)):
@@ -38,6 +42,19 @@ def timer(name):
     )
 
 
+@memory.cache()
+def infer(samples: list[Sample], annotations: Path) -> list[Sample]:
+    model = build_model()
+    with timer("inference"):
+        y_pred = model.transform(
+            [
+                cv2.imread(str(annotations.parent / s.file_name))
+                for s in tqdm.tqdm(samples)
+            ]
+        )
+    return y_pred
+
+
 def main():
     annotations = Path("datasets/coco/annotations.json")
     samples = load_samples(annotations)
@@ -47,19 +64,11 @@ def main():
             continue
         frame = cv2.imread(str(annotations.parent / sample.file_name))
         cv2.imshow("frame", plot(frame, sample))
-        cv2.waitKey()
 
-    model = build_model()
-    with timer("inference"):
-        y_pred = model.transform(
-            [
-                cv2.imread(str(annotations.parent / s.file_name))
-                for s in tqdm.tqdm(samples)
-            ]
-        )
     le = LabelEncoder(
         l2i={label: i for i, label in enumerate(weights.meta["categories"])}
     )
+    y_pred = infer(samples, annotations)
     y_pred = le.inverse_transform(y_pred)
 
     with timer("mAP calculation"):
