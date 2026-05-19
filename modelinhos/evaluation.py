@@ -1,4 +1,5 @@
 import numpy as np
+from matplotlib import pyplot as plt
 from mean_average_precision import MetricBuilder
 
 from modelinhos.sample import Sample
@@ -86,3 +87,27 @@ def per_sample_ap(
         )
         maps.append(float(result["mAP"]))
     return maps
+
+
+def visualize_pr(map_results: dict, i2l: dict[int, str]):
+    for iou, class_results in map_results.items():
+        if not isinstance(class_results, dict):
+            continue
+
+        for class_id, metrics in class_results.items():
+            if class_id == "mAP":
+                continue
+
+            label = i2l.get(class_id, str(class_id))
+            recall = metrics["recall"]
+            precision = metrics["precision"]
+            ap = metrics["ap"]
+
+            fig, ax = plt.subplots(figsize=(6, 5))
+            ax.plot(recall, precision)
+            ax.set_xlabel("Recall")
+            ax.set_ylabel("Precision")
+            ax.set_title(f"{label} — AP={ap:.2f} @ IoU={iou:.2f}")
+            ax.grid(True)
+            plt.tight_layout()
+            plt.show()
