@@ -85,9 +85,10 @@ def _attach_thresholds(results: dict, confidences: dict) -> dict:
             if not confs:
                 metrics["thresholds"] = [0.0] * n_curve
                 continue
-
             sentinel = [confs[0] + 1e-6] if len(confs) + 1 == n_curve else []
-        metrics["thresholds"] = (sentinel + confs + [0.0] * n_curve)[:n_curve]
+            metrics["thresholds"] = (sentinel + confs + [0.0] * n_curve)[
+                :n_curve
+            ]
 
     return results
 
@@ -125,7 +126,6 @@ def visualize_pr(map_results: dict, i2l: dict[int, str]):
     for iou, class_results in map_results.items():
         if not isinstance(class_results, dict):
             continue
-
         for class_id, metrics in class_results.items():
             if class_id == "mAP":
                 continue
@@ -133,12 +133,29 @@ def visualize_pr(map_results: dict, i2l: dict[int, str]):
             label = i2l.get(class_id, str(class_id))
             recall = metrics["recall"]
             precision = metrics["precision"]
+            thresholds = metrics.get("thresholds", [])
             ap = metrics["ap"]
 
             fig, ax = plt.subplots(figsize=(6, 5))
-            ax.plot(recall, precision)
+            ax.plot(recall, precision, label="Precision")
             ax.set_xlabel("Recall")
             ax.set_ylabel("Precision")
+
+            ax_thresh = ax.twinx()
+            ax_thresh.plot(
+                recall,
+                thresholds,
+                color="orange",
+                linestyle="--",
+                label="Confidence",
+            )
+            ax_thresh.set_ylabel("Confidence threshold")
+            ax_thresh.set_ylim(0, 1)
+
+            lines, labels = ax.get_legend_handles_labels()
+            t_lines, t_labels = ax_thresh.get_legend_handles_labels()
+            ax.legend(lines + t_lines, labels + t_labels)
+
             ax.set_title(f"{label} — AP={ap:.2f} @ IoU={iou:.2f}")
             ax.grid(True)
             plt.tight_layout()
