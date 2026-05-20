@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 from matplotlib import pyplot as plt
 from mean_average_precision import MetricBuilder
@@ -47,17 +49,47 @@ def mean_average_precision(
             f"y_true and y_pred must have the same length, "
             f"got {len(y_true)} and {len(y_pred)}"
         )
+
     num_classes = max(l2i.values()) + 1
     metric_fn = MetricBuilder.build_evaluation_metric(
         "map_2d", async_mode=True, num_classes=num_classes
     )
 
+    confidences: dict[int, list[float]] = defaultdict(list)
     for true_sample, pred_sample in zip(y_true, y_pred):
         true = _annotations_to_true(true_sample, l2i)
         pred = _annotations_to_pred(pred_sample, l2i)
         metric_fn.add(pred, true)
 
-    return metric_fn.value(iou_thresholds=iou_thresholds, *args, **kwargs)
+        # pred columns: [xmin, ymin, xmax, ymax, class_id, confidence]
+        for row in pred:
+            confidences[int(row[4])].append(float(row[5]))
+
+    results = metric_fn.value(iou_thresholds=iou_thresholds, *args, **kwargs)
+    return _attach_thresholds(results, confidences)
+
+
+def _attach_thresholds(results: dict, confidences: dict) -> dict:
+    sconfidences = {c: sorted(s, reverse=True) for c, s in confidences.items()}
+    for _, class_results in results.items():
+        if not isinstance(class_results, dict):
+            continue
+
+        for class_id, metrics in class_results.items():
+            if class_id == "mAP":
+                continue
+
+            confs = sconfidences.get(class_id, [])
+            n_curve = len(metrics["recall"])
+
+            if not confs:
+                metrics["thresholds"] = [0.0] * n_curve
+                continue
+
+            sentinel = [confs[0] + 1e-6] if len(confs) + 1 == n_curve else []
+        metrics["thresholds"] = (sentinel + confs + [0.0] * n_curve)[:n_curve]
+
+    return results
 
 
 def per_sample_ap(
