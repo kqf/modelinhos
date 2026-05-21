@@ -160,3 +160,54 @@ def visualize_pr(map_results: dict, i2l: dict[int, str]):
             ax.grid(True)
             plt.tight_layout()
             plt.show()
+
+
+def fp_fn_per_image(
+    y_true: list[Sample],
+    y_pred: list[Sample],
+    l2i: dict[str, int],
+    iou_threshold: float = 0.5,
+    confidence_threshold: float = 0.5,
+) -> list[dict[int, dict]]:
+    num_classes = max(l2i.values()) + 1
+    results = []
+
+    for true_sample, pred_sample in zip(y_true, y_pred):
+        true = _annotations_to_true(true_sample, l2i)
+        pred = _annotations_to_pred(pred_sample, l2i)
+
+        pred = pred[pred[:, 5] >= confidence_threshold] if len(pred) else pred
+
+        metric_fn = MetricBuilder.build_evaluation_metric(
+            "map_2d", async_mode=False, num_classes=num_classes
+        )
+        metric_fn.add(pred, true)
+        value = metric_fn.value(
+            iou_thresholds=[iou_threshold], mpolicy="greedy"
+        )
+
+        per_class: dict[int, dict] = {}
+        for _, class_results in value.items():
+            if not isinstance(class_results, dict):
+                continue
+            for class_id, metrics in class_results.items():
+                if class_id == "mAP":
+                    continue
+
+                n_pred = (
+                    int((pred[:, 4] == class_id).sum()) if len(pred) else 0
+                )
+                n_true = (
+                    int((true[:, 4] == class_id).sum()) if len(true) else 0
+                )
+                recall = np.array(metrics["recall"])
+                tp = round(float(recall[-1]) * n_true) if len(recall) else 0
+                per_class[class_id] = {
+                    "tp": tp,
+                    "fp": max(n_pred - tp, 0),
+                    "fn": max(n_true - tp, 0),
+                }
+
+        results.append(per_class)
+
+    return results
