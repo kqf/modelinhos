@@ -11,7 +11,12 @@ from torchvision.models.detection import (
 )
 
 from modelinhos.coco import load_samples
-from modelinhos.evaluation import mean_average_precision, visualize_pr
+from modelinhos.evaluation import (
+    mean_average_precision,
+    per_sample_metrics,
+    visualize_fp_fn,
+    visualize_pr,
+)
 from modelinhos.plot import plot
 from modelinhos.processing import LabelEncoder
 from modelinhos.sample import Sample
@@ -76,8 +81,14 @@ def main():
     with timer("mAP calculation"):
         m_ap = mean_average_precision(samples, y_pred, l2i=le.l2i)
 
+    with timer("Per sample calculation"):
+        per_sample = per_sample_metrics(samples, y_pred, l2i=le.l2i)
+
+    visualize_fp_fn(per_sample, i2l=le.i2l)
+
     with timer("Visualize"):
         visualize_pr(m_ap, i2l=le.i2l)
+
     print("mAP", m_ap["mAP"])
 
 
