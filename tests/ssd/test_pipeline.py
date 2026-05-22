@@ -7,7 +7,10 @@ from torchvision.models.detection import (
     ssdlite320_mobilenet_v3_large,
 )
 
-from modelinhos.evaluation import mean_average_precision, per_sample_ap
+from modelinhos.evaluation import (
+    mean_average_precision,
+    per_sample_metrics,
+)
 from modelinhos.processing import LabelEncoder
 from modelinhos.sample import read_samples
 from modelinhos.ssd.inference import TorchvisionDetector
@@ -45,6 +48,6 @@ def test_pipeline(model, dataset):
     m_ap = mean_average_precision(valid, y_pred, l2i={"person": 0, "tie": 1})
     assert m_ap["mAP"] == pytest.approx(0.5)
 
-    aps = per_sample_ap(valid, y_pred, l2i=le.l2i)
+    aps = per_sample_metrics(valid, y_pred, l2i=le.l2i)
     assert len(aps) == len(valid)
-    assert aps[0] == pytest.approx(0.028571429)
+    assert aps[0]["mAP"] == pytest.approx(0.028571429)

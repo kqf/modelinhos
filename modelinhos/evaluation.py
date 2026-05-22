@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Iterator
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -34,6 +35,39 @@ def _annotations_to_pred(sample: Sample, l2i: dict[str, int]) -> np.ndarray:
     return np.array(rows, dtype=np.float32)
 
 
+def _iter_class_results(value: dict) -> Iterator[tuple[float, int, dict]]:
+    for iou, class_results in value.items():
+        if not isinstance(class_results, dict):
+            continue
+        for class_id, metrics in class_results.items():
+            if class_id == "mAP":
+                continue
+            yield iou, class_id, metrics
+
+
+def _per_class_fp_fn(
+    value: dict,
+    pred: np.ndarray,
+    true: np.ndarray,
+    threshold: float,
+) -> dict[int, dict]:
+    filt = pred[pred[:, 5] >= threshold] if len(pred) else pred
+
+    per_class: dict[int, dict] = {}
+    for _, class_id, metrics in _iter_class_results(value):
+        n_pred = int((filt[:, 4] == class_id).sum()) if len(filt) else 0
+        n_true = int((true[:, 4] == class_id).sum()) if len(true) else 0
+        recall = np.array(metrics["recall"])
+        tp = round(float(recall[-1]) * n_true) if len(recall) else 0
+        per_class[class_id] = {
+            "tp": tp,
+            "fp": max(n_pred - tp, 0),
+            "fn": max(n_true - tp, 0),
+        }
+
+    return per_class
+
+
 def mean_average_precision(
     y_true: list[Sample],
     y_pred: list[Sample],
@@ -61,7 +95,6 @@ def mean_average_precision(
         pred = _annotations_to_pred(pred_sample, l2i)
         metric_fn.add(pred, true)
 
-        # pred columns: [xmin, ymin, xmax, ymax, class_id, confidence]
         for row in pred:
             confidences[int(row[4])].append(float(row[5]))
 
@@ -71,104 +104,27 @@ def mean_average_precision(
 
 def _attach_thresholds(results: dict, confidences: dict) -> dict:
     sconfidences = {c: sorted(s, reverse=True) for c, s in confidences.items()}
-    for _, class_results in results.items():
-        if not isinstance(class_results, dict):
+    for _, class_id, metrics in _iter_class_results(results):
+        confs = sconfidences.get(class_id, [])
+        n_curve = len(metrics["recall"])
+
+        if not confs:
+            metrics["thresholds"] = [0.0] * n_curve
             continue
-
-        for class_id, metrics in class_results.items():
-            if class_id == "mAP":
-                continue
-
-            confs = sconfidences.get(class_id, [])
-            n_curve = len(metrics["recall"])
-
-            if not confs:
-                metrics["thresholds"] = [0.0] * n_curve
-                continue
-            sentinel = [confs[0] + 1e-6] if len(confs) + 1 == n_curve else []
-            metrics["thresholds"] = (sentinel + confs + [0.0] * n_curve)[
-                :n_curve
-            ]
+        sentinel = [confs[0] + 1e-6] if len(confs) + 1 == n_curve else []
+        metrics["thresholds"] = (sentinel + confs + [0.0] * n_curve)[:n_curve]
 
     return results
 
 
-def per_sample_ap(
-    y_true: list[Sample],
-    y_pred: list[Sample],
-    l2i: dict[str, int],
-    iou_thresholds: list[float] | None = None,
-    mpolicy: str = "greedy",
-) -> list[float]:
-    iou_thresholds = iou_thresholds or [0.5]
-    num_classes = max(l2i.values()) + 1
-    maps = []
-    for true_sample, pred_sample in zip(y_true, y_pred):
-        metric_fn = MetricBuilder.build_evaluation_metric(
-            "map_2d",
-            async_mode=False,
-            num_classes=num_classes,
-        )
-
-        metric_fn.add(
-            _annotations_to_pred(pred_sample, l2i),
-            _annotations_to_true(true_sample, l2i),
-        )
-        result = metric_fn.value(
-            iou_thresholds=iou_thresholds,
-            mpolicy=mpolicy,
-        )
-        maps.append(float(result["mAP"]))
-    return maps
-
-
-def visualize_pr(map_results: dict, i2l: dict[int, str]):
-    for iou, class_results in map_results.items():
-        if not isinstance(class_results, dict):
-            continue
-        for class_id, metrics in class_results.items():
-            if class_id == "mAP":
-                continue
-
-            label = i2l.get(class_id, str(class_id))
-            recall = metrics["recall"]
-            precision = metrics["precision"]
-            thresholds = metrics.get("thresholds", [])
-            ap = metrics["ap"]
-
-            fig, ax = plt.subplots(figsize=(6, 5))
-            ax.plot(recall, precision, label="Precision")
-            ax.set_xlabel("Recall")
-            ax.set_ylabel("Precision")
-
-            ax_thresh = ax.twinx()
-            ax_thresh.plot(
-                recall,
-                thresholds,
-                color="orange",
-                linestyle="--",
-                label="Confidence",
-            )
-            ax_thresh.set_ylabel("Confidence threshold")
-            ax_thresh.set_ylim(0, 1)
-
-            lines, labels = ax.get_legend_handles_labels()
-            t_lines, t_labels = ax_thresh.get_legend_handles_labels()
-            ax.legend(lines + t_lines, labels + t_labels)
-
-            ax.set_title(f"{label} — AP={ap:.2f} @ IoU={iou:.2f}")
-            ax.grid(True)
-            plt.tight_layout()
-            plt.show()
-
-
-def fp_fn_per_image(
+def per_sample_metrics(
     y_true: list[Sample],
     y_pred: list[Sample],
     l2i: dict[str, int],
     iou_threshold: float = 0.5,
-    confidence_threshold: float = 0.5,
-) -> list[dict[int, dict]]:
+    threshold: float = 0.5,
+    mpolicy: str = "greedy",
+) -> list[dict]:
     num_classes = max(l2i.values()) + 1
     results = []
 
@@ -176,41 +132,55 @@ def fp_fn_per_image(
         true = _annotations_to_true(true_sample, l2i)
         pred = _annotations_to_pred(pred_sample, l2i)
 
-        pred = pred[pred[:, 5] >= confidence_threshold] if len(pred) else pred
-
         metric_fn = MetricBuilder.build_evaluation_metric(
             "map_2d", async_mode=False, num_classes=num_classes
         )
         metric_fn.add(pred, true)
         value = metric_fn.value(
-            iou_thresholds=[iou_threshold], mpolicy="greedy"
+            iou_thresholds=[iou_threshold], mpolicy=mpolicy
+        )
+        results.append(
+            {
+                "mAP": float(value["mAP"]),
+                "classes": _per_class_fp_fn(value, pred, true, threshold),
+            }
         )
 
-        per_class: dict[int, dict] = {}
-        for _, class_results in value.items():
-            if not isinstance(class_results, dict):
-                continue
-            for class_id, metrics in class_results.items():
-                if class_id == "mAP":
-                    continue
-
-                n_pred = (
-                    int((pred[:, 4] == class_id).sum()) if len(pred) else 0
-                )
-                n_true = (
-                    int((true[:, 4] == class_id).sum()) if len(true) else 0
-                )
-                recall = np.array(metrics["recall"])
-                tp = round(float(recall[-1]) * n_true) if len(recall) else 0
-                per_class[class_id] = {
-                    "tp": tp,
-                    "fp": max(n_pred - tp, 0),
-                    "fn": max(n_true - tp, 0),
-                }
-
-        results.append(per_class)
-
     return results
+
+
+def visualize_pr(map_results: dict, i2l: dict[int, str]):
+    for iou, class_id, metrics in _iter_class_results(map_results):
+        label = i2l.get(class_id, str(class_id))
+        recall = metrics["recall"]
+        precision = metrics["precision"]
+        thresholds = metrics.get("thresholds", [])
+        ap = metrics["ap"]
+
+        fig, ax = plt.subplots(figsize=(6, 5))
+        ax.plot(recall, precision, label="Precision")
+        ax.set_xlabel("Recall")
+        ax.set_ylabel("Precision")
+
+        ax_thresh = ax.twinx()
+        ax_thresh.plot(
+            recall,
+            thresholds,
+            color="orange",
+            linestyle="--",
+            label="Confidence",
+        )
+        ax_thresh.set_ylabel("Confidence threshold")
+        ax_thresh.set_ylim(0, 1)
+
+        lines, labels = ax.get_legend_handles_labels()
+        t_lines, t_labels = ax_thresh.get_legend_handles_labels()
+        ax.legend(lines + t_lines, labels + t_labels)
+
+        ax.set_title(f"{label} — AP={ap:.2f} @ IoU={iou:.2f}")
+        ax.grid(True)
+        plt.tight_layout()
+        plt.show()
 
 
 def visualize_fp_fn(
