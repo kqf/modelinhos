@@ -184,10 +184,11 @@ def visualize_pr(map_results: dict, i2l: dict[int, str]):
 
 
 def visualize_fp_fn(
-    fp_fn: list[dict[int, dict]],
+    per_sample: list[dict],
     i2l: dict[int, str],
     class_agnostic: bool = False,
 ):
+    fp_fn = [r["classes"] for r in per_sample]
     class_ids = sorted({cid for r in fp_fn for cid in r})
 
     if class_agnostic:
