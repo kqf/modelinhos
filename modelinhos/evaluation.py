@@ -139,10 +139,9 @@ def per_sample_metrics(
         value = metric_fn.value(
             iou_thresholds=[iou_threshold], mpolicy=mpolicy
         )
-
         results.append(
             {
-                "map": float(value["mAP"]),
+                "mAP": float(value["mAP"]),
                 "classes": _per_class_fp_fn(value, pred, true, threshold),
             }
         )
