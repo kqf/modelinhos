@@ -191,23 +191,14 @@ def visualize_fp_fn(
     fp_fn = [r["classes"] for r in per_sample]
     class_ids = sorted({cid for r in fp_fn for cid in r})
 
-    if class_agnostic:
-        fps = [
-            sum(r.get(c, {}).get("fp", 0) for c in class_ids) for r in fp_fn
-        ]
-        fns = [
-            sum(r.get(c, {}).get("fn", 0) for c in class_ids) for r in fp_fn
-        ]
-        panels = [("All classes", fps, fns)]
-    else:
-        panels = [
-            (
-                i2l.get(cid, str(cid)),
-                [r.get(cid, {}).get("fp", 0) for r in fp_fn],
-                [r.get(cid, {}).get("fn", 0) for r in fp_fn],
-            )
-            for cid in class_ids
-        ]
+    panels = [
+        (
+            i2l.get(cid, str(cid)),
+            np.array([r.get(cid, {}).get("fp", 0) for r in fp_fn]),
+            np.array([r.get(cid, {}).get("fn", 0) for r in fp_fn]),
+        )
+        for cid in class_ids
+    ]
 
     for label, fps, fns in panels:
         indices = np.arange(len(fp_fn))
@@ -224,13 +215,22 @@ def visualize_fp_fn(
         axes[0].legend()
         axes[0].grid(axis="y", alpha=0.4)
 
-        axes[1].hist(fps, bins=bins, color="tomato", edgecolor="white")
+        axes[1].hist(
+            fps[fps > 0],
+            bins=bins,
+            color="tomato",
+            edgecolor="white",
+        )
         axes[1].set_xlabel("FP count")
         axes[1].set_ylabel("Images")
         axes[1].set_title("FP distribution")
         axes[1].grid(axis="y", alpha=0.4)
-
-        axes[2].hist(fns, bins=bins, color="steelblue", edgecolor="white")
+        axes[2].hist(
+            fns[fns > 0],
+            bins=bins,
+            color="steelblue",
+            edgecolor="white",
+        )
         axes[2].set_xlabel("FN count")
         axes[2].set_ylabel("Images")
         axes[2].set_title("FN distribution")
