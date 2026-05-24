@@ -47,7 +47,7 @@ def test_pipeline(model, dataset):
     )
     y_pred = le.inverse_transform(y_pred)
     m_ap = mean_average_precision(valid, y_pred, l2i={"person": 0, "tie": 1})
-    assert m_ap["mAP"] == pytest.approx(0.5)
+    assert m_ap["mAP"].iloc[0] == pytest.approx(0.5)
 
     aps = per_sample_metrics(valid, y_pred, l2i=le.l2i)
     assert len(aps) == len(valid)
