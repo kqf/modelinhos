@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Iterator
 
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from mean_average_precision import MetricBuilder
 
@@ -68,6 +69,59 @@ def _per_class_fp_fn(
     return per_class
 
 
+def _attach_thresholds(results: dict, confidences: dict) -> dict:
+    sconfidences = {c: sorted(s, reverse=True) for c, s in confidences.items()}
+    for _, class_id, metrics in _iter_class_results(results):
+        confs = sconfidences.get(class_id, [])
+        n_curve = len(metrics["recall"])
+
+        if not confs:
+            metrics["thresholds"] = [0.0] * n_curve
+            continue
+        sentinel = [confs[0] + 1e-6] if len(confs) + 1 == n_curve else []
+        metrics["thresholds"] = (sentinel + confs + [0.0] * n_curve)[:n_curve]
+
+    return results
+
+
+def _map_results_to_df(results: dict) -> pd.DataFrame:
+    map_score = float(results.get("mAP", float("nan")))
+    records = []
+    for iou, class_id, metrics in _iter_class_results(results):
+        recall = metrics["recall"]
+        precision = metrics["precision"]
+        thresholds = metrics.get("thresholds", [])
+        ap = metrics["ap"]
+        records.extend(
+            {
+                "iou": iou,
+                "class_id": class_id,
+                "recall": float(r),
+                "precision": float(p),
+                "threshold": float(t),
+                "ap": float(ap),
+                "mAP": map_score,
+            }
+            for r, p, t in zip(recall, precision, thresholds)
+        )
+    return pd.DataFrame(records)
+
+
+def _per_sample_to_df(results: list[dict]) -> pd.DataFrame:
+    records = []
+    for row in results:
+        records.extend(
+            {
+                "sample_idx": row["sample_idx"],
+                "class_id": class_id,
+                "mAP": row["mAP"],
+                **counts,
+            }
+            for class_id, counts in row["classes"].items()
+        )
+    return pd.DataFrame(records)
+
+
 def mean_average_precision(
     y_true: list[Sample],
     y_pred: list[Sample],
@@ -75,7 +129,7 @@ def mean_average_precision(
     iou_thresholds: list[float] | None = None,
     *args,
     **kwargs,
-) -> dict:
+) -> pd.DataFrame:
     iou_thresholds = iou_thresholds or [0.5]
 
     if len(y_true) != len(y_pred):
@@ -99,22 +153,8 @@ def mean_average_precision(
             confidences[int(row[4])].append(float(row[5]))
 
     results = metric_fn.value(iou_thresholds=iou_thresholds, *args, **kwargs)
-    return _attach_thresholds(results, confidences)
-
-
-def _attach_thresholds(results: dict, confidences: dict) -> dict:
-    sconfidences = {c: sorted(s, reverse=True) for c, s in confidences.items()}
-    for _, class_id, metrics in _iter_class_results(results):
-        confs = sconfidences.get(class_id, [])
-        n_curve = len(metrics["recall"])
-
-        if not confs:
-            metrics["thresholds"] = [0.0] * n_curve
-            continue
-        sentinel = [confs[0] + 1e-6] if len(confs) + 1 == n_curve else []
-        metrics["thresholds"] = (sentinel + confs + [0.0] * n_curve)[:n_curve]
-
-    return results
+    results = _attach_thresholds(results, confidences)
+    return _map_results_to_df(results)
 
 
 def per_sample_metrics(
@@ -124,11 +164,11 @@ def per_sample_metrics(
     iou_threshold: float = 0.5,
     threshold: float = 0.5,
     mpolicy: str = "greedy",
-) -> list[dict]:
+) -> pd.DataFrame:
     num_classes = max(l2i.values()) + 1
     results = []
 
-    for true_sample, pred_sample in zip(y_true, y_pred):
+    for idx, (true_sample, pred_sample) in enumerate(zip(y_true, y_pred)):
         true = _annotations_to_true(true_sample, l2i)
         pred = _annotations_to_pred(pred_sample, l2i)
 
@@ -141,12 +181,47 @@ def per_sample_metrics(
         )
         results.append(
             {
+                "sample_idx": idx,
                 "mAP": float(value["mAP"]),
                 "classes": _per_class_fp_fn(value, pred, true, threshold),
             }
         )
 
-    return results
+    return _per_sample_to_df(results)
+
+
+def visualize_pr(map_results: pd.DataFrame, i2l: dict[int, str]):
+    for (iou, class_id), group in map_results.groupby(["iou", "class_id"]):
+        label = i2l.get(class_id, str(class_id))
+        recall = group["recall"].tolist()
+        precision = group["precision"].tolist()
+        thresholds = group["threshold"].tolist()
+        ap = group["ap"].iloc[0]
+
+        fig, ax = plt.subplots(figsize=(6, 5))
+        ax.plot(recall, precision, label="Precision")
+        ax.set_xlabel("Recall")
+        ax.set_ylabel("Precision")
+
+        ax_thresh = ax.twinx()
+        ax_thresh.plot(
+            recall,
+            thresholds,
+            color="orange",
+            linestyle="--",
+            label="Confidence",
+        )
+        ax_thresh.set_ylabel("Confidence threshold")
+        ax_thresh.set_ylim(0, 1)
+
+        lines, labels = ax.get_legend_handles_labels()
+        t_lines, t_labels = ax_thresh.get_legend_handles_labels()
+        ax.legend(lines + t_lines, labels + t_labels)
+
+        ax.set_title(f"{label} — AP={ap:.2f} @ IoU={iou:.2f}")
+        ax.grid(True)
+        plt.tight_layout()
+        plt.show()
 
 
 def visualize_pr(map_results: dict, i2l: dict[int, str]):
@@ -184,25 +259,16 @@ def visualize_pr(map_results: dict, i2l: dict[int, str]):
 
 
 def visualize_fp_fn(
-    per_sample: list[dict],
+    per_sample: pd.DataFrame,
     i2l: dict[int, str],
     class_agnostic: bool = False,
 ):
-    fp_fn = [r["classes"] for r in per_sample]
-    class_ids = sorted({cid for r in fp_fn for cid in r})
-
-    panels = [
-        (
-            i2l.get(cid, str(cid)),
-            np.array([r.get(cid, {}).get("fp", 0) for r in fp_fn]),
-            np.array([r.get(cid, {}).get("fn", 0) for r in fp_fn]),
-        )
-        for cid in class_ids
-    ]
-
-    for label, fps, fns in panels:
-        indices = np.arange(len(fp_fn))
-        max_count = max(max(fps, default=0), max(fns, default=0)) + 1
+    for class_id, group in per_sample.groupby("class_id"):
+        label = i2l.get(class_id, str(class_id))
+        fps = group["fp"].to_numpy()
+        fns = group["fn"].to_numpy()
+        indices = np.arange(len(group))
+        max_count = max(fps.max(initial=0), fns.max(initial=0)) + 1
         bins = np.arange(0, max_count + 1) - 0.5
 
         fig, axes = plt.subplots(1, 3, figsize=(15, 4))
