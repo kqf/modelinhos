@@ -86,7 +86,7 @@ def _attach_thresholds(results: dict, confidences: dict) -> dict:
 
 def _map_results_to_df(results: dict) -> pd.DataFrame:
     map_score = float(results.get("mAP", float("nan")))
-    records = []
+    records: list[dict[str, float]] = []
     for iou, class_id, metrics in _iter_class_results(results):
         recall = metrics["recall"]
         precision = metrics["precision"]
@@ -108,7 +108,7 @@ def _map_results_to_df(results: dict) -> pd.DataFrame:
 
 
 def _per_sample_to_df(results: list[dict]) -> pd.DataFrame:
-    records = []
+    records: list[dict[str, float]] = []
     for row in results:
         records.extend(
             {
