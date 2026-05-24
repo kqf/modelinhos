@@ -86,7 +86,7 @@ def _attach_thresholds(results: dict, confidences: dict) -> dict:
 
 def _map_results_to_df(results: dict) -> pd.DataFrame:
     map_score = float(results.get("mAP", float("nan")))
-    records = []
+    records: list[dict[str, float]] = []
     for iou, class_id, metrics in _iter_class_results(results):
         recall = metrics["recall"]
         precision = metrics["precision"]
@@ -108,7 +108,7 @@ def _map_results_to_df(results: dict) -> pd.DataFrame:
 
 
 def _per_sample_to_df(results: list[dict]) -> pd.DataFrame:
-    records = []
+    records: list[dict[str, float]] = []
     for row in results:
         records.extend(
             {
@@ -197,40 +197,6 @@ def visualize_pr(map_results: pd.DataFrame, i2l: dict[int, str]):
         precision = group["precision"].tolist()
         thresholds = group["threshold"].tolist()
         ap = group["ap"].iloc[0]
-
-        fig, ax = plt.subplots(figsize=(6, 5))
-        ax.plot(recall, precision, label="Precision")
-        ax.set_xlabel("Recall")
-        ax.set_ylabel("Precision")
-
-        ax_thresh = ax.twinx()
-        ax_thresh.plot(
-            recall,
-            thresholds,
-            color="orange",
-            linestyle="--",
-            label="Confidence",
-        )
-        ax_thresh.set_ylabel("Confidence threshold")
-        ax_thresh.set_ylim(0, 1)
-
-        lines, labels = ax.get_legend_handles_labels()
-        t_lines, t_labels = ax_thresh.get_legend_handles_labels()
-        ax.legend(lines + t_lines, labels + t_labels)
-
-        ax.set_title(f"{label} — AP={ap:.2f} @ IoU={iou:.2f}")
-        ax.grid(True)
-        plt.tight_layout()
-        plt.show()
-
-
-def visualize_pr(map_results: dict, i2l: dict[int, str]):
-    for iou, class_id, metrics in _iter_class_results(map_results):
-        label = i2l.get(class_id, str(class_id))
-        recall = metrics["recall"]
-        precision = metrics["precision"]
-        thresholds = metrics.get("thresholds", [])
-        ap = metrics["ap"]
 
         fig, ax = plt.subplots(figsize=(6, 5))
         ax.plot(recall, precision, label="Precision")
