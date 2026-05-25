@@ -43,6 +43,11 @@ def _iter_class_results(value: dict) -> Iterator[tuple[float, int, dict]]:
         for class_id, metrics in class_results.items():
             if class_id == "mAP":
                 continue
+
+            # Exclude empty metrics
+            if metrics["precision"].size == 0:
+                continue
+
             yield iou, class_id, metrics
 
 
