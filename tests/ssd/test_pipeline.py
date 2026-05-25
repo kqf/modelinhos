@@ -51,5 +51,5 @@ def test_pipeline(model, dataset):
 
     aps = per_sample_metrics(valid, y_pred, l2i=le.l2i)
     assert len(aps) == len(valid)
-    assert aps[0]["mAP"] == pytest.approx(0.028571429)
+    assert aps.iloc[0]["mAP"] == pytest.approx(0.028571429)
     visualize_fp_fn(aps, i2l=le.i2l)
