@@ -84,7 +84,7 @@ def main():
     with timer("Per sample calculation"):
         per_sample = per_sample_metrics(samples, y_pred, l2i=le.l2i)
 
-    visualize_fp_fn(per_sample, i2l=le.i2l)
+    visualize_fp_fn(per_sample, i2l=le.i2l, class_agnostic=True)
 
     with timer("Visualize"):
         visualize_pr(m_ap, i2l=le.i2l)

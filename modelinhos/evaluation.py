@@ -234,6 +234,9 @@ def visualize_fp_fn(
     i2l: dict[int, str],
     class_agnostic: bool = False,
 ):
+    if class_agnostic:
+        per_sample = per_sample.assign(class_id="all classes")
+
     for class_id, group in per_sample.groupby("class_id"):
         label = i2l.get(class_id, str(class_id))
         fps = group["fp"].to_numpy()
