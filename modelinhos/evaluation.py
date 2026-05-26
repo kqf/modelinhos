@@ -195,7 +195,14 @@ def per_sample_metrics(
     return _per_sample_to_df(results)
 
 
-def visualize_pr(map_results: pd.DataFrame, i2l: dict[int, str]):
+def visualize_pr(
+    map_results: pd.DataFrame,
+    i2l: dict[int, str],
+    class_agnostic: bool = False,
+):
+    if class_agnostic:
+        map_results = map_results.assign(class_id="all classes")
+
     for (iou, class_id), group in map_results.groupby(["iou", "class_id"]):
         label = i2l.get(class_id, str(class_id))
         recall = group["recall"].tolist()
