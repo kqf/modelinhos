@@ -36,11 +36,14 @@ def to_sample(entry: dict[str, Any]) -> Sample:
         raise e
 
 
-def read_samples(path: Path | str) -> list[Sample]:
+def read_samples(path: Path | str, relative=True) -> list[Sample]:
     path = Path(path)
     with open(path) as f:
         df = json.load(f)
     samples = [to_sample(x) for x in df if x]
+    if relative:
+        for sample in samples:
+            sample.file_name = str(path.parent / sample.file_name)
     return list(samples)
 
 
