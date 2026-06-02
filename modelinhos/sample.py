@@ -20,7 +20,7 @@ class Annotation:
 @dataclass_json
 @dataclass
 class Sample:
-    file_name: str
+    file_name: Path
     annotations: list[Annotation]
 
 
@@ -29,7 +29,7 @@ def to_sample(entry: dict[str, Any]) -> Sample:
         return from_dict(
             data_class=Sample,
             data=entry,
-            config=Config(cast=[tuple]),
+            config=Config(cast=[tuple, Path]),
         )
     except Exception as e:
         print(f"Failed to parse entry: {entry}")
@@ -43,7 +43,7 @@ def read_samples(path: Path, relative=True) -> list[Sample]:
     samples = [to_sample(x) for x in df if x]
     if relative:
         for sample in samples:
-            sample.file_name = str(path.parent / sample.file_name)
+            sample.file_name = path.parent / sample.file_name
     return list(samples)
 
 
