@@ -36,7 +36,7 @@ def to_sample(entry: dict[str, Any]) -> Sample:
         raise e
 
 
-def read_samples(path: Path | str, relative=True) -> list[Sample]:
+def read_samples(path: Path, relative=True) -> list[Sample]:
     path = Path(path)
     with open(path) as f:
         df = json.load(f)
@@ -47,6 +47,6 @@ def read_samples(path: Path | str, relative=True) -> list[Sample]:
     return list(samples)
 
 
-def save_samples(samples: list[Sample], path: Path | str) -> None:
+def save_samples(samples: list[Sample], path: Path) -> None:
     with open(path, "w") as f:
         json.dump([sample.to_dict() for sample in samples], f)  # type: ignore

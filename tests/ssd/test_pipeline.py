@@ -32,11 +32,11 @@ def train_test_split(data):
 
 
 @pytest.fixture
-def dataset(tmp_path) -> pathlib.Path:
+def dataset(tmp_path: pathlib.Path) -> pathlib.Path:
     return pathlib.Path("tests/assets/annotations.json")
 
 
-def test_pipeline(model, dataset):
+def test_pipeline(model: TorchvisionDetector, dataset: pathlib.Path):
     samples = read_samples(dataset)
     le = LabelEncoder(l2i={"person": 1, "tie": 34})
     train, valid = train_test_split(samples)
