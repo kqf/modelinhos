@@ -146,7 +146,7 @@ def to_samples(annotations_path: Path) -> list[Sample]:
 
     return [
         Sample(
-            file_name=f"images/val2017/{image.file_name}",
+            file_name=Path(f"images/val2017/{image.file_name}"),
             annotations=[
                 Annotation(
                     bbox=_bbox_xywh_to_xyxy(ann.bbox),
