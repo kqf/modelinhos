@@ -13,6 +13,7 @@ from torchvision.models.detection.retinanet import (
 )
 
 from modelinhos.plot import plot
+from modelinhos.processing import LabelEncoder
 from modelinhos.ssd.inference import Detector, TorchvisionDetector
 from modelinhos.ssd.lite import (
     build_ssdlite,
@@ -114,6 +115,12 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
 def test_weights_match(frame, build_model, headless):
     model = build_model(frame.shape[:2])
     predictions = model.transform([frame])[0]
+
+    # Convert predictions to meaningful labels
+    labels = model.weights.meta["categories"]
+    le = LabelEncoder(l2i={label: i for i, label in enumerate(labels)})
+    predictions = le.inverse_transform([predictions])[0]
+
     frame = plot(frame, predictions)
 
     # sourcery skip: no-conditionals-in-tests
