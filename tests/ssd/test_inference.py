@@ -119,7 +119,7 @@ def test_weights_match(frame, build_model, headless):
     # Convert predictions to meaningful labels
     labels = model.weights.meta["categories"]
     le = LabelEncoder(l2i={label: i for i, label in enumerate(labels)})
-    predictions = le.inverse_transform(predictions)
+    predictions = le.inverse_transform([predictions])[0]
 
     frame = plot(frame, predictions)
 
