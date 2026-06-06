@@ -50,7 +50,7 @@ def plot_label_above(
         thickness,
         cv2.LINE_AA,
     )
-    return np.ndarray
+    return frame
 
 
 def plot(
