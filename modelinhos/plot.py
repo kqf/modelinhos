@@ -25,7 +25,7 @@ def plot_label_above(
     thickness: int = 1,
     color_bg: tuple[int, int, int] = (0, 255, 0),
     color_text: tuple[int, int, int] = (0, 0, 0),
-) -> None:
+) -> np.ndarray:
     x1, y1, x2, y2 = (int(b) for b in bbox)
     (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
     tx, ty = int(x1), int(y1) - 4
@@ -50,6 +50,7 @@ def plot_label_above(
         thickness,
         cv2.LINE_AA,
     )
+    return np.ndarray
 
 
 def plot(
