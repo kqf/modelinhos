@@ -79,7 +79,7 @@ plot_label_bottom_right = partial(
 def plot(
     image_bgr: np.ndarray,
     sample: Sample,
-    plot_label: LPLOT = plot_label_top_left,
+    plot_label: LPLOT = plot_label_bottom_right,
 ) -> np.ndarray:
     for ann in sample.annotations:
         x1, y1, x2, y2 = (int(v) for v in ann.bbox)
