@@ -107,7 +107,7 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
         partial(
             Detector,
             # Don't multiply by two because it breaks tests.
-            build_model=partial(bulid_retinanet, n_classes=92 * 1),
+            build_model=partial(bulid_retinanet, n_classes=91 * 1),
             th=0.01,
             weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         ),
