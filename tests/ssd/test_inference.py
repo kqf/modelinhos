@@ -78,7 +78,7 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
         ),
         partial(
             Detector,
-            build_model=partial(build_ssdlite, n_classes=91),
+            build_model=partial(build_ssdlite, n_classes=90),
             th=0.01,
             weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
         ),
