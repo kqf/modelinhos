@@ -1,4 +1,5 @@
-from typing import Callable
+from functools import partial
+from typing import Callable, Literal
 
 import cv2
 import numpy as np
@@ -16,10 +17,16 @@ LPLOT = Callable[
 ]
 
 
-def plot_label_above(
+HAlign = Literal["left", "right"]
+VAlign = Literal["top", "bottom"]
+
+
+def plot_label(
     frame: np.ndarray,
     label: str,
     bbox: AbsoluteXYXY,
+    halign: HAlign = "left",
+    valign: VAlign = "top",
     font: int = cv2.FONT_HERSHEY_SIMPLEX,
     font_scale: float = 0.4,
     thickness: int = 1,
@@ -28,11 +35,15 @@ def plot_label_above(
 ) -> np.ndarray:
     x1, y1, x2, y2 = (int(b) for b in bbox)
     (tw, th), baseline = cv2.getTextSize(label, font, font_scale, thickness)
-    tx, ty = int(x1), int(y1) - 4
-
-    if ty - th < 0:
+    tx = int(x1) if halign == "left" else int(x2) - tw
+    if valign == "top":
+        ty = int(y1) - 4
+        if ty - th < 0:
+            ty = int(y2) + th + 4
+    else:
         ty = int(y2) + th + 4
-
+        if ty + baseline > frame.shape[0]:
+            ty = int(y1) - 4
     cv2.rectangle(
         frame,
         (tx, ty - th - baseline),
@@ -53,10 +64,22 @@ def plot_label_above(
     return frame
 
 
+plot_label_top_left = partial(
+    plot_label,
+    halign="left",
+    valign="top",
+)
+plot_label_bottom_right = partial(
+    plot_label,
+    halign="right",
+    valign="bottom",
+)
+
+
 def plot(
     image_bgr: np.ndarray,
     sample: Sample,
-    plot_label: LPLOT = plot_label_above,
+    plot_label: LPLOT = plot_label_top_left,
 ) -> np.ndarray:
     for ann in sample.annotations:
         x1, y1, x2, y2 = (int(v) for v in ann.bbox)
