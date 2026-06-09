@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import torch
 import torchvision
+import tqdm
 
 from modelinhos.sample import Annotation, Sample
 
@@ -104,8 +105,11 @@ class Detector:
         self.th = th
         self.resolution = resolution
 
-    def transform(self, frames: list[np.ndarray]) -> list[Sample]:
-        return [self.transform_single(frame) for frame in frames]
+    def transform(self, samples: list[Sample]) -> list[Sample]:
+        return [
+            self.transform_single(cv2.imread(str(s.file_name)))
+            for s in tqdm.tqdm(samples)
+        ]
 
     def transform_single(self, frame: np.ndarray) -> Sample:
         self.model.eval()
