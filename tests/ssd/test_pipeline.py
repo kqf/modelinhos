@@ -1,6 +1,5 @@
 import pathlib
 
-import cv2
 import pytest
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
@@ -42,9 +41,7 @@ def test_pipeline(model: TorchvisionDetector, dataset: pathlib.Path):
     train, valid = train_test_split(samples)
     # We don't fit in this repo ~
     # model.fit(X_train, y_train) ~
-    y_pred = model.transform(
-        [cv2.imread(sample.file_name) for sample in valid]
-    )
+    y_pred = model.transform(valid)
     y_pred = le.inverse_transform(y_pred)
     m_ap = mean_average_precision(valid, y_pred, l2i={"person": 0, "tie": 1})
     assert m_ap["mAP"].iloc[0] == pytest.approx(0.5)
