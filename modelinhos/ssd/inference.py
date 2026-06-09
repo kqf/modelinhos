@@ -95,7 +95,14 @@ class LabelEncoderType(Protocol):
 
 
 class DoNothingEncoder:
-    pass
+    def fit_transform(self, samples: list[Sample]) -> list[Sample]:
+        return samples
+
+    def transform(self, samples: list[Sample]) -> list[Sample]:
+        return samples
+
+    def inverse_transform(self, samples: list[Sample]) -> list[Sample]:
+        return samples
 
 
 class Detector:
@@ -107,7 +114,7 @@ class Detector:
         th=0.4,
         postprocess=postprocess,
         normalize=normalize,
-        lencoder: LabelEncoderType = DoNothingEncoder,
+        lencoder: LabelEncoderType = DoNothingEncoder(),
     ):
         self.model, self.priors = build_model(
             resolution=resolution,
@@ -126,12 +133,12 @@ class Detector:
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
-        return [
-            self.label_encoder.inverse_transform(
+        return self.label_encoder.inverse_transform(
+            [
                 self.transform_single(cv2.imread(str(s.file_name)))
-            )
-            for s in tqdm.tqdm(samples)
-        ]
+                for s in tqdm.tqdm(samples)
+            ]
+        )
 
     def transform_single(self, frame: np.ndarray) -> Sample:
         self.model.eval()
