@@ -179,6 +179,7 @@ class TorchvisionDetector(Detector):
         th=0.4,
         postprocess=torchvison_to_samples,
         normalize=lambda x: x,
+        lencoder: LabelEncoderType = DoNothingEncoder(),
     ):
         self.model = build_model(
             resolution=resolution,
@@ -191,3 +192,4 @@ class TorchvisionDetector(Detector):
         self.normalize = normalize
         self.th = th
         self.resolution = resolution
+        self.label_encoder = lencoder
