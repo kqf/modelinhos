@@ -115,7 +115,7 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
 )
 def test_weights_match(frame, build_model, headless):
     model = build_model(frame.shape[:2])
-    predictions = model.transform([frame])[0]
+    predictions = model.transform_single(frame)
 
     # Convert predictions to meaningful labels
     labels = model.weights.meta["categories"]
