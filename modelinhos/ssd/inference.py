@@ -1,4 +1,5 @@
 import math
+from typing import Protocol, runtime_checkable
 
 import cv2
 import numpy as np
@@ -84,6 +85,19 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
     return Sample(file_name=None, annotations=list(annotations[0]))
 
 
+@runtime_checkable
+class LabelEncoderType(Protocol):
+    def fit_transform(self, samples: list[Sample]) -> list[Sample]: ...
+
+    def transform(self, samples: list[Sample]) -> list[Sample]: ...
+
+    def inverse_transform(self, samples: list[Sample]) -> list[Sample]: ...
+
+
+class DoNothingEncoder:
+    pass
+
+
 class Detector:
     def __init__(
         self,
@@ -93,6 +107,7 @@ class Detector:
         th=0.4,
         postprocess=postprocess,
         normalize=normalize,
+        lencoder: LabelEncoderType = DoNothingEncoder,
     ):
         self.model, self.priors = build_model(
             resolution=resolution,
@@ -104,10 +119,17 @@ class Detector:
         self.normalize = normalize
         self.th = th
         self.resolution = resolution
+        self.label_encoder = lencoder
+
+    def fit(self, samples: list[Sample]) -> "Detector":
+        self.label_encoder.fit_transform(samples)
+        return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
         return [
-            self.transform_single(cv2.imread(str(s.file_name)))
+            self.label_encoder.inverse_transform(
+                self.transform_single(cv2.imread(str(s.file_name)))
+            )
             for s in tqdm.tqdm(samples)
         ]
 
