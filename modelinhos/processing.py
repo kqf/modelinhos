@@ -34,3 +34,14 @@ class LabelEncoder:
             for ann in sample.annotations:
                 ann.label = self.i2l[int(ann.label)]
         return samples
+
+
+class DoNothingEncoder:
+    def fit_transform(self, samples: list[Sample]) -> list[Sample]:
+        return samples
+
+    def transform(self, samples: list[Sample]) -> list[Sample]:
+        return samples
+
+    def inverse_transform(self, samples: list[Sample]) -> list[Sample]:
+        return samples
