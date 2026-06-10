@@ -88,6 +88,9 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
 
 @runtime_checkable
 class LabelEncoderType(Protocol):
+    l2i: dict[str, int]
+    i2l: dict[int, str]
+
     def fit_transform(self, samples: list[Sample]) -> list[Sample]: ...
 
     def transform(self, samples: list[Sample]) -> list[Sample]: ...
