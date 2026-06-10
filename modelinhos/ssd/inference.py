@@ -7,6 +7,7 @@ import torch
 import torchvision
 import tqdm
 
+from modelinhos.processing import DoNothingEncoder
 from modelinhos.sample import Annotation, Sample
 
 
@@ -92,17 +93,6 @@ class LabelEncoderType(Protocol):
     def transform(self, samples: list[Sample]) -> list[Sample]: ...
 
     def inverse_transform(self, samples: list[Sample]) -> list[Sample]: ...
-
-
-class DoNothingEncoder:
-    def fit_transform(self, samples: list[Sample]) -> list[Sample]:
-        return samples
-
-    def transform(self, samples: list[Sample]) -> list[Sample]:
-        return samples
-
-    def inverse_transform(self, samples: list[Sample]) -> list[Sample]:
-        return samples
 
 
 class Detector:
