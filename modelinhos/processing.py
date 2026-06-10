@@ -37,6 +37,9 @@ class LabelEncoder:
 
 
 class DoNothingEncoder:
+    l2i: dict[str, int] = {}
+    i2l: dict[int, str] = {}
+
     def fit_transform(self, samples: list[Sample]) -> list[Sample]:
         return samples
 
