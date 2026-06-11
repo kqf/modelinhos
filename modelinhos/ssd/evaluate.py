@@ -25,11 +25,18 @@ from modelinhos.ssd.inference import TorchvisionDetector
 memory = joblib.Memory("./cachedir", verbose=0)
 
 
-def build_model(resolution: tuple[int, int] = (300, 300)):
+def build_model(
+    resolution: tuple[int, int] = (300, 300),
+    weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+):
+    le = LabelEncoder(
+        l2i={label: i for i, label in enumerate(weights.meta["categories"])}
+    )
     return TorchvisionDetector(
         resolution=resolution,
         build_model=ssdlite320_mobilenet_v3_large,
-        weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+        weights=weights,
+        lencoder=le,
     )
 
 
@@ -63,20 +70,13 @@ def infer(samples: list[Sample], annotations: Path) -> list[Sample]:
 def main():
     annotations = Path("datasets/coco/annotations.json")
     samples = load_samples(annotations)
-    weights = SSDLite320_MobileNet_V3_Large_Weights.COCO_V1
     for i, sample in enumerate(samples):
         if i > 10:
             continue
         frame = cv2.imread(str(annotations.parent / sample.file_name))
         cv2.imshow("frame", plot(frame, sample))
 
-    le = LabelEncoder(
-        l2i={label: i for i, label in enumerate(weights.meta["categories"])}
-    )
-    y_pred = infer(samples, annotations)
-
-    with timer("inverse transform"):
-        y_pred = le.inverse_transform(y_pred)
+    y_pred, le = infer(samples, annotations)
 
     with timer("mAP calculation"):
         m_ap = mean_average_precision(samples, y_pred, l2i=le.l2i)
