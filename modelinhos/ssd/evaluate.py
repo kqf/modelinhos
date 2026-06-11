@@ -4,7 +4,6 @@ from pathlib import Path
 
 import cv2
 import joblib
-import tqdm
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
     ssdlite320_mobilenet_v3_large,
@@ -55,15 +54,10 @@ def timer(name):
 
 
 @memory.cache()
-def infer(samples: list[Sample], annotations: Path) -> list[Sample]:
+def infer(samples: list[Sample]) -> list[Sample]:
     model = build_model()
     with timer("inference"):
-        y_pred = model.transform(
-            [
-                cv2.imread(str(annotations.parent / s.file_name))
-                for s in tqdm.tqdm(samples)
-            ]
-        )
+        y_pred = model.transform(samples)
     return y_pred
 
 
@@ -73,10 +67,10 @@ def main():
     for i, sample in enumerate(samples):
         if i > 10:
             continue
-        frame = cv2.imread(str(annotations.parent / sample.file_name))
+        frame = cv2.imread(str(sample.file_name))
         cv2.imshow("frame", plot(frame, sample))
 
-    y_pred, le = infer(samples, annotations)
+    y_pred, le = infer(samples)
 
     with timer("mAP calculation"):
         m_ap = mean_average_precision(samples, y_pred, l2i=le.l2i)
