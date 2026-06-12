@@ -19,7 +19,7 @@ from modelinhos.evaluation import (
 from modelinhos.plot import plot
 from modelinhos.processing import LabelEncoder
 from modelinhos.sample import Sample
-from modelinhos.ssd.inference import TorchvisionDetector
+from modelinhos.ssd.inference import LabelEncoderType, TorchvisionDetector
 
 memory = joblib.Memory("./cachedir", verbose=0)
 
@@ -54,11 +54,11 @@ def timer(name):
 
 
 @memory.cache()
-def infer(samples: list[Sample]) -> list[Sample]:
+def infer(samples: list[Sample]) -> tuple[list[Sample], LabelEncoderType]:
     model = build_model()
     with timer("inference"):
         y_pred = model.transform(samples)
-    return y_pred
+    return y_pred, model.label_encoder
 
 
 def main():
