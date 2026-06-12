@@ -87,7 +87,7 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
 
 
 @runtime_checkable
-class LabelEncoderType(Protocol):
+class SampleEncoder(Protocol):
     l2i: dict[str, int]
     i2l: dict[int, str]
 
@@ -107,7 +107,7 @@ class Detector:
         th=0.4,
         postprocess=postprocess,
         normalize=normalize,
-        lencoder: LabelEncoderType = DoNothingEncoder(),
+        lencoder: SampleEncoder = DoNothingEncoder(),
     ):
         self.model, self.priors = build_model(
             resolution=resolution,
@@ -172,7 +172,7 @@ class TorchvisionDetector(Detector):
         th=0.4,
         postprocess=torchvison_to_samples,
         normalize=lambda x: x,
-        lencoder: LabelEncoderType = DoNothingEncoder(),
+        lencoder: SampleEncoder = DoNothingEncoder(),
     ):
         self.model = build_model(
             resolution=resolution,
