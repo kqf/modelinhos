@@ -1,5 +1,6 @@
 import math
-from typing import Protocol, runtime_checkable
+from dataclasses import dataclass
+from typing import Callable, Protocol, runtime_checkable
 
 import cv2
 import numpy as np
@@ -98,6 +99,28 @@ class SampleEncoder(Protocol):
     def inverse_transform(self, samples: list[Sample]) -> list[Sample]: ...
 
 
+@runtime_checkable
+class Trainer(Protocol):
+    model: torch.nn.Model
+
+    def fit(
+        self,
+        samples: list[Sample],
+    ) -> torch.nn.Module: ...
+
+
+@dataclass
+class DoNothingTrainer:
+    model: torch.nn.Module
+    anchors: torch.Tensor
+
+    def fit(self, samples: list[Sample]) -> torch.nn.Module:
+        return self.model
+
+
+TrainerFactory = Callable[[torch.nn.Module, torch.Tensor], Trainer]
+
+
 class Detector:
     def __init__(
         self,
@@ -108,6 +131,7 @@ class Detector:
         postprocess=postprocess,
         normalize=normalize,
         lencoder: SampleEncoder = DoNothingEncoder(),
+        build_trainer: TrainerFactory = DoNothingTrainer,
     ):
         self.model, self.priors = build_model(
             resolution=resolution,
@@ -120,9 +144,10 @@ class Detector:
         self.th = th
         self.resolution = resolution
         self.label_encoder = lencoder
+        self.trainer = build_trainer(self.model, self.priors)
 
     def fit(self, samples: list[Sample]) -> "Detector":
-        self.label_encoder.fit_transform(samples)
+        self.trainer.fit(self.label_encoder.fit_transform(samples))
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
@@ -173,6 +198,7 @@ class TorchvisionDetector(Detector):
         postprocess=torchvison_to_samples,
         normalize=lambda x: x,
         lencoder: SampleEncoder = DoNothingEncoder(),
+        build_trainer: TrainerFactory = DoNothingTrainer,
     ):
         self.model = build_model(
             resolution=resolution,
@@ -186,3 +212,4 @@ class TorchvisionDetector(Detector):
         self.th = th
         self.resolution = resolution
         self.label_encoder = lencoder
+        self.trainer = build_trainer(self.model, self.priors)
