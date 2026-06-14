@@ -121,7 +121,7 @@ class DoNothingTrainer:
 TrainerFactory = Callable[[torch.nn.Module, torch.Tensor], Trainer]
 
 
-def torchvison_to_samples(predictions, anchors, resolution, score_thresh):
+def torchvision_to_samples(predictions, anchors, resolution, score_thresh):
     pred = predictions[0]
     annotations = [
         Annotation(
@@ -194,7 +194,7 @@ class TorchvisionDetector(Detector):
         build_model,
         weights,
         th=0.4,
-        postprocess=torchvison_to_samples,
+        postprocess=torchvision_to_samples,
         normalize=lambda x: x,
         lencoder: SampleEncoder = None,
         build_trainer: TrainerFactory = DoNothingTrainer,
