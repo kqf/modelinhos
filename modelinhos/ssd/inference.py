@@ -101,7 +101,7 @@ class SampleEncoder(Protocol):
 
 @runtime_checkable
 class Trainer(Protocol):
-    model: torch.nn.Model
+    model: torch.nn.Module
 
     def fit(
         self,
