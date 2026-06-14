@@ -121,6 +121,24 @@ class DoNothingTrainer:
 TrainerFactory = Callable[[torch.nn.Module, torch.Tensor], Trainer]
 
 
+def torchvision_to_samples(predictions, anchors, resolution, score_thresh):
+    pred = predictions[0]
+    annotations = [
+        Annotation(
+            bbox=b.tolist(),
+            label=ll.item(),
+            score=s.item(),
+        )
+        for b, s, ll in zip(
+            pred["boxes"].numpy(),
+            pred["scores"].numpy(),
+            pred["labels"].numpy(),
+        )
+        if s > score_thresh
+    ]
+    return Sample(file_name="fake-file.png", annotations=list(annotations))
+
+
 class Detector:
     def __init__(
         self,
@@ -130,21 +148,20 @@ class Detector:
         th=0.4,
         postprocess=postprocess,
         normalize=normalize,
-        lencoder: SampleEncoder = DoNothingEncoder(),
+        lencoder: SampleEncoder = None,
         build_trainer: TrainerFactory = DoNothingTrainer,
     ):
-        self.model, self.priors = build_model(
-            resolution=resolution,
-            weights=weights,
-        )
-        # Needed for postprocessing
+        self.model, self.priors = self._build(build_model, resolution, weights)
         self.weights = weights
         self.postprocess = postprocess
         self.normalize = normalize
         self.th = th
         self.resolution = resolution
-        self.label_encoder = lencoder
+        self.label_encoder = lencoder or DoNothingEncoder()
         self.trainer = build_trainer(self.model, self.priors)
+
+    def _build(self, build_model, resolution, weights):
+        return build_model(resolution=resolution, weights=weights)
 
     def fit(self, samples: list[Sample]) -> "Detector":
         self.trainer.fit(self.label_encoder.fit_transform(samples))
@@ -170,24 +187,6 @@ class Detector:
             )
 
 
-def torchvison_to_samples(predictions, anchors, resolution, score_thresh):
-    pred = predictions[0]
-    annotations = [
-        Annotation(
-            bbox=b.tolist(),
-            label=ll.item(),
-            score=s.item(),
-        )
-        for b, s, ll in zip(
-            pred["boxes"].numpy(),
-            pred["scores"].numpy(),
-            pred["labels"].numpy(),
-        )
-        if s > score_thresh
-    ]
-    return Sample(file_name="fake-file.png", annotations=list(annotations))
-
-
 class TorchvisionDetector(Detector):
     def __init__(
         self,
@@ -195,21 +194,21 @@ class TorchvisionDetector(Detector):
         build_model,
         weights,
         th=0.4,
-        postprocess=torchvison_to_samples,
+        postprocess=torchvision_to_samples,
         normalize=lambda x: x,
-        lencoder: SampleEncoder = DoNothingEncoder(),
+        lencoder: SampleEncoder = None,
         build_trainer: TrainerFactory = DoNothingTrainer,
     ):
-        self.model = build_model(
-            resolution=resolution,
-            weights=weights,
+        super().__init__(
+            resolution,
+            build_model,
+            weights,
+            th,
+            postprocess,
+            normalize,
+            lencoder,
+            build_trainer,
         )
-        self.priors = None
-        # Needed for postprocessing
-        self.weights = weights
-        self.postprocess = postprocess
-        self.normalize = normalize
-        self.th = th
-        self.resolution = resolution
-        self.label_encoder = lencoder
-        self.trainer = build_trainer(self.model, self.priors)
+
+    def _build(self, build_model, resolution, weights):
+        return build_model(resolution=resolution, weights=weights), None
