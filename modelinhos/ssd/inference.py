@@ -183,7 +183,8 @@ class Detector:
         normalize=normalize,
         lencoder: SampleEncoder = None,
         build_trainer: TrainerFactory = DoNothingTrainer,
-        build_dataloader: DataloaderBuilder = default_dataloader_builder,
+        valid_dataloader: DataloaderBuilder = default_dataloader_builder,
+        train_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
         self.model, self.priors = self._build(build_model, resolution, weights)
         self.weights = weights
@@ -193,7 +194,8 @@ class Detector:
         self.resolution = resolution
         self.label_encoder = lencoder or DoNothingEncoder()
         self.trainer = build_trainer(self.model, self.priors)
-        self.build_dataloader = build_dataloader
+        self.valid_dataloader = valid_dataloader
+        self.train_dataloader = train_dataloader
 
     def _build(self, build_model, resolution, weights):
         return build_model(resolution=resolution, weights=weights)
@@ -207,7 +209,7 @@ class Detector:
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
         dataset = SampleDataset(samples, self.weights)
-        loader = self.build_dataloader(dataset)
+        loader = self.valid_dataloader(dataset)
         self.model.eval()
         results = []
         with torch.no_grad():
@@ -245,7 +247,8 @@ class TorchvisionDetector(Detector):
         normalize=lambda x: x,
         lencoder: SampleEncoder = None,
         build_trainer: TrainerFactory = DoNothingTrainer,
-        build_dataloader: DataloaderBuilder = default_dataloader_builder,
+        train_dataloader: DataloaderBuilder = default_dataloader_builder,
+        valid_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
         super().__init__(
             resolution,
@@ -256,7 +259,8 @@ class TorchvisionDetector(Detector):
             normalize,
             lencoder,
             build_trainer,
-            build_dataloader,
+            train_dataloader,
+            valid_dataloader,
         )
 
     def _build(self, build_model, resolution, weights):
