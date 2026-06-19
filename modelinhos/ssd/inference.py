@@ -84,7 +84,92 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
             )
             for bbox, score, label in zip(bx[keep], s[keep], l[keep])
         )
-    return Sample(file_name=None, annotations=list(annotations[0]))
+    return [
+        Sample(file_name=None, annotations=list(ann)) for ann in annotations
+    ]
+
+
+def torchvision_to_samples(predictions, anchors, resolution, score_thresh):
+    return [
+        Sample(
+            file_name="fake-file.png",
+            annotations=[
+                Annotation(
+                    bbox=b.tolist(),
+                    label=ll.item(),
+                    score=s.item(),
+                )
+                for b, s, ll in zip(
+                    pred["boxes"].numpy(),
+                    pred["scores"].numpy(),
+                    pred["labels"].numpy(),
+                )
+                if s > score_thresh
+            ],
+        )
+        for pred in predictions
+    ]
+
+
+class SampleDataset(torch.utils.data.Dataset):
+    def __init__(self, samples: list[Sample], weights):
+        self.samples = samples
+        self.weights = weights
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx: int) -> torch.Tensor:
+        return to_blob(
+            cv2.imread(str(self.samples[idx].file_name)),
+            self.weights,
+        ).squeeze(0)
+
+
+DataloaderBuilder = Callable[
+    [torch.utils.data.Dataset],
+    torch.utils.data.DataLoader,
+]
+
+
+def default_dataloader_builder(
+    dataset: torch.utils.data.Dataset,
+) -> torch.utils.data.DataLoader:
+    return torch.utils.data.DataLoader(dataset, batch_size=1, num_workers=0)
+
+
+@runtime_checkable
+class SampleEncoder(Protocol):
+    l2i: dict[str, int]
+    i2l: dict[int, str]
+
+    def fit_transform(self, samples: list[Sample]) -> list[Sample]: ...
+
+    def transform(self, samples: list[Sample]) -> list[Sample]: ...
+
+    def inverse_transform(self, samples: list[Sample]) -> list[Sample]: ...
+
+
+@runtime_checkable
+class Trainer(Protocol):
+    model: torch.nn.Module
+
+    def fit(
+        self,
+        samples: list[Sample],
+    ) -> torch.nn.Module: ...
+
+
+@dataclass
+class DoNothingTrainer:
+    model: torch.nn.Module
+    anchors: torch.Tensor
+
+    def fit(self, samples: list[Sample]) -> torch.nn.Module:
+        return self.model
+
+
+TrainerFactory = Callable[[torch.nn.Module, torch.Tensor], Trainer]
 
 
 @runtime_checkable
@@ -150,6 +235,8 @@ class Detector:
         normalize=normalize,
         lencoder: SampleEncoder = None,
         build_trainer: TrainerFactory = DoNothingTrainer,
+        valid_dataloader: DataloaderBuilder = default_dataloader_builder,
+        train_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
         self.model, self.priors = self._build(build_model, resolution, weights)
         self.weights = weights
@@ -159,32 +246,46 @@ class Detector:
         self.resolution = resolution
         self.label_encoder = lencoder or DoNothingEncoder()
         self.trainer = build_trainer(self.model, self.priors)
+        self.valid_dataloader = valid_dataloader
+        self.train_dataloader = train_dataloader
 
     def _build(self, build_model, resolution, weights):
         return build_model(resolution=resolution, weights=weights)
+
+    def _run_model(self, batch: torch.Tensor):
+        return self.model(self.normalize(batch))
 
     def fit(self, samples: list[Sample]) -> "Detector":
         self.trainer.fit(self.label_encoder.fit_transform(samples))
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
-        return self.label_encoder.inverse_transform(
-            [
-                self.transform_single(cv2.imread(str(s.file_name)))
-                for s in tqdm.tqdm(samples)
-            ]
-        )
+        dataset = SampleDataset(samples, self.weights)
+        loader = self.valid_dataloader(dataset)
+        self.model.eval()
+        results = []
+        with torch.no_grad():
+            for batch in tqdm.tqdm(loader):
+                results.extend(
+                    self.postprocess(
+                        self._run_model(batch),
+                        self.priors,
+                        resolution=self.resolution,
+                        score_thresh=self.th,
+                    )
+                )
+        return self.label_encoder.inverse_transform(results)
 
     def transform_single(self, frame: np.ndarray) -> Sample:
         self.model.eval()
         blob = to_blob(frame, self.weights)
         with torch.no_grad():
             return self.postprocess(
-                self.model(self.normalize(blob)),
+                self._run_model(blob),
                 self.priors,
                 resolution=self.resolution,
                 score_thresh=self.th,
-            )
+            )[0]
 
 
 class TorchvisionDetector(Detector):
@@ -198,6 +299,8 @@ class TorchvisionDetector(Detector):
         normalize=lambda x: x,
         lencoder: SampleEncoder = None,
         build_trainer: TrainerFactory = DoNothingTrainer,
+        train_dataloader: DataloaderBuilder = default_dataloader_builder,
+        valid_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
         super().__init__(
             resolution,
@@ -208,7 +311,12 @@ class TorchvisionDetector(Detector):
             normalize,
             lencoder,
             build_trainer,
+            train_dataloader,
+            valid_dataloader,
         )
 
     def _build(self, build_model, resolution, weights):
         return build_model(resolution=resolution, weights=weights), None
+
+    def _run_model(self, batch: torch.Tensor):
+        return self.model(list(self.normalize(batch)))
