@@ -1,4 +1,5 @@
 from functools import partial
+from pathlib import Path
 
 import torch
 import torchvision
@@ -112,7 +113,7 @@ def ssd_postprocess(
     resolution,
     score_thresh=0.004,
     iou_thresh=0.5,
-):
+) -> list[Sample]:
     raw_deltas, raw_logits = preds
 
     device = raw_deltas.device
@@ -127,7 +128,7 @@ def ssd_postprocess(
 
     scores_all = torch.softmax(raw_logits, dim=-1)
 
-    annotations = []
+    annotations: list[Annotation] = []
 
     for b in range(scores_all.shape[0]):
         boxes_b = boxes[b]
@@ -174,10 +175,12 @@ def ssd_postprocess(
                 image_labels[keep],
             )
         )
-    return Sample(
-        file_name="fake.png",
-        annotations=list(annotations),
-    )
+    return [
+        Sample(
+            file_name=Path("fake.png"),
+            annotations=list(annotations),
+        )
+    ]
 
 
 ssd_normalize = partial(

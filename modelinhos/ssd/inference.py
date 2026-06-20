@@ -172,58 +172,6 @@ class DoNothingTrainer:
 TrainerFactory = Callable[[torch.nn.Module, torch.Tensor], Trainer]
 
 
-@runtime_checkable
-class SampleEncoder(Protocol):
-    l2i: dict[str, int]
-    i2l: dict[int, str]
-
-    def fit_transform(self, samples: list[Sample]) -> list[Sample]: ...
-
-    def transform(self, samples: list[Sample]) -> list[Sample]: ...
-
-    def inverse_transform(self, samples: list[Sample]) -> list[Sample]: ...
-
-
-@runtime_checkable
-class Trainer(Protocol):
-    model: torch.nn.Module
-
-    def fit(
-        self,
-        samples: list[Sample],
-    ) -> torch.nn.Module: ...
-
-
-@dataclass
-class DoNothingTrainer:
-    model: torch.nn.Module
-    anchors: torch.Tensor
-
-    def fit(self, samples: list[Sample]) -> torch.nn.Module:
-        return self.model
-
-
-TrainerFactory = Callable[[torch.nn.Module, torch.Tensor], Trainer]
-
-
-def torchvision_to_samples(predictions, anchors, resolution, score_thresh):
-    pred = predictions[0]
-    annotations = [
-        Annotation(
-            bbox=b.tolist(),
-            label=ll.item(),
-            score=s.item(),
-        )
-        for b, s, ll in zip(
-            pred["boxes"].numpy(),
-            pred["scores"].numpy(),
-            pred["labels"].numpy(),
-        )
-        if s > score_thresh
-    ]
-    return Sample(file_name="fake-file.png", annotations=list(annotations))
-
-
 class Detector:
     def __init__(
         self,
@@ -285,7 +233,7 @@ class Detector:
                 self.priors,
                 resolution=self.resolution,
                 score_thresh=self.th,
-            )[0]
+            )
 
 
 class TorchvisionDetector(Detector):
