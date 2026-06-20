@@ -233,7 +233,7 @@ class Detector:
                 self.priors,
                 resolution=self.resolution,
                 score_thresh=self.th,
-            )[0]
+            )
 
 
 class TorchvisionDetector(Detector):
