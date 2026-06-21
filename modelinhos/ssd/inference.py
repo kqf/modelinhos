@@ -24,7 +24,7 @@ def normalize(
     return (image - mean[:, None, None]) / std[:, None, None]
 
 
-def build_transform(weights):
+def build_transform(weights, normalize):
     return T.Compose(
         [
             T.Lambda(
@@ -202,7 +202,7 @@ class Detector:
         train_dataloader: DataloaderBuilder = default_dataloader_builder,
         valid_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
-        self.transforms = build_transform(weights)
+        self.transforms = build_transform(weights, normalize)
         self.model, self.priors = self._build(build_model, resolution, weights)
         self.weights = weights
         self.postprocess = postprocess
