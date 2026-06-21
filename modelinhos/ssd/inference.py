@@ -12,11 +12,11 @@ from modelinhos.processing import DoNothingEncoder
 from modelinhos.sample import Annotation, Sample
 
 
-def to_blob(frame: np.ndarray, weights) -> torch.Tensor:
+def to_tensor(frame: np.ndarray, weights) -> torch.Tensor:
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).float() / 255.0
     preprocess = weights.transforms()
-    return preprocess(tensor).unsqueeze(0)
+    return preprocess(tensor)
 
 
 def normalize(
@@ -112,18 +112,23 @@ def torchvision_to_samples(predictions, anchors, resolution, score_thresh):
 
 
 class SampleDataset(torch.utils.data.Dataset):
-    def __init__(self, samples: list[Sample], weights):
+    def __init__(
+        self,
+        samples: list[Sample],
+        weights,
+        normalize: Callable[[torch.Tensor], torch.Tensor] = lambda x: x,
+    ):
         self.samples = samples
         self.weights = weights
+        self.normalize = normalize
 
     def __len__(self) -> int:
         return len(self.samples)
 
     def __getitem__(self, idx: int) -> torch.Tensor:
-        return to_blob(
-            cv2.imread(str(self.samples[idx].file_name)),
-            self.weights,
-        ).squeeze(0)
+        image = cv2.imread(str(self.samples[idx].file_name))
+        blob = to_tensor(image, self.weights)
+        return self.normalize(blob)
 
 
 DataloaderBuilder = Callable[
@@ -200,15 +205,12 @@ class Detector:
     def _build(self, build_model, resolution, weights):
         return build_model(resolution=resolution, weights=weights)
 
-    def _run_model(self, batch: torch.Tensor):
-        return self.model(self.normalize(batch))
-
     def fit(self, samples: list[Sample]) -> "Detector":
         self.trainer.fit(self.label_encoder.fit_transform(samples))
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
-        dataset = SampleDataset(samples, self.weights)
+        dataset = SampleDataset(samples, self.weights, self.normalize)
         loader = self.valid_dataloader(dataset)
         self.model.eval()
         results = []
@@ -216,7 +218,7 @@ class Detector:
             for batch in tqdm.tqdm(loader):
                 results.extend(
                     self.postprocess(
-                        self._run_model(batch),
+                        self.model(batch),
                         self.priors,
                         resolution=self.resolution,
                         score_thresh=self.th,
@@ -226,10 +228,10 @@ class Detector:
 
     def transform_single(self, frame: np.ndarray) -> Sample:
         self.model.eval()
-        blob = to_blob(frame, self.weights)
+        blob = self.normalize(to_tensor(frame, self.weights)).unsqueeze(0)
         with torch.no_grad():
             return self.postprocess(
-                self._run_model(blob),
+                self.model(blob),
                 self.priors,
                 resolution=self.resolution,
                 score_thresh=self.th,
