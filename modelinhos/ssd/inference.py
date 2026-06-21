@@ -6,17 +6,11 @@ import cv2
 import numpy as np
 import torch
 import torchvision
+import torchvision.transforms as T
 import tqdm
 
 from modelinhos.processing import DoNothingEncoder
 from modelinhos.sample import Annotation, Sample
-
-
-def to_tensor(frame: np.ndarray, weights) -> torch.Tensor:
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    tensor = torch.from_numpy(frame_rgb).permute(2, 0, 1).float() / 255.0
-    preprocess = weights.transforms()
-    return preprocess(tensor)
 
 
 def normalize(
@@ -28,6 +22,26 @@ def normalize(
     mean = torch.as_tensor(image_mean, dtype=dtype, device=device)
     std = torch.as_tensor(image_std, dtype=dtype, device=device)
     return (image - mean[:, None, None]) / std[:, None, None]
+
+
+def build_transform(weights):
+    return T.Compose(
+        [
+            T.Lambda(
+                lambda frame: cv2.cvtColor(
+                    frame,
+                    cv2.COLOR_BGR2RGB,
+                )
+            ),
+            T.Lambda(
+                lambda frame: (
+                    torch.from_numpy(frame).permute(2, 0, 1).float() / 255.0
+                )
+            ),
+            weights.transforms(),
+            T.Lambda(normalize),
+        ]
+    )
 
 
 def decode_boxes(
@@ -115,20 +129,17 @@ class SampleDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         samples: list[Sample],
-        weights,
-        normalize: Callable[[torch.Tensor], torch.Tensor] = lambda x: x,
+        transform,
     ):
         self.samples = samples
-        self.weights = weights
-        self.normalize = normalize
+        self.transform = transform
 
     def __len__(self) -> int:
         return len(self.samples)
 
     def __getitem__(self, idx: int) -> torch.Tensor:
         image = cv2.imread(str(self.samples[idx].file_name))
-        blob = to_tensor(image, self.weights)
-        return self.normalize(blob)
+        return self.transform(image)
 
 
 DataloaderBuilder = Callable[
@@ -191,6 +202,7 @@ class Detector:
         train_dataloader: DataloaderBuilder = default_dataloader_builder,
         valid_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
+        self.transforms = build_transform(weights)
         self.model, self.priors = self._build(build_model, resolution, weights)
         self.weights = weights
         self.postprocess = postprocess
@@ -210,7 +222,7 @@ class Detector:
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
-        dataset = SampleDataset(samples, self.weights, self.normalize)
+        dataset = SampleDataset(samples, self.transforms)
         loader = self.valid_dataloader(dataset)
         self.model.eval()
         results = []
@@ -228,7 +240,7 @@ class Detector:
 
     def transform_single(self, frame: np.ndarray) -> Sample:
         self.model.eval()
-        blob = self.normalize(to_tensor(frame, self.weights)).unsqueeze(0)
+        blob = self.transforms(frame).unsqueeze(0)
         with torch.no_grad():
             return self.postprocess(
                 self.model(blob),
