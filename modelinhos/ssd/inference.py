@@ -183,8 +183,8 @@ class Detector:
         normalize=normalize,
         lencoder: SampleEncoder = None,
         build_trainer: TrainerFactory = DoNothingTrainer,
-        valid_dataloader: DataloaderBuilder = default_dataloader_builder,
         train_dataloader: DataloaderBuilder = default_dataloader_builder,
+        valid_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
         self.model, self.priors = self._build(build_model, resolution, weights)
         self.weights = weights
@@ -194,8 +194,8 @@ class Detector:
         self.resolution = resolution
         self.label_encoder = lencoder or DoNothingEncoder()
         self.trainer = build_trainer(self.model, self.priors)
-        self.valid_dataloader = valid_dataloader
         self.train_dataloader = train_dataloader
+        self.valid_dataloader = valid_dataloader
 
     def _build(self, build_model, resolution, weights):
         return build_model(resolution=resolution, weights=weights)
