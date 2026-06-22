@@ -14,6 +14,7 @@ from torchvision.models.detection.retinanet import (
 
 from modelinhos.plot import plot
 from modelinhos.processing import LabelEncoder
+from modelinhos.sample import Sample
 from modelinhos.ssd.inference import Detector, TorchvisionDetector
 from modelinhos.ssd.lite import (
     build_ssdlite,
@@ -41,7 +42,6 @@ def pad(image: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
     b = target_h - h - t
     l = (target_w - w) // 2  # noqa
     r = target_w - w - l
-
     return cv2.copyMakeBorder(
         image,
         t,
@@ -61,36 +61,66 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
     return cv2.resize(pad(image, *resolution), resolution[::-1])
 
 
+def _run_detector(model, frame, headless: bool) -> Sample:
+    predictions = model.transform_single(frame)
+    labels = model.weights.meta["categories"]
+    le = LabelEncoder(l2i={label: i for i, label in enumerate(labels)})
+    predictions = le.inverse_transform(predictions)[0]
+    annotated = plot(frame, predictions)
+    # sourcery skip: no-conditionals-in-tests
+    if not headless:
+        cv2.imshow("Predictions", annotated)
+        cv2.waitKey(1)
+        cv2.destroyAllWindows()
+    return predictions
+
+
+@pytest.mark.parametrize(
+    "build_reference, build_custom",
+    [
+        (
+            partial(
+                TorchvisionDetector,
+                build_model=ssdlite320_mobilenet_v3_large,
+                weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+            ),
+            partial(
+                Detector,
+                build_model=build_torchvision_ssdlite,
+                weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+                postprocess=ssd_postprocess,
+                normalize=ssd_normalize,
+            ),
+        ),
+        (
+            partial(
+                TorchvisionDetector,
+                build_model=retinanet_resnet50_fpn_v2,
+                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+            ),
+            partial(
+                Detector,
+                build_model=build_torchvision_retinanet,
+                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+            ),
+        ),
+    ],
+)
+def test_weights_match(frame, build_reference, build_custom, headless):
+    shape = frame.shape[:2]
+    reference_preds = _run_detector(build_reference(shape), frame, headless)
+    custom_preds = _run_detector(build_custom(shape), frame, headless)
+    assert reference_preds == custom_preds
+
+
 @pytest.mark.parametrize(
     "build_model",
     [
-        partial(
-            TorchvisionDetector,
-            build_model=ssdlite320_mobilenet_v3_large,
-            weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-        ),
-        partial(
-            Detector,
-            build_model=build_torchvision_ssdlite,
-            weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-            postprocess=ssd_postprocess,
-            normalize=ssd_normalize,
-        ),
         partial(
             Detector,
             build_model=partial(build_ssdlite, n_classes=91),
             th=0.01,
             weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-        ),
-        partial(
-            TorchvisionDetector,
-            build_model=retinanet_resnet50_fpn_v2,
-            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-        ),
-        partial(
-            Detector,
-            build_model=build_torchvision_retinanet,
-            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         ),
         partial(
             Detector,
@@ -113,19 +143,6 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
         ),
     ],
 )
-def test_weights_match(frame, build_model, headless):
+def test_inference_works(frame, build_model, headless):
     model = build_model(frame.shape[:2])
-    predictions = model.transform_single(frame)
-
-    # Convert predictions to meaningful labels
-    labels = model.weights.meta["categories"]
-    le = LabelEncoder(l2i={label: i for i, label in enumerate(labels)})
-    predictions = le.inverse_transform(predictions)[0]
-
-    frame = plot(frame, predictions)
-
-    # sourcery skip: no-conditionals-in-tests
-    if not headless:
-        cv2.imshow("Predictions", frame)
-        cv2.waitKey(1)
-        cv2.destroyAllWindows()
+    _run_detector(model, frame, headless)
