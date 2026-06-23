@@ -76,6 +76,17 @@ def _run_detector(model, frame, headless: bool) -> Sample:
     return predictions
 
 
+def assert_same_sample(preds, expect):
+    assert preds.file_name == expect.file_name
+    assert len(preds.annotations) == len(expect.annotations)
+
+    for tv, md in zip(preds.annotations, expect.annotations):
+        assert tv.label == md.label
+        assert tv.score == pytest.approx(md.score, 1e-4)
+        for x1, x2 in zip(tv.bbox, md.bbox):
+            assert x1 == pytest.approx(x2, abs=0.01)
+
+
 @pytest.mark.parametrize(
     "build_reference, build_custom, tv_expected, md_expected",
     [
@@ -191,10 +202,11 @@ def test_weights_match(
 ):
     shape = frame.shape[:2]
     tv_preds = _run_detector(build_reference(shape), frame, headless)
-    assert tv_preds == tv_expected
+    # NB: We accept the difference between Custom and TV
+    assert_same_sample(tv_preds, tv_expected)
 
     md_preds = _run_detector(build_custom(shape), frame, headless)
-    assert md_preds == md_expected
+    assert_same_sample(md_preds, md_expected)
 
 
 @pytest.mark.parametrize(
