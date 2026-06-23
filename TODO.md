@@ -15,7 +15,12 @@ Things to do:
     - [x] Add FP / FN calculation @ threshold for each image to detect the failures
     - [x] Plot PR curve -- looking at these plots select the threshold
     - [x] Add FP / FN calculation per image @ threshold -- already evaluation
-- [ ] Use the batched version by default
+- [x] Use the batched version by default
+- [ ] Fix the tests to compare torchvision lite version with original with some tolerance
+- [ ] Add a separate test for inference when needed
+- [ ] Add bbox, class, label to batches
+- [ ] Add batch / un_batch functions
+- [ ] Add generalized decode function
 - [ ] Add the fcos inference
 - [ ] Add the BlazeNet inference (anchors parametrization)
 - [ ] Implement the BlazeNet tests
