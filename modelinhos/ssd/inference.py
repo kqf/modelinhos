@@ -1,5 +1,6 @@
 import math
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, Protocol, runtime_checkable
 
 import cv2
@@ -99,14 +100,15 @@ def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
             for bbox, score, label in zip(bx[keep], s[keep], l[keep])
         )
     return [
-        Sample(file_name=None, annotations=list(ann)) for ann in annotations
+        Sample(file_name=Path("fake-file.png"), annotations=list(ann))
+        for ann in annotations
     ]
 
 
 def torchvision_to_samples(predictions, anchors, resolution, score_thresh):
     return [
         Sample(
-            file_name="fake-file.png",
+            file_name=Path("fake-file.png"),
             annotations=[
                 Annotation(
                     bbox=b.tolist(),
