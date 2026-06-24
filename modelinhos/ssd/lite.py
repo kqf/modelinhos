@@ -177,7 +177,7 @@ def ssd_postprocess(
         )
     return [
         Sample(
-            file_name=Path("fake.png"),
+            file_name=Path("fake-file.png"),
             annotations=list(annotations),
         )
     ]
