@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
+import cv2
 import torch
 import torchvision
 
@@ -310,3 +311,25 @@ def sample_collate_fn(batch: list[tuple]) -> tuple:
     # 3. Keep file names as a simple list
     file_names = [item[2] for item in batch]
     return images, gt_batched, file_names
+
+
+class SampleDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        samples: list[Sample],
+        transform,
+    ):
+        self.samples = samples
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, ImageTensors, Path]:
+        sample = self.samples[idx]
+        image = cv2.imread(str(sample.file_name))
+
+        image_tensor = self.transform(image)
+        gt_tensors = sample_to_image_tensors(sample)
+
+        return image_tensor, gt_tensors, sample.file_name

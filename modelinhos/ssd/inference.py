@@ -9,10 +9,9 @@ import torchvision.transforms as T
 import tqdm
 
 from modelinhos.postprocess import (
-    ImageTensors,
+    SampleDataset,
     postprocess,
     sample_collate_fn,
-    sample_to_image_tensors,
     torchvision_to_samples,
 )
 from modelinhos.processing import DoNothingEncoder
@@ -41,7 +40,12 @@ def build_transform(weights, normalize):
             ),
             T.Lambda(
                 lambda frame: (
-                    torch.from_numpy(frame).permute(2, 0, 1).float() / 255.0
+                    torch.from_numpy(
+                        frame,
+                    )
+                    .permute(2, 0, 1)
+                    .float()
+                    / 255.0
                 )
             ),
             weights.transforms(),
@@ -50,41 +54,20 @@ def build_transform(weights, normalize):
     )
 
 
-class SampleDataset(torch.utils.data.Dataset):
-    def __init__(
-        self,
-        samples: list[Sample],
-        transform,
-    ):
-        self.samples = samples
-        self.transform = transform
-
-    def __len__(self) -> int:
-        return len(self.samples)
-
-    # ---> MODIFIED: Now returns image, gt_tensors, and file_name <---
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, ImageTensors, Path]:
-        sample = self.samples[idx]
-        image = cv2.imread(str(sample.file_name))
-
-        image_tensor = self.transform(image)
-        gt_tensors = sample_to_image_tensors(sample)
-
-        return image_tensor, gt_tensors, sample.file_name
-
-
 DataloaderBuilder = Callable[
     [torch.utils.data.Dataset],
     torch.utils.data.DataLoader,
 ]
 
 
-# ---> MODIFIED: Attached the new sample_collate_fn <---
 def default_dataloader_builder(
     dataset: torch.utils.data.Dataset,
 ) -> torch.utils.data.DataLoader:
     return torch.utils.data.DataLoader(
-        dataset, batch_size=1, num_workers=0, collate_fn=sample_collate_fn
+        dataset,
+        batch_size=1,
+        num_workers=0,
+        collate_fn=sample_collate_fn,
     )
 
 
@@ -155,7 +138,6 @@ class Detector:
         self.trainer.fit(self.label_encoder.fit_transform(samples))
         return self
 
-    # ---> MODIFIED: Unpacks the dataloader tuple and passes file_names <---
     def transform(self, samples: list[Sample]) -> list[Sample]:
         dataset = SampleDataset(samples, self.transforms)
         loader = self.valid_dataloader(dataset)
