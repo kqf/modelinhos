@@ -136,22 +136,22 @@ def decode_boxes(
 
 
 def decode_standard(
-    preds: tuple,
+    predictions: tuple,
     priors: torch.Tensor,
     resolution: tuple[int, int],
 ) -> BatchedTensors:
-    raw_deltas, raw_logits = preds
+    raw_deltas, raw_logits = predictions
     boxes = decode_boxes(raw_deltas, priors.to(raw_deltas.device), resolution)
     scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
     return BatchedTensors(boxes=boxes, scores=scores, labels=labels)
 
 
 def decode_ssd(
-    preds: tuple,
+    predictions: tuple,
     priors: torch.Tensor,
     resolution: tuple[int, int],
 ) -> BatchedTensors:
-    raw_deltas, raw_logits = preds
+    raw_deltas, raw_logits = predictions
     boxes = decode_boxes(
         raw_deltas,
         priors.to(raw_deltas.device),
@@ -161,12 +161,16 @@ def decode_ssd(
     scores_all = torch.softmax(raw_logits, dim=-1)
     # Return empty labels, as SSD derives labels during multi-class NMS
     return BatchedTensors(
-        boxes=boxes, scores=scores_all, labels=torch.empty(0)
+        boxes=boxes,
+        scores=scores_all,
+        labels=torch.empty(0),
     )
 
 
 def nms_unbatch_standard(
-    batched: BatchedTensors, score_thresh: float, iou_thresh: float
+    batched: BatchedTensors,
+    score_thresh: float,
+    iou_thresh: float,
 ) -> list[ImageTensors]:
     results = []
     for i in range(batched.boxes.shape[0]):
@@ -187,7 +191,9 @@ def nms_unbatch_standard(
 
 
 def nms_unbatch_ssd(
-    batched: BatchedTensors, score_thresh: float, iou_thresh: float
+    batched: BatchedTensors,
+    score_thresh: float,
+    iou_thresh: float,
 ) -> list[ImageTensors]:
     results = []
     for i in range(batched.boxes.shape[0]):
@@ -228,20 +234,21 @@ def nms_unbatch_ssd(
 
 
 def run_postprocess_pipeline(
-    preds: tuple,
+    predictions: tuple,
     priors: torch.Tensor,
     resolution: tuple[int, int],
     file_names: list[Path],
     decode_fn: Callable,
     unbatch_fn: Callable,
+    score_thresh,
 ) -> list[Sample]:
     """Generic pipeline: Decode -> Unbatch -> Map to Sample"""
 
     # 1. Batched mathematical operations
-    batched_data = decode_fn(preds, priors, resolution)
+    batched_data = decode_fn(predictions, priors, resolution)
 
     # 2. Filter and split into a list of variable-length outputs
-    unbatched_data = unbatch_fn(batched_data)
+    unbatched_data = unbatch_fn(batched_data, score_thresh=score_thresh)
 
     # 3. Map back to domain objects
     return [
@@ -255,7 +262,6 @@ postprocess = partial(
     decode_fn=decode_standard,
     unbatch_fn=partial(
         nms_unbatch_standard,
-        score_thresh=0.4,
         iou_thresh=0.5,
     ),
 )
@@ -265,7 +271,42 @@ ssd_postprocess = partial(
     decode_fn=decode_ssd,
     unbatch_fn=partial(
         nms_unbatch_ssd,
-        score_thresh=0.004,
         iou_thresh=0.5,
     ),
 )
+
+
+def torchvision_to_samples(
+    predictions, priors, resolution, score_thresh, file_names
+):
+    return [
+        Sample(
+            file_name=Path("fake-file.png"),
+            annotations=[
+                Annotation(
+                    bbox=b.tolist(),
+                    label=ll.item(),
+                    score=s.item(),
+                )
+                for b, s, ll in zip(
+                    pred["boxes"].numpy(),
+                    pred["scores"].numpy(),
+                    pred["labels"].numpy(),
+                )
+                if s > score_thresh
+            ],
+        )
+        for pred in predictions
+    ]
+
+
+def sample_collate_fn(batch: list[tuple]) -> tuple:
+    # 1. Standard stacking for the uniform image tensors
+    images = torch.stack([item[0] for item in batch])
+
+    # 2. Pad and batch the variable-length ground truth tensors
+    gt_batched = collate_image_tensors([item[1] for item in batch])
+
+    # 3. Keep file names as a simple list
+    file_names = [item[2] for item in batch]
+    return images, gt_batched, file_names

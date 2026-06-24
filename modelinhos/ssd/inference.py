@@ -5,13 +5,18 @@ from typing import Callable, Protocol, runtime_checkable
 import cv2
 import numpy as np
 import torch
-import torchvision
 import torchvision.transforms as T
 import tqdm
 
-from modelinhos.postprocess import decode_boxes
+from modelinhos.postprocess import (
+    ImageTensors,
+    postprocess,
+    sample_collate_fn,
+    sample_to_image_tensors,
+    torchvision_to_samples,
+)
 from modelinhos.processing import DoNothingEncoder
-from modelinhos.sample import Annotation, Sample
+from modelinhos.sample import Sample
 
 
 def normalize(
@@ -45,53 +50,6 @@ def build_transform(weights, normalize):
     )
 
 
-def postprocess(preds, priors, resolution, score_thresh=0.4, iou_thresh=0.5):
-    raw_deltas, raw_logits = preds
-    boxes = decode_boxes(raw_deltas, priors.to(raw_deltas.device), resolution)
-    scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
-
-    annotations = []
-    for b in range(scores.shape[0]):
-        s, l, bx = scores[b], labels[b], boxes[b]  # noqa
-        keep = s > score_thresh
-        s, l, bx = s[keep], l[keep], bx[keep]  # noqa
-        keep = torchvision.ops.batched_nms(bx, s, l, iou_thresh)
-        annotations.append(
-            Annotation(
-                bbox=bbox.tolist(),
-                label=label.item(),
-                score=score.item(),
-            )
-            for bbox, score, label in zip(bx[keep], s[keep], l[keep])
-        )
-    return [
-        Sample(file_name=Path("fake-file.png"), annotations=list(ann))
-        for ann in annotations
-    ]
-
-
-def torchvision_to_samples(predictions, anchors, resolution, score_thresh):
-    return [
-        Sample(
-            file_name=Path("fake-file.png"),
-            annotations=[
-                Annotation(
-                    bbox=b.tolist(),
-                    label=ll.item(),
-                    score=s.item(),
-                )
-                for b, s, ll in zip(
-                    pred["boxes"].numpy(),
-                    pred["scores"].numpy(),
-                    pred["labels"].numpy(),
-                )
-                if s > score_thresh
-            ],
-        )
-        for pred in predictions
-    ]
-
-
 class SampleDataset(torch.utils.data.Dataset):
     def __init__(
         self,
@@ -104,9 +62,15 @@ class SampleDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.samples)
 
-    def __getitem__(self, idx: int) -> torch.Tensor:
-        image = cv2.imread(str(self.samples[idx].file_name))
-        return self.transform(image)
+    # ---> MODIFIED: Now returns image, gt_tensors, and file_name <---
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, ImageTensors, Path]:
+        sample = self.samples[idx]
+        image = cv2.imread(str(sample.file_name))
+
+        image_tensor = self.transform(image)
+        gt_tensors = sample_to_image_tensors(sample)
+
+        return image_tensor, gt_tensors, sample.file_name
 
 
 DataloaderBuilder = Callable[
@@ -115,10 +79,13 @@ DataloaderBuilder = Callable[
 ]
 
 
+# ---> MODIFIED: Attached the new sample_collate_fn <---
 def default_dataloader_builder(
     dataset: torch.utils.data.Dataset,
 ) -> torch.utils.data.DataLoader:
-    return torch.utils.data.DataLoader(dataset, batch_size=1, num_workers=0)
+    return torch.utils.data.DataLoader(
+        dataset, batch_size=1, num_workers=0, collate_fn=sample_collate_fn
+    )
 
 
 @runtime_checkable
@@ -188,31 +155,34 @@ class Detector:
         self.trainer.fit(self.label_encoder.fit_transform(samples))
         return self
 
+    # ---> MODIFIED: Unpacks the dataloader tuple and passes file_names <---
     def transform(self, samples: list[Sample]) -> list[Sample]:
         dataset = SampleDataset(samples, self.transforms)
         loader = self.valid_dataloader(dataset)
         self.model.eval()
         results = []
         with torch.no_grad():
-            for batch in tqdm.tqdm(loader):
+            for images, _, file_names in tqdm.tqdm(loader):
                 results.extend(
                     self.postprocess(
-                        self.model(batch),
-                        self.priors,
+                        predictions=self.model(images),
+                        priors=self.priors,
                         resolution=self.resolution,
+                        file_names=file_names,
                         score_thresh=self.th,
                     )
                 )
         return self.label_encoder.inverse_transform(results)
 
-    def transform_single(self, frame: np.ndarray) -> Sample:
+    def transform_single(self, frame: np.ndarray) -> list[Sample]:
         self.model.eval()
         blob = self.transforms(frame).unsqueeze(0)
         with torch.no_grad():
             return self.postprocess(
-                self.model(blob),
-                self.priors,
+                predictions=self.model(blob),
+                priors=self.priors,
                 resolution=self.resolution,
+                file_names=[Path("fake-file.png")],
                 score_thresh=self.th,
             )
 
