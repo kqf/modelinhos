@@ -108,9 +108,16 @@ def _run_detector(model, frame, headless: bool) -> Sample:
 )
 def test_weights_match(frame, build_reference, build_custom, headless):
     shape = frame.shape[:2]
-    reference_preds = _run_detector(build_reference(shape), frame, headless)
-    custom_preds = _run_detector(build_custom(shape), frame, headless)
-    assert reference_preds == custom_preds
+    tv_preds = _run_detector(build_reference(shape), frame, headless)
+    md_preds = _run_detector(build_custom(shape), frame, headless)
+    assert tv_preds.file_name == md_preds.file_name
+    assert len(tv_preds.annotations) == len(md_preds.annotations)
+
+    # sourcery skip: no-loop-in-tests
+    for tv, md in zip(tv_preds.annotations, md_preds.annotations):
+        assert tv == md
+
+    assert md_preds == tv_preds
 
 
 @pytest.mark.parametrize(
