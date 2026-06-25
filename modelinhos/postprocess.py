@@ -159,16 +159,17 @@ def decode_ssd(
         resolution,
         weights=(10.0, 10.0, 5.0, 5.0),
     )
-    scores_all = torch.softmax(raw_logits, dim=-1)
-    # Return empty labels, as SSD derives labels during multi-class NMS
-    return PerBatch(
-        boxes=boxes,
-        scores=scores_all,
-        labels=torch.empty(0),
-    )
+    scores_all = torch.softmax(raw_logits, dim=-1)  # (B, N, C)
+
+    # Exclude background (class 0) by zeroing it out before taking the max.
+    # This lets us share nms_unbatch_standard with the standard pipeline.
+    scores_all[..., 0] = 0.0
+    scores, labels = scores_all.max(dim=-1)  # both (B, N)
+
+    return PerBatch(boxes=boxes, scores=scores, labels=labels)
 
 
-def nms_unbatch_standard(
+def nms_unbatch(
     batched: PerBatch,
     score_thresh: float,
     iou_thresh: float,
@@ -186,49 +187,6 @@ def nms_unbatch_standard(
                 boxes=b[keep_nms],
                 scores=s[keep_nms],
                 labels=ll[keep_nms],
-            )
-        )
-    return results
-
-
-def nms_unbatch_ssd(
-    batched: PerBatch,
-    score_thresh: float,
-    iou_thresh: float,
-) -> list[PerImage]:
-    results = []
-    for i in range(batched.boxes.shape[0]):
-        boxes_b = batched.boxes[i]
-        scores_b = batched.scores[i]  # (N, C)
-
-        img_boxes, img_scores, img_labels = [], [], []
-
-        for cls in range(1, scores_b.shape[1]):  # Skip background
-            cls_scores = scores_b[:, cls]
-            keep = cls_scores > score_thresh
-            if keep.any():
-                img_boxes.append(boxes_b[keep])
-                img_scores.append(cls_scores[keep])
-                img_labels.append(
-                    torch.full_like(cls_scores[keep], cls, dtype=torch.int64)
-                )
-
-        if not img_boxes:
-            results.append(
-                PerImage(torch.empty(0, 4), torch.empty(0), torch.empty(0))
-            )
-            continue
-
-        all_b = torch.cat(img_boxes, dim=0)
-        all_s = torch.cat(img_scores, dim=0)
-        all_l = torch.cat(img_labels, dim=0)
-
-        keep_nms = torchvision.ops.batched_nms(all_b, all_s, all_l, iou_thresh)
-        results.append(
-            PerImage(
-                boxes=all_b[keep_nms],
-                scores=all_s[keep_nms],
-                labels=all_l[keep_nms],
             )
         )
     return results
@@ -262,7 +220,7 @@ postprocess = partial(
     run_postprocess_pipeline,
     decode_fn=decode_standard,
     unbatch_fn=partial(
-        nms_unbatch_standard,
+        nms_unbatch,
         iou_thresh=0.5,
     ),
 )
@@ -271,14 +229,18 @@ ssd_postprocess = partial(
     run_postprocess_pipeline,
     decode_fn=decode_ssd,
     unbatch_fn=partial(
-        nms_unbatch_ssd,
+        nms_unbatch,
         iou_thresh=0.5,
     ),
 )
 
 
 def torchvision_to_samples(
-    predictions, priors, resolution, score_thresh, file_names
+    predictions,
+    priors,
+    resolution,
+    score_thresh,
+    file_names,
 ):
     return [
         Sample(
