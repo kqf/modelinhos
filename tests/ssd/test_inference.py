@@ -78,7 +78,7 @@ def _run_detector(model, frame, headless: bool) -> Sample:
 @pytest.mark.parametrize(
     "build_reference, build_custom",
     [
-        (
+        pytest.param(
             partial(
                 TorchvisionDetector,
                 build_model=ssdlite320_mobilenet_v3_large,
@@ -91,8 +91,9 @@ def _run_detector(model, frame, headless: bool) -> Sample:
                 postprocess=ssd_postprocess,
                 normalize=ssd_normalize,
             ),
+            id="ssdlite320_mobilenet_v3_large",
         ),
-        (
+        pytest.param(
             partial(
                 TorchvisionDetector,
                 build_model=retinanet_resnet50_fpn_v2,
@@ -103,6 +104,7 @@ def _run_detector(model, frame, headless: bool) -> Sample:
                 build_model=build_torchvision_retinanet,
                 weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             ),
+            id="retinanet_resnet50_fpn_v2",
         ),
     ],
 )
@@ -111,42 +113,56 @@ def test_weights_match(frame, build_reference, build_custom, headless):
     tv_preds = _run_detector(build_reference(shape), frame, headless)
     md_preds = _run_detector(build_custom(shape), frame, headless)
     assert tv_preds.file_name == md_preds.file_name
-    assert len(tv_preds.annotations) == len(md_preds.annotations)
 
     # sourcery skip: no-loop-in-tests
     for tv, md in zip(tv_preds.annotations, md_preds.annotations):
+        assert tv.label == md.label
+        assert tv.score == md.score
         assert tv == md
 
+    assert len(tv_preds.annotations) == len(md_preds.annotations)
     assert md_preds == tv_preds
 
 
 @pytest.mark.parametrize(
     "build_model",
     [
-        partial(
-            Detector,
-            build_model=partial(build_ssdlite, n_classes=91),
-            th=0.01,
-            weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+        pytest.param(
+            partial(
+                Detector,
+                build_model=partial(build_ssdlite, n_classes=91),
+                th=0.01,
+                weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+            ),
+            id="ssdlite320_mobilenet_v3_large",
         ),
-        partial(
-            Detector,
-            build_model=partial(bulid_retinanet, n_classes=91),
-            th=0.05,
-            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+        pytest.param(
+            partial(
+                Detector,
+                build_model=partial(bulid_retinanet, n_classes=91),
+                th=0.05,
+                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+            ),
+            id="retinanet_resnet50_fpn_v2_91",
         ),
-        partial(
-            Detector,
-            build_model=partial(bulid_retinanet, n_classes=2),
-            th=0.01,
-            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+        pytest.param(
+            partial(
+                Detector,
+                build_model=partial(bulid_retinanet, n_classes=2),
+                th=0.01,
+                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+            ),
+            id="retinanet_resnet50_fpn_v2_2",
         ),
-        partial(
-            Detector,
-            # Don't multiply by two because it breaks tests.
-            build_model=partial(bulid_retinanet, n_classes=91 * 1),
-            th=0.01,
-            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+        pytest.param(
+            partial(
+                Detector,
+                # Don't multiply by two because it breaks tests.
+                build_model=partial(bulid_retinanet, n_classes=91 * 1),
+                th=0.01,
+                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+            ),
+            id="retinanet_resnet50_fpn_v2_91_times_1",
         ),
     ],
 )
