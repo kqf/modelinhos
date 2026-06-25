@@ -16,10 +16,15 @@ Things to do:
     - [x] Plot PR curve -- looking at these plots select the threshold
     - [x] Add FP / FN calculation per image @ threshold -- already evaluation
 - [x] Use the batched version by default
-- [ ] Fix the tests to compare torchvision lite version with original with some tolerance
-- [ ] Add a separate test for inference when needed
-- [ ] Add bbox, class, label to batches
-- [ ] Add batch / un_batch functions
+- [x] Fix the tests to compare torchvision lite version with original with some tolerance
+- [x] Add a separate test for inference when needed
+- [x] Add bbox, class, label to batches
+- [x] Add batch / un_batch functions
+- [ ] Eliminate box encoding / decoding to a separate file
+- [ ] Move the file_names to batches
+- [ ] Move the redundant parameters to decode
+- [ ] Write down the desired flow dataloader -> collate -> encode -> decode -> un_batch -> to_sample
+- [ ] Think of the composable pipeline instead of classes ? or vice versa -> class defines how to transform itself
 - [ ] Add generalized decode function
 - [ ] Add the fcos inference
 - [ ] Add the BlazeNet inference (anchors parametrization)
