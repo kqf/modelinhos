@@ -1,4 +1,5 @@
 from functools import partial
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -14,7 +15,7 @@ from torchvision.models.detection.retinanet import (
 
 from modelinhos.plot import plot
 from modelinhos.processing import LabelEncoder
-from modelinhos.sample import Sample
+from modelinhos.sample import Annotation, Sample
 from modelinhos.ssd.inference import Detector, TorchvisionDetector
 from modelinhos.ssd.lite import (
     build_ssdlite,
@@ -76,7 +77,7 @@ def _run_detector(model, frame, headless: bool) -> Sample:
 
 
 @pytest.mark.parametrize(
-    "build_reference, build_custom",
+    "build_reference, build_custom, tv_expected, md_expected",
     [
         pytest.param(
             partial(
@@ -91,6 +92,38 @@ def _run_detector(model, frame, headless: bool) -> Sample:
                 postprocess=ssd_postprocess,
                 normalize=ssd_normalize,
             ),
+            (
+                Sample(
+                    file_name=Path("fake-file.png"),
+                    annotations=[
+                        Annotation(
+                            bbox=(
+                                481.7032165527344,
+                                225.93629455566406,
+                                597.848388671875,
+                                589.3338623046875,
+                            ),
+                            label="person",
+                            score=0.8167938590049744,
+                        )
+                    ],
+                )
+            ),
+            Sample(
+                file_name=Path("fake-file.png"),
+                annotations=[
+                    Annotation(
+                        bbox=(
+                            357.0254,
+                            -50.3667,
+                            712.4014,
+                            814.3435,
+                        ),
+                        label="person",
+                        score=0.9986,
+                    )
+                ],
+            ),
             id="ssdlite320_mobilenet_v3_large",
         ),
         pytest.param(
@@ -104,24 +137,64 @@ def _run_detector(model, frame, headless: bool) -> Sample:
                 build_model=build_torchvision_retinanet,
                 weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             ),
+            Sample(
+                file_name=Path("fake-file.png"),
+                annotations=[
+                    Annotation(
+                        bbox=(
+                            488.3135681152344,
+                            227.34669494628906,
+                            597.8914184570312,
+                            575.18212890625,
+                        ),
+                        label="person",
+                        score=0.9937841892242432,
+                    ),
+                    Annotation(
+                        bbox=(
+                            531.1905517578125,
+                            289.6827392578125,
+                            542.9974365234375,
+                            329.750732421875,
+                        ),
+                        label="tie",
+                        score=0.6264503002166748,
+                    ),
+                ],
+            ),
+            Sample(
+                file_name=Path("fake-file.png"),
+                annotations=[
+                    Annotation(
+                        bbox=(
+                            491.05938720703125,
+                            230.8584747314453,
+                            593.6303100585938,
+                            572.8419189453125,
+                        ),
+                        label="person",
+                        score=0.9877095222473145,
+                    )
+                ],
+            ),
             id="retinanet_resnet50_fpn_v2",
         ),
     ],
 )
-def test_weights_match(frame, build_reference, build_custom, headless):
+def test_weights_match(
+    frame,
+    build_reference,
+    build_custom,
+    tv_expected,
+    md_expected,
+    headless,
+):
     shape = frame.shape[:2]
     tv_preds = _run_detector(build_reference(shape), frame, headless)
+    assert tv_preds == tv_expected
+
     md_preds = _run_detector(build_custom(shape), frame, headless)
-    assert tv_preds.file_name == md_preds.file_name
-
-    # sourcery skip: no-loop-in-tests
-    for tv, md in zip(tv_preds.annotations, md_preds.annotations):
-        assert tv.label == md.label
-        assert tv.score == md.score
-        assert tv == md
-
-    assert len(tv_preds.annotations) == len(md_preds.annotations)
-    assert md_preds == tv_preds
+    assert md_preds == md_expected
 
 
 @pytest.mark.parametrize(
