@@ -43,6 +43,12 @@ def test_pipeline(model: TorchvisionDetector, dataset: pathlib.Path):
     # model.fit(X_train, y_train) ~
     y_pred = model.transform(valid)
     m_ap = mean_average_precision(valid, y_pred, l2i={"person": 0, "tie": 1})
+    import ipdb
+
+    ipdb.set_trace()
+    import IPython
+
+    IPython.embed()  # fmt: skip
     assert m_ap["mAP"].iloc[0] == pytest.approx(0.5)
 
     aps = per_sample_metrics(valid, y_pred, l2i=model.label_encoder.l2i)
