@@ -165,9 +165,9 @@ def ssd_postprocess(
         # convert to Annotation objects
         annotations.extend(
             Annotation(
-                bbox=bbox,
-                score=score,
-                label=label,
+                bbox=tuple(bbox.cpu().numpy().tolist()),  # type: ignore
+                score=score.cpu().numpy().item(),
+                label=label.cpu().numpy().item(),
             )
             for bbox, score, label in zip(
                 image_boxes[keep],
