@@ -13,9 +13,10 @@ from torchvision.models.detection.ssdlite import (
     mobilenet_v3_large,
 )
 
+from modelinhos.postprocess import decode_boxes
 from modelinhos.sample import Annotation, Sample
 from modelinhos.ssd.anchors import anchors
-from modelinhos.ssd.inference import decode_boxes, normalize
+from modelinhos.ssd.inference import normalize
 from modelinhos.ssd.load import load_with_mismatch
 
 
