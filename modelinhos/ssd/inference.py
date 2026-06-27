@@ -79,7 +79,6 @@ DataloaderBuilder = Callable[
 ]
 
 
-# ---> MODIFIED: Attached the new sample_collate_fn <---
 def default_dataloader_builder(
     dataset: torch.utils.data.Dataset,
 ) -> torch.utils.data.DataLoader:
