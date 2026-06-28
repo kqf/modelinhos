@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
+import cv2
 import torch
 import torchvision
 
@@ -11,28 +12,28 @@ from modelinhos.sample import Annotation, Sample
 
 
 @dataclass(frozen=True)
-class BatchedTensors:
+class PerBatch:
     boxes: torch.Tensor  # (B, N, 4)
     scores: torch.Tensor  # (B, N) or (B, N, C)
     labels: torch.Tensor  # (B, N)
 
 
 @dataclass(frozen=True)
-class ImageTensors:
+class PerImage:
     boxes: torch.Tensor  # (K, 4)
     scores: torch.Tensor  # (K,)
     labels: torch.Tensor  # (K,)
 
 
-def sample_to_image_tensors(sample: Sample) -> ImageTensors:
+def sample_to_image_tensors(sample: Sample) -> PerImage:
     if not sample.annotations:
-        return ImageTensors(
+        return PerImage(
             boxes=torch.empty((0, 4), dtype=torch.float32),
             scores=torch.empty((0,), dtype=torch.float32),
             labels=torch.empty((0,), dtype=torch.long),
         )
 
-    return ImageTensors(
+    return PerImage(
         boxes=torch.tensor(
             [ann.bbox for ann in sample.annotations], dtype=torch.float32
         ),
@@ -46,7 +47,7 @@ def sample_to_image_tensors(sample: Sample) -> ImageTensors:
 
 
 def image_tensors_to_sample(
-    img_tensors: ImageTensors,
+    img_tensors: PerImage,
     file_name: Path,
 ) -> Sample:
     annotations = [
@@ -63,8 +64,8 @@ def image_tensors_to_sample(
 
 
 def collate_image_tensors(
-    tensors_list: list[ImageTensors], pad_value: float = -1.0
-) -> BatchedTensors:
+    tensors_list: list[PerImage], pad_value: float = -1.0
+) -> PerBatch:
     max_len = max((len(t.labels) for t in tensors_list), default=0)
     B = len(tensors_list)
 
@@ -79,19 +80,19 @@ def collate_image_tensors(
             b_scores[i, :n] = t.scores
             b_labels[i, :n] = t.labels
 
-    return BatchedTensors(boxes=b_boxes, scores=b_scores, labels=b_labels)
+    return PerBatch(boxes=b_boxes, scores=b_scores, labels=b_labels)
 
 
 def uncollate_batched_tensors(
-    batched: BatchedTensors, pad_value: float = -1.0
-) -> list[ImageTensors]:
+    batched: PerBatch, pad_value: float = -1.0
+) -> list[PerImage]:
     results = []
     for i in range(batched.boxes.shape[0]):
         # Find valid elements by checking labels against the pad_value
         valid_mask = batched.labels[i] != pad_value
 
         results.append(
-            ImageTensors(
+            PerImage(
                 boxes=batched.boxes[i][valid_mask],
                 scores=batched.scores[i][valid_mask],
                 labels=batched.labels[i][valid_mask],
@@ -139,18 +140,18 @@ def decode_standard(
     predictions: tuple,
     priors: torch.Tensor,
     resolution: tuple[int, int],
-) -> BatchedTensors:
+) -> PerBatch:
     raw_deltas, raw_logits = predictions
     boxes = decode_boxes(raw_deltas, priors.to(raw_deltas.device), resolution)
     scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
-    return BatchedTensors(boxes=boxes, scores=scores, labels=labels)
+    return PerBatch(boxes=boxes, scores=scores, labels=labels)
 
 
 def decode_ssd(
     predictions: tuple,
     priors: torch.Tensor,
     resolution: tuple[int, int],
-) -> BatchedTensors:
+) -> PerBatch:
     raw_deltas, raw_logits = predictions
     boxes = decode_boxes(
         raw_deltas,
@@ -158,20 +159,21 @@ def decode_ssd(
         resolution,
         weights=(10.0, 10.0, 5.0, 5.0),
     )
-    scores_all = torch.softmax(raw_logits, dim=-1)
-    # Return empty labels, as SSD derives labels during multi-class NMS
-    return BatchedTensors(
-        boxes=boxes,
-        scores=scores_all,
-        labels=torch.empty(0),
-    )
+    scores_all = torch.softmax(raw_logits, dim=-1)  # (B, N, C)
+
+    # Exclude background (class 0) by zeroing it out before taking the max.
+    # This lets us share nms_unbatch_standard with the standard pipeline.
+    scores_all[..., 0] = 0.0
+    scores, labels = scores_all.max(dim=-1)  # both (B, N)
+
+    return PerBatch(boxes=boxes, scores=scores, labels=labels)
 
 
-def nms_unbatch_standard(
-    batched: BatchedTensors,
+def nms_unbatch(
+    batched: PerBatch,
     score_thresh: float,
     iou_thresh: float,
-) -> list[ImageTensors]:
+) -> list[PerImage]:
     results = []
     for i in range(batched.boxes.shape[0]):
         b, s, ll = batched.boxes[i], batched.scores[i], batched.labels[i]
@@ -181,53 +183,10 @@ def nms_unbatch_standard(
 
         keep_nms = torchvision.ops.batched_nms(b, s, ll, iou_thresh)
         results.append(
-            ImageTensors(
+            PerImage(
                 boxes=b[keep_nms],
                 scores=s[keep_nms],
                 labels=ll[keep_nms],
-            )
-        )
-    return results
-
-
-def nms_unbatch_ssd(
-    batched: BatchedTensors,
-    score_thresh: float,
-    iou_thresh: float,
-) -> list[ImageTensors]:
-    results = []
-    for i in range(batched.boxes.shape[0]):
-        boxes_b = batched.boxes[i]
-        scores_b = batched.scores[i]  # (N, C)
-
-        img_boxes, img_scores, img_labels = [], [], []
-
-        for cls in range(1, scores_b.shape[1]):  # Skip background
-            cls_scores = scores_b[:, cls]
-            keep = cls_scores > score_thresh
-            if keep.any():
-                img_boxes.append(boxes_b[keep])
-                img_scores.append(cls_scores[keep])
-                img_labels.append(
-                    torch.full_like(cls_scores[keep], cls, dtype=torch.int64)
-                )
-
-        if not img_boxes:
-            results.append(
-                ImageTensors(torch.empty(0, 4), torch.empty(0), torch.empty(0))
-            )
-            continue
-
-        all_b = torch.cat(img_boxes, dim=0)
-        all_s = torch.cat(img_scores, dim=0)
-        all_l = torch.cat(img_labels, dim=0)
-
-        keep_nms = torchvision.ops.batched_nms(all_b, all_s, all_l, iou_thresh)
-        results.append(
-            ImageTensors(
-                boxes=all_b[keep_nms],
-                scores=all_s[keep_nms],
-                labels=all_l[keep_nms],
             )
         )
     return results
@@ -261,7 +220,7 @@ postprocess = partial(
     run_postprocess_pipeline,
     decode_fn=decode_standard,
     unbatch_fn=partial(
-        nms_unbatch_standard,
+        nms_unbatch,
         iou_thresh=0.5,
     ),
 )
@@ -270,14 +229,18 @@ ssd_postprocess = partial(
     run_postprocess_pipeline,
     decode_fn=decode_ssd,
     unbatch_fn=partial(
-        nms_unbatch_ssd,
+        nms_unbatch,
         iou_thresh=0.5,
     ),
 )
 
 
 def torchvision_to_samples(
-    predictions, priors, resolution, score_thresh, file_names
+    predictions,
+    priors,
+    resolution,
+    score_thresh,
+    file_names,
 ):
     return [
         Sample(
@@ -310,3 +273,25 @@ def sample_collate_fn(batch: list[tuple]) -> tuple:
     # 3. Keep file names as a simple list
     file_names = [item[2] for item in batch]
     return images, gt_batched, file_names
+
+
+class SampleDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        samples: list[Sample],
+        transform,
+    ):
+        self.samples = samples
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, PerImage, Path]:
+        sample = self.samples[idx]
+        image = cv2.imread(str(sample.file_name))
+
+        image_tensor = self.transform(image)
+        gt_tensors = sample_to_image_tensors(sample)
+
+        return image_tensor, gt_tensors, sample.file_name
