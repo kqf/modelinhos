@@ -139,7 +139,11 @@ class Detector:
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
-        dataset = SampleDataset(samples, self.transforms)
+        encoded = self.label_encoder.transform(samples)
+        dataset = SampleDataset(
+            encoded,
+            self.transforms,
+        )
         loader = self.valid_dataloader(dataset)
         self.model.eval()
         results = []
