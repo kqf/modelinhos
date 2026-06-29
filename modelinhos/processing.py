@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 from dataclasses import dataclass, field
 
 from modelinhos.sample import Sample
@@ -29,15 +30,18 @@ class LabelEncoder:
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
+        samples = [deepcopy(s) for s in samples]
         for sample in samples:
             for ann in sample.annotations:
-                ann.label = str(self.l2i[ann.label])
+                # TODO: Fix me later, ignore for now
+                ann.label = self.l2i[ann.label]  # type: ignore
         return samples
 
     def fit_transform(self, samples: list[Sample]) -> list[Sample]:
         return self.fit(samples).transform(samples)
 
     def inverse_transform(self, samples: list[Sample]) -> list[Sample]:
+        samples = [deepcopy(s) for s in samples]
         for sample in samples:
             for ann in sample.annotations:
                 ann.label = self.i2l[int(ann.label)]
