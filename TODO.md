@@ -26,6 +26,7 @@ Things to do:
 - [ ] Write down the desired flow dataloader -> collate -> encode -> decode -> un_batch -> to_sample
 - [ ] Think of the composable pipeline instead of classes ? or vice versa -> class defines how to transform itself
 - [ ] Add generalized decode function
+- [ ] Move to_preds to a model wrapper
 - [ ] Add the fcos inference
 - [ ] Add the BlazeNet inference (anchors parametrization)
 - [ ] Implement the BlazeNet tests

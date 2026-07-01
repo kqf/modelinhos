@@ -258,7 +258,6 @@ def torchvision_to_samples(
     priors,
     resolution,
     score_thresh,
-    file_names,
 ):
     return [
         Sample(
@@ -305,9 +304,17 @@ class SampleDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, PerImage]:
         sample = self.samples[idx]
-        image = cv2.imread(str(sample.file_name))
+        bgr = cv2.imread(str(sample.file_name))
+        image = self.transform(bgr)
+        batch = sample_to_image_tensors(sample)
+        return image, batch
 
-        image_tensor = self.transform(image)
-        gt_tensors = sample_to_image_tensors(sample)
 
-        return image_tensor, gt_tensors
+def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatch:
+    boxes, classes = preds
+    return PerBatch(
+        boxes=boxes,
+        scores=classes,
+        labels=torch.empty_like(classes),
+        file_names=[Path("fake-file.png") for _ in range(len(boxes))],
+    )
