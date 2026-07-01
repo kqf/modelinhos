@@ -199,7 +199,7 @@ class TorchvisionDetector(Detector):
             build_trainer,
             train_dataloader,
             valid_dataloader,
-            to_preds=lambda x: x
+            to_preds=lambda x: x,
         )
 
     def _build(self, build_model, resolution, weights):
