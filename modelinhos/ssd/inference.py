@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable, Protocol, runtime_checkable
 
 import cv2
@@ -132,7 +131,7 @@ class Detector:
         self.trainer = build_trainer(self.model, self.priors)
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
-        # TODO: Move this to the model wrapper
+        # TODO: Move this to the model
         self.to_preds = to_preds
 
     def _build(self, build_model, resolution, weights):
@@ -158,7 +157,6 @@ class Detector:
                         predictions=self.to_preds(self.model(images)),
                         priors=self.priors,
                         resolution=self.resolution,
-                        file_names=file_names,
                         score_thresh=self.th,
                     )
                 )
@@ -172,7 +170,6 @@ class Detector:
                 predictions=self.to_preds(self.model(blob)),
                 priors=self.priors,
                 resolution=self.resolution,
-                file_names=[Path("fake-file.png")],
                 score_thresh=self.th,
             )
 
@@ -202,7 +199,7 @@ class TorchvisionDetector(Detector):
             build_trainer,
             train_dataloader,
             valid_dataloader,
-            to_preds=lambda x: x,
+            to_preds=lambda x: x
         )
 
     def _build(self, build_model, resolution, weights):
