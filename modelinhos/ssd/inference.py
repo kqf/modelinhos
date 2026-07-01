@@ -12,6 +12,7 @@ from modelinhos.postprocess import (
     SampleDataset,
     postprocess,
     sample_collate_fn,
+    to_preds,
     torchvision_to_samples,
 )
 from modelinhos.processing import DoNothingEncoder
@@ -118,6 +119,7 @@ class Detector:
         build_trainer: TrainerFactory = DoNothingTrainer,
         train_dataloader: DataloaderBuilder = default_dataloader_builder,
         valid_dataloader: DataloaderBuilder = default_dataloader_builder,
+        to_preds: Callable = to_preds,
     ):
         self.transforms = build_transform(weights, normalize)
         self.model, self.priors = self._build(build_model, resolution, weights)
@@ -130,6 +132,8 @@ class Detector:
         self.trainer = build_trainer(self.model, self.priors)
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
+        # TODO: Move this to the model wrapper
+        self.to_preds = to_preds
 
     def _build(self, build_model, resolution, weights):
         return build_model(resolution=resolution, weights=weights)
@@ -148,10 +152,10 @@ class Detector:
         self.model.eval()
         results = []
         with torch.no_grad():
-            for images, _, file_names in tqdm.tqdm(loader):
+            for images, _ in tqdm.tqdm(loader):
                 results.extend(
                     self.postprocess(
-                        predictions=self.model(images),
+                        predictions=self.to_preds(self.model(images)),
                         priors=self.priors,
                         resolution=self.resolution,
                         file_names=file_names,
@@ -165,7 +169,7 @@ class Detector:
         blob = self.transforms(frame).unsqueeze(0)
         with torch.no_grad():
             return self.postprocess(
-                predictions=self.model(blob),
+                predictions=self.to_preds(self.model(blob)),
                 priors=self.priors,
                 resolution=self.resolution,
                 file_names=[Path("fake-file.png")],
@@ -198,6 +202,7 @@ class TorchvisionDetector(Detector):
             build_trainer,
             train_dataloader,
             valid_dataloader,
+            to_preds=lambda x: x,
         )
 
     def _build(self, build_model, resolution, weights):
