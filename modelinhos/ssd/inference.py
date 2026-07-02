@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import partial
 from typing import Callable, Protocol, runtime_checkable
 
 import cv2
@@ -9,7 +10,6 @@ import tqdm
 
 from modelinhos.postprocess import (
     SampleDataset,
-    postprocess,
     sample_collate_fn,
     to_preds,
     torchvision_to_samples,
@@ -108,34 +108,22 @@ TrainerFactory = Callable[[torch.nn.Module, torch.Tensor], Trainer]
 class Detector:
     def __init__(
         self,
-        resolution: tuple[int, int],
         build_model,
-        weights,
-        th=0.4,
-        postprocess=postprocess,
-        normalize=normalize,
         lencoder: SampleEncoder = None,
         build_trainer: TrainerFactory = DoNothingTrainer,
         train_dataloader: DataloaderBuilder = default_dataloader_builder,
         valid_dataloader: DataloaderBuilder = default_dataloader_builder,
-        to_preds: Callable = to_preds,
     ):
-        self.transforms = build_transform(weights, normalize)
-        self.model, self.priors = self._build(build_model, resolution, weights)
-        self.weights = weights
-        self.postprocess = postprocess
-        self.normalize = normalize
-        self.th = th
-        self.resolution = resolution
+        self.model, self.normalize, self.postprocess = build_model()
+        # TODO: Merge transforms with normalize
+        weights = None
+        self.transforms = build_transform(weights, self.normalize)
         self.label_encoder = lencoder or DoNothingEncoder()
-        self.trainer = build_trainer(self.model, self.priors)
+        self.trainer = build_trainer(self.model, None)
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
         # TODO: Move this to the model
         self.to_preds = to_preds
-
-    def _build(self, build_model, resolution, weights):
-        return build_model(resolution=resolution, weights=weights)
 
     def fit(self, samples: list[Sample]) -> "Detector":
         self.trainer.fit(self.label_encoder.fit_transform(samples))
@@ -154,10 +142,7 @@ class Detector:
             for images, _ in tqdm.tqdm(loader):
                 results.extend(
                     self.postprocess(
-                        predictions=self.to_preds(self.model(images)),
-                        priors=self.priors,
-                        resolution=self.resolution,
-                        score_thresh=self.th,
+                        predictions=self.model(images),
                     )
                 )
         return self.label_encoder.inverse_transform(results)
@@ -167,43 +152,44 @@ class Detector:
         blob = self.transforms(frame).unsqueeze(0)
         with torch.no_grad():
             return self.postprocess(
-                predictions=self.to_preds(self.model(blob)),
-                priors=self.priors,
-                resolution=self.resolution,
-                score_thresh=self.th,
+                predictions=self.model(blob),
             )
+
+
+def torchvision_model(
+    model: torch.nn.Module,
+    resolution,
+    anchors=None,
+    th=0.4,
+):
+    return (
+        model,
+        lambda x: x,
+        partial(
+            torchvision_to_samples,
+            priors=anchors,
+            resolution=resolution,
+            score_thresh=th,
+        ),
+    )
 
 
 class TorchvisionDetector(Detector):
     def __init__(
         self,
-        resolution: tuple[int, int],
         build_model,
-        weights,
-        th=0.4,
-        postprocess=torchvision_to_samples,
-        normalize=lambda x: x,
         lencoder: SampleEncoder = None,
         build_trainer: TrainerFactory = DoNothingTrainer,
         train_dataloader: DataloaderBuilder = default_dataloader_builder,
         valid_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
         super().__init__(
-            resolution,
             build_model,
-            weights,
-            th,
-            postprocess,
-            normalize,
             lencoder,
             build_trainer,
             train_dataloader,
             valid_dataloader,
-            to_preds=lambda x: x,
         )
-
-    def _build(self, build_model, resolution, weights):
-        return build_model(resolution=resolution, weights=weights), None
 
     def _run_model(self, batch: torch.Tensor):
         return self.model(list(self.normalize(batch)))
