@@ -19,7 +19,9 @@ from modelinhos.ssd.inference import TorchvisionDetector, torchvision_model
 @pytest.fixture
 def model(resolution: tuple[int, int]):
     return TorchvisionDetector(
-        build_model=torchvision_model(ssdlite320_mobilenet_v3_large, resolution),
+        build_model=torchvision_model(
+            ssdlite320_mobilenet_v3_large, resolution
+        ),
         weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
         lencoder=LabelEncoder(l2i={"person": 1, "tie": 34}),
     )
