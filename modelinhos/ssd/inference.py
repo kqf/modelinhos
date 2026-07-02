@@ -155,12 +155,13 @@ class Detector:
 def torchvision_model(
     model: torch.nn.Module,
     resolution,
+    weights,
     anchors=None,
     th=0.4,
 ):
     return (
         model,
-        lambda x: x,
+        build_transform(weights, lambda x: x),
         partial(
             torchvision_to_samples,
             priors=anchors,
