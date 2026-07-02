@@ -9,8 +9,11 @@ import torchvision.transforms as T
 import tqdm
 
 from modelinhos.postprocess import (
+    PerBatch,
     SampleDataset,
+    postprocess,
     sample_collate_fn,
+    to_preds,
     torchvision_to_samples,
 )
 from modelinhos.processing import DoNothingEncoder
@@ -113,9 +116,7 @@ class Detector:
         train_dataloader: DataloaderBuilder = default_dataloader_builder,
         valid_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
-        self.model, self.transforms, self.postprocess = build_model()
-        # ~weights = None
-        # ~self.transformss = build_transform(weights, self.normalize)
+        self.model, self.transforms, self.postprocess, self.w = build_model()
         self.label_encoder = lencoder or DoNothingEncoder()
         self.trainer = build_trainer(self.model, None)
         self.train_dataloader = train_dataloader
@@ -152,6 +153,38 @@ class Detector:
             )
 
 
+def custom_model(
+    build_model,
+    resolution,
+    weights,
+    postprocess=postprocess,
+    normalize=normalize,
+    th=0.4,
+):
+    model, anchors = build_model(weights=weights, resolution=resolution)
+
+    class DetectionModel(torch.nn.Module):
+        def __init__(self, model):
+            super().__init__()
+
+            self.model = model
+
+        def forward(self, x: torch.nn.Module) -> PerBatch:
+            return to_preds(self.model(x))
+
+    return (
+        DetectionModel(model),
+        build_transform(weights, normalize),
+        partial(
+            postprocess,
+            resolution=resolution,
+            priors=anchors,
+            score_thresh=th,
+        ),
+        weights,
+    )
+
+
 def torchvision_model(
     build_model,
     resolution,
@@ -168,4 +201,5 @@ def torchvision_model(
             resolution=resolution,
             score_thresh=th,
         ),
+        weights,
     )
