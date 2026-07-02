@@ -17,7 +17,7 @@ from modelinhos.plot import plot
 from modelinhos.postprocess import ssd_postprocess
 from modelinhos.processing import LabelEncoder
 from modelinhos.sample import Annotation, Sample
-from modelinhos.ssd.inference import Detector, TorchvisionDetector
+from modelinhos.ssd.inference import Detector
 from modelinhos.ssd.lite import (
     build_ssdlite,
     build_torchvision_ssdlite,
@@ -92,7 +92,7 @@ def assert_same_sample(preds, expect):
     [
         pytest.param(
             partial(
-                TorchvisionDetector,
+                Detector,
                 build_model=ssdlite320_mobilenet_v3_large,
                 weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             ),
@@ -139,7 +139,7 @@ def assert_same_sample(preds, expect):
         ),
         pytest.param(
             partial(
-                TorchvisionDetector,
+                Detector,
                 build_model=retinanet_resnet50_fpn_v2,
                 weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             ),
