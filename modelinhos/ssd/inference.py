@@ -153,14 +153,14 @@ class Detector:
 
 
 def torchvision_model(
-    model: torch.nn.Module,
+    build_model,
     resolution,
     weights,
     anchors=None,
     th=0.4,
 ):
     return (
-        model,
+        build_model(weights=weights),
         build_transform(weights, lambda x: x),
         partial(
             torchvision_to_samples,
