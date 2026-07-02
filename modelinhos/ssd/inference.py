@@ -113,9 +113,9 @@ class Detector:
         train_dataloader: DataloaderBuilder = default_dataloader_builder,
         valid_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
-        self.model, self.transform, self.postprocess = build_model()
+        self.model, self.transforms, self.postprocess = build_model()
         # ~weights = None
-        # ~self.transforms = build_transform(weights, self.normalize)
+        # ~self.transformss = build_transform(weights, self.normalize)
         self.label_encoder = lencoder or DoNothingEncoder()
         self.trainer = build_trainer(self.model, None)
         self.train_dataloader = train_dataloader
@@ -129,7 +129,7 @@ class Detector:
         encoded = self.label_encoder.transform(samples)
         dataset = SampleDataset(
             encoded,
-            self.transform,
+            self.transforms,
         )
         loader = self.valid_dataloader(dataset)
         self.model.eval()
@@ -145,7 +145,7 @@ class Detector:
 
     def transform_single(self, frame: np.ndarray) -> list[Sample]:
         self.model.eval()
-        blob = self.transform(frame).unsqueeze(0)
+        blob = self.transforms(frame).unsqueeze(0)
         with torch.no_grad():
             return self.postprocess(
                 predictions=self.model(blob),
