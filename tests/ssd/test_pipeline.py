@@ -1,4 +1,5 @@
 import pathlib
+from functools import partial
 
 import pytest
 from torchvision.models.detection import (
@@ -13,16 +14,19 @@ from modelinhos.evaluation import (
 )
 from modelinhos.processing import LabelEncoder
 from modelinhos.sample import read_samples
-from modelinhos.ssd.inference import TorchvisionDetector, torchvision_model
+from modelinhos.ssd.inference import Detector, torchvision_model
 
 
 @pytest.fixture
 def model(resolution: tuple[int, int]):
-    return TorchvisionDetector(
-        build_model=torchvision_model(
-            ssdlite320_mobilenet_v3_large, resolution
+    weights = SSDLite320_MobileNet_V3_Large_Weights.COCO_V1
+    return Detector(
+        build_model=partial(
+            torchvision_model,
+            model=ssdlite320_mobilenet_v3_large(weights=weights),
+            resolution=resolution,
+            weights=weights,
         ),
-        weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
         lencoder=LabelEncoder(l2i={"person": 1, "tie": 34}),
     )
 
@@ -37,7 +41,7 @@ def dataset(tmp_path: pathlib.Path) -> pathlib.Path:
     return pathlib.Path("tests/assets/annotations.json")
 
 
-def test_pipeline(model: TorchvisionDetector, dataset: pathlib.Path):
+def test_pipeline(model: Detector, dataset: pathlib.Path):
     samples = read_samples(dataset)
     train, valid = train_test_split(samples)
     # We don't fit in this repo ~

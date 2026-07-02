@@ -11,7 +11,6 @@ import tqdm
 from modelinhos.postprocess import (
     SampleDataset,
     sample_collate_fn,
-    to_preds,
     torchvision_to_samples,
 )
 from modelinhos.processing import DoNothingEncoder
@@ -114,16 +113,13 @@ class Detector:
         train_dataloader: DataloaderBuilder = default_dataloader_builder,
         valid_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
-        self.model, self.normalize, self.postprocess = build_model()
-        # TODO: Merge transforms with normalize
-        weights = None
-        self.transforms = build_transform(weights, self.normalize)
+        self.model, self.transforms, self.postprocess = build_model()
+        # ~weights = None
+        # ~self.transformss = build_transform(weights, self.normalize)
         self.label_encoder = lencoder or DoNothingEncoder()
         self.trainer = build_trainer(self.model, None)
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
-        # TODO: Move this to the model
-        self.to_preds = to_preds
 
     def fit(self, samples: list[Sample]) -> "Detector":
         self.trainer.fit(self.label_encoder.fit_transform(samples))
@@ -159,12 +155,13 @@ class Detector:
 def torchvision_model(
     model: torch.nn.Module,
     resolution,
+    weights,
     anchors=None,
     th=0.4,
 ):
     return (
         model,
-        lambda x: x,
+        build_transform(weights, lambda x: x),
         partial(
             torchvision_to_samples,
             priors=anchors,
@@ -172,24 +169,3 @@ def torchvision_model(
             score_thresh=th,
         ),
     )
-
-
-class TorchvisionDetector(Detector):
-    def __init__(
-        self,
-        build_model,
-        lencoder: SampleEncoder = None,
-        build_trainer: TrainerFactory = DoNothingTrainer,
-        train_dataloader: DataloaderBuilder = default_dataloader_builder,
-        valid_dataloader: DataloaderBuilder = default_dataloader_builder,
-    ):
-        super().__init__(
-            build_model,
-            lencoder,
-            build_trainer,
-            train_dataloader,
-            valid_dataloader,
-        )
-
-    def _run_model(self, batch: torch.Tensor):
-        return self.model(list(self.normalize(batch)))
