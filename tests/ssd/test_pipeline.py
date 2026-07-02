@@ -13,14 +13,15 @@ from modelinhos.evaluation import (
 )
 from modelinhos.processing import LabelEncoder
 from modelinhos.sample import read_samples
-from modelinhos.ssd.inference import TorchvisionDetector
+from modelinhos.ssd.inference import TorchvisionDetector, torchvision_model
 
 
 @pytest.fixture
 def model(resolution: tuple[int, int]):
     return TorchvisionDetector(
-        resolution=resolution,
-        build_model=ssdlite320_mobilenet_v3_large,
+        build_model=torchvision_model(
+            ssdlite320_mobilenet_v3_large, resolution
+        ),
         weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
         lencoder=LabelEncoder(l2i={"person": 1, "tie": 34}),
     )
