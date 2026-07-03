@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from functools import partial
 from pathlib import Path
 
@@ -23,6 +23,18 @@ class PerImage:
     boxes: torch.Tensor  # (K, 4)
     scores: torch.Tensor  # (K, 1)
     labels: torch.Tensor  # (K, 1)
+
+
+@dataclass(frozen=True)
+class Subloss:
+    decode: Callable
+
+
+@dataclass(frozen=True)
+class Loss:
+    boxes: Subloss
+    scores: Subloss
+    labels: Subloss
 
 
 def sample_to_image_tensors(sample: Sample) -> PerImage:
@@ -113,45 +125,16 @@ def uncollate_batched_tensors(
     return results
 
 
-def decode_standard(
+def decode(
     predictions: PerBatch,
-    priors: torch.Tensor,
-    resolution: tuple[int, int],
+    loss: Loss,
 ) -> PerBatch:
-    raw_deltas, raw_logits = predictions.boxes, predictions.scores
-    boxes = decode_boxes(raw_deltas, priors.to(raw_deltas.device), resolution)
-    scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
-    return PerBatch(
-        boxes=boxes,
-        scores=scores,
-        labels=labels,
-    )
-
-
-def decode_ssd(
-    predictions: PerBatch,
-    priors: torch.Tensor,
-    resolution: tuple[int, int],
-) -> PerBatch:
-    raw_deltas, raw_logits = predictions.boxes, predictions.scores
-    boxes = decode_boxes(
-        raw_deltas,
-        priors.to(raw_deltas.device),
-        resolution,
-        weights=(10.0, 10.0, 5.0, 5.0),
-    )
-    scores_all = torch.softmax(raw_logits, dim=-1)  # (B, N, C)
-
-    # Exclude background (class 0) by zeroing it out before taking the max.
-    # This lets us share nms_unbatch_standard with the standard pipeline.
-    scores_all[..., 0] = 0.0
-    scores, labels = scores_all.max(dim=-1)  # both (B, N)
-
-    return PerBatch(
-        boxes=boxes,
-        scores=scores,
-        labels=labels,
-    )
+    update = {}
+    for f in fields(predictions):
+        subloss = getattr(loss, f.name)
+        predict = getattr(predictions, f.name)
+        update[f.name] = subloss.decode(predict)
+    return replace(predictions, **update)
 
 
 def nms_unbatch(
@@ -179,16 +162,14 @@ def nms_unbatch(
 
 def run_postprocess_pipeline(
     predictions: PerBatch,
-    priors: torch.Tensor,
-    resolution: tuple[int, int],
+    loss: Loss,
     score_thresh: float,
-    decode_fn: Callable,
     unbatch_fn: Callable,
 ) -> list[Sample]:
     """Generic pipeline: Decode -> Unbatch -> Map to Sample"""
 
     # 1. Batched mathematical operations
-    batched_data = decode_fn(predictions, priors, resolution)
+    batched_data = decode(predictions, loss)
 
     # 2. Filter and split into a list of variable-length outputs
     unbatched = unbatch_fn(batched_data, score_thresh=score_thresh)
@@ -227,6 +208,62 @@ class SampleDataset(torch.utils.data.Dataset):
         return image, batch
 
 
+def postprocess(resolution: tuple[int, int], priors: torch.Tensor) -> Callable:
+    return partial(
+        run_postprocess_pipeline,
+        loss=Loss(
+            boxes=Subloss(
+                decode=partial(
+                    decode_boxes,
+                    priors=priors,
+                    resolution=resolution,
+                )
+            ),
+            scores=Subloss(decode=lambda x: torch.sigmoid(x).max(dim=-1)[0]),
+            labels=Subloss(decode=lambda x: torch.sigmoid(x).max(dim=-1)[1]),
+        ),
+        unbatch_fn=partial(
+            nms_unbatch,
+            iou_thresh=0.5,
+        ),
+    )
+
+
+def ssd_postprocess(
+    resolution: tuple[int, int],
+    priors: torch.Tensor,
+) -> Callable:
+    def decode_scores(raw_logits: torch.Tensor) -> torch.Tensor:
+        probs = torch.softmax(raw_logits, dim=-1)  # (B, N, C)
+        probs[..., 0] = 0.0  # exclude background class before taking max
+        return probs.max(dim=-1)[0]
+
+    def decode_labels(raw_logits: torch.Tensor) -> torch.Tensor:
+        probs = torch.softmax(raw_logits, dim=-1)  # (B, N, C)
+        probs[..., 0] = 0.0  # exclude background class before taking max
+        return probs.max(dim=-1)[1]
+
+    return partial(
+        run_postprocess_pipeline,
+        loss=Loss(
+            boxes=Subloss(
+                decode=partial(
+                    decode_boxes,
+                    priors=priors,
+                    resolution=resolution,
+                    weights=(10.0, 10.0, 5.0, 5.0),
+                )
+            ),
+            scores=Subloss(decode=decode_scores),
+            labels=Subloss(decode=decode_labels),
+        ),
+        unbatch_fn=partial(
+            nms_unbatch,
+            iou_thresh=0.5,
+        ),
+    )
+
+
 def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatch:
     boxes, classes = preds
     return PerBatch(
@@ -234,25 +271,6 @@ def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatch:
         scores=classes,
         labels=torch.empty_like(classes),
     )
-
-
-postprocess = partial(
-    run_postprocess_pipeline,
-    decode_fn=decode_standard,
-    unbatch_fn=partial(
-        nms_unbatch,
-        iou_thresh=0.5,
-    ),
-)
-
-ssd_postprocess = partial(
-    run_postprocess_pipeline,
-    decode_fn=decode_ssd,
-    unbatch_fn=partial(
-        nms_unbatch,
-        iou_thresh=0.5,
-    ),
-)
 
 
 def torchvision_to_samples(
