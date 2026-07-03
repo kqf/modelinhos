@@ -12,7 +12,7 @@ from modelinhos.evaluation import (
     per_sample_metrics,
     visualize_fp_fn,
 )
-from modelinhos.processing import LabelEncoder
+from modelinhos.preprocess.processing import LabelEncoder
 from modelinhos.sample import read_samples
 from modelinhos.ssd.inference import Detector, torchvision_model
 

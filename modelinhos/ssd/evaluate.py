@@ -18,7 +18,7 @@ from modelinhos.evaluation import (
     visualize_pr,
 )
 from modelinhos.plot import plot
-from modelinhos.processing import LabelEncoder
+from modelinhos.preprocess.processing import LabelEncoder
 from modelinhos.sample import Sample
 from modelinhos.ssd.inference import Detector, SampleEncoder, torchvision_model
 
