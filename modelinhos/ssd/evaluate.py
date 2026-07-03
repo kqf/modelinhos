@@ -19,7 +19,7 @@ from modelinhos.evaluation import (
 from modelinhos.plot import plot
 from modelinhos.processing import LabelEncoder
 from modelinhos.sample import Sample
-from modelinhos.ssd.inference import SampleEncoder, TorchvisionDetector
+from modelinhos.ssd.inference import Detector, SampleEncoder, torchvision_model
 
 memory = joblib.Memory("./cachedir", verbose=0)
 
@@ -31,10 +31,14 @@ def build_model(
     le = LabelEncoder(
         l2i={label: i for i, label in enumerate(weights.meta["categories"])}
     )
-    return TorchvisionDetector(
-        resolution=resolution,
-        build_model=ssdlite320_mobilenet_v3_large,
-        weights=weights,
+
+    return Detector(
+        build_model=partial(
+            torchvision_model,
+            build_model=ssdlite320_mobilenet_v3_large,
+            weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+            resolution=resolution,
+        ),
         lencoder=le,
     )
 
