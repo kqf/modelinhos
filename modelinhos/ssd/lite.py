@@ -14,9 +14,9 @@ from torchvision.models.detection.ssdlite import (
 )
 
 from modelinhos.postprocess import decode_boxes
+from modelinhos.preprocess.image import normalize
 from modelinhos.sample import Annotation, Sample
 from modelinhos.ssd.anchors import anchors
-from modelinhos.ssd.inference import normalize
 from modelinhos.ssd.load import load_with_mismatch
 
 
