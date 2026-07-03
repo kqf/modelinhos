@@ -163,7 +163,6 @@ def nms_unbatch(
 def run_postprocess_pipeline(
     predictions: PerBatch,
     loss: Loss,
-    score_thresh: float,
     unbatch_fn: Callable,
 ) -> list[Sample]:
     """Generic pipeline: Decode -> Unbatch -> Map to Sample"""
@@ -172,7 +171,7 @@ def run_postprocess_pipeline(
     batched_data = decode(predictions, loss)
 
     # 2. Filter and split into a list of variable-length outputs
-    unbatched = unbatch_fn(batched_data, score_thresh=score_thresh)
+    unbatched = unbatch_fn(batched_data)
 
     # 3. Map back to domain objects
     return to_sample(unbatched)
@@ -288,6 +287,7 @@ def torchvision_to_samples(
 ):
     return [
         Sample(
+            file_name=Path("fake-file.png"),
             annotations=[
                 Annotation(
                     bbox=b.tolist(),
