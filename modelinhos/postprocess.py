@@ -13,16 +13,16 @@ from modelinhos.sample import Annotation, Sample
 
 @dataclass(frozen=True)
 class PerBatch:
-    boxes: torch.Tensor  # (B, N, 4)
-    scores: torch.Tensor  # (B, N) or (B, N, C)
-    labels: torch.Tensor  # (B, N)
+    boxes: torch.Tensor  # (B, K, 4)
+    scores: torch.Tensor  # (B, K, 1)
+    labels: torch.Tensor  # (B, K, 1)
 
 
 @dataclass(frozen=True)
 class PerImage:
     boxes: torch.Tensor  # (K, 4)
-    scores: torch.Tensor  # (K,)
-    labels: torch.Tensor  # (K,)
+    scores: torch.Tensor  # (K, 1)
+    labels: torch.Tensor  # (K, 1)
 
 
 def sample_to_image_tensors(sample: Sample) -> PerImage:
@@ -197,6 +197,45 @@ def run_postprocess_pipeline(
     return to_sample(unbatched)
 
 
+def sample_collate_fn(batch: list[tuple]) -> tuple:
+    # 1. Standard stacking for the uniform image tensors
+    images = torch.stack([item[0] for item in batch])
+
+    # 2. Pad and batch the variable-length ground truth tensors
+    gt_batched = collate_image_tensors([item[1] for item in batch])
+
+    return images, gt_batched
+
+
+class SampleDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        samples: list[Sample],
+        transform,
+    ):
+        self.samples = samples
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, PerImage]:
+        sample = self.samples[idx]
+        bgr = cv2.imread(str(sample.file_name))
+        image = self.transform(bgr)
+        batch = sample_to_image_tensors(sample)
+        return image, batch
+
+
+def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatch:
+    boxes, classes = preds
+    return PerBatch(
+        boxes=boxes,
+        scores=classes,
+        labels=torch.empty_like(classes),
+    )
+
+
 postprocess = partial(
     run_postprocess_pipeline,
     decode_fn=decode_standard,
@@ -240,42 +279,3 @@ def torchvision_to_samples(
         )
         for pred in predictions
     ]
-
-
-def sample_collate_fn(batch: list[tuple]) -> tuple:
-    # 1. Standard stacking for the uniform image tensors
-    images = torch.stack([item[0] for item in batch])
-
-    # 2. Pad and batch the variable-length ground truth tensors
-    gt_batched = collate_image_tensors([item[1] for item in batch])
-
-    return images, gt_batched
-
-
-class SampleDataset(torch.utils.data.Dataset):
-    def __init__(
-        self,
-        samples: list[Sample],
-        transform,
-    ):
-        self.samples = samples
-        self.transform = transform
-
-    def __len__(self) -> int:
-        return len(self.samples)
-
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, PerImage]:
-        sample = self.samples[idx]
-        bgr = cv2.imread(str(sample.file_name))
-        image = self.transform(bgr)
-        batch = sample_to_image_tensors(sample)
-        return image, batch
-
-
-def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatch:
-    boxes, classes = preds
-    return PerBatch(
-        boxes=boxes,
-        scores=classes,
-        labels=torch.empty_like(classes),
-    )
