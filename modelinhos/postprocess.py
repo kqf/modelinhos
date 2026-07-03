@@ -218,9 +218,9 @@ def run_postprocess_pipeline(
     predictions: PerBatch,
     priors: torch.Tensor,
     resolution: tuple[int, int],
+    score_thresh: float,
     decode_fn: Callable,
     unbatch_fn: Callable,
-    score_thresh,
 ) -> list[Sample]:
     """Generic pipeline: Decode -> Unbatch -> Map to Sample"""
 

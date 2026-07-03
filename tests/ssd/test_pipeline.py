@@ -23,7 +23,7 @@ def model(resolution: tuple[int, int]):
     return Detector(
         build_model=partial(
             torchvision_model,
-            model=ssdlite320_mobilenet_v3_large(weights=weights),
+            build_model=ssdlite320_mobilenet_v3_large,
             resolution=resolution,
             weights=weights,
         ),
