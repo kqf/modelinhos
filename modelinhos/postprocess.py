@@ -275,7 +275,7 @@ def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatch:
     return PerBatch(
         boxes=boxes,
         scores=classes,
-        labels=torch.empty_like(classes),
+        labels=classes,
     )
 
 
