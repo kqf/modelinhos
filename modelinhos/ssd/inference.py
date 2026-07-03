@@ -16,7 +16,7 @@ from modelinhos.postprocess import (
     to_preds,
     torchvision_to_samples,
 )
-from modelinhos.preprocess.processing import DoNothingEncoder
+from modelinhos.preprocess.lables import DoNothingEncoder
 from modelinhos.sample import Sample
 
 
