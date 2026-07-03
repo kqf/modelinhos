@@ -208,7 +208,11 @@ class SampleDataset(torch.utils.data.Dataset):
         return image, batch
 
 
-def postprocess(resolution: tuple[int, int], priors: torch.Tensor) -> Callable:
+def postprocess(
+    resolution: tuple[int, int],
+    priors: torch.Tensor,
+    score_thresh: float,
+) -> Callable:
     return partial(
         run_postprocess_pipeline,
         loss=Loss(
@@ -225,6 +229,7 @@ def postprocess(resolution: tuple[int, int], priors: torch.Tensor) -> Callable:
         unbatch_fn=partial(
             nms_unbatch,
             iou_thresh=0.5,
+            score_thresh=score_thresh,
         ),
     )
 
@@ -232,6 +237,7 @@ def postprocess(resolution: tuple[int, int], priors: torch.Tensor) -> Callable:
 def ssd_postprocess(
     resolution: tuple[int, int],
     priors: torch.Tensor,
+    score_thresh: float,
 ) -> Callable:
     def decode_scores(raw_logits: torch.Tensor) -> torch.Tensor:
         probs = torch.softmax(raw_logits, dim=-1)  # (B, N, C)
@@ -260,6 +266,7 @@ def ssd_postprocess(
         unbatch_fn=partial(
             nms_unbatch,
             iou_thresh=0.5,
+            score_thresh=score_thresh,
         ),
     )
 
