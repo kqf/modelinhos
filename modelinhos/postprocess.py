@@ -22,6 +22,13 @@ def _field_spec(name: str) -> tuple[int, torch.dtype]:
 
 
 @dataclass(frozen=True)
+class PerImage:
+    bboxes: torch.Tensor  # (K, 4)
+    scores: torch.Tensor  # (K, 1)
+    labels: torch.Tensor  # (K, 1)
+
+
+@dataclass(frozen=True)
 class PerBatch:
     bboxes: torch.Tensor  # (B, K, 4)
     scores: torch.Tensor  # (B, K, 1)
@@ -29,10 +36,10 @@ class PerBatch:
 
 
 @dataclass(frozen=True)
-class PerImage:
-    bboxes: torch.Tensor  # (K, 4)
-    scores: torch.Tensor  # (K, 1)
-    labels: torch.Tensor  # (K, 1)
+class PerBatchEncoded:
+    bboxes: torch.Tensor  # (B, K, 4)
+    scores: torch.Tensor  # (B, K, 1)
+    labels: torch.Tensor  # (B, K, 1)
 
 
 @dataclass(frozen=True)
@@ -128,33 +135,17 @@ def nms_unbatch(
     return results
 
 
-def decode(predictions: PerBatch, loss: Loss) -> PerBatch:
+def decode(predictions: PerBatchEncoded, loss: Loss) -> PerBatch:
     update = {}
     for f in fields(predictions):
         subloss = getattr(loss, f.name)
         predict = getattr(predictions, f.name)
         update[f.name] = subloss.decode(predict)
-    return replace(predictions, **update)
-
-
-def run_postprocess_pipeline(
-    predictions: PerBatch,
-    loss: Loss,
-    unbatch_fn: Callable,
-) -> list[Sample[TrainAnnotation]]:
-    batched_data = decode(predictions, loss)
-    unbatched = unbatch_fn(batched_data)
-    return to_sample(unbatched)
-
-
-def sample_collate_fn(batch: list[tuple]) -> tuple:
-    images = torch.stack([item[0] for item in batch])
-    batched = collate_image_tensors([item[1] for item in batch])
-    return images, batched
+    return PerBatch(**update)
 
 
 class SampleDataset(torch.utils.data.Dataset):
-    def __init__(self, samples: list[Sample], transform):
+    def __init__(self, samples: list[Sample[TrainAnnotation]], transform):
         self.samples = samples
         self.transform = transform
 
@@ -169,8 +160,32 @@ class SampleDataset(torch.utils.data.Dataset):
         return image, batch
 
 
+@dataclass(frozen=True)
+class Collate:
+    pad_value: float = -1.0
+    i2b: Callable = collate_image_tensors
+    unc: Callable = un_collate
+    nms: Callable = partial(nms_unbatch, iou_thresh=0.5)
+    to_samples: Callable = to_sample
+
+    def collate(
+        self,
+        collected: list[tuple[torch.Tensor, PerImage]],
+    ) -> tuple[torch.Tensor, PerBatch]:
+        images, labels = zip(*collected)
+        return torch.stack(images), self.i2b(labels)
+
+    def un_batch(self, batch: PerBatch) -> list[Sample]:
+        return self.to_samples(self.unc(batch, pad_value=self.pad_value))
+
+    def un_batch_nms(self, batch: PerBatch) -> list[Sample]:
+        return self.to_samples(self.nms(batch, pad_value=self.pad_value))
+
+
 def postprocess(
-    resolution: tuple[int, int], priors: torch.Tensor, score_thresh: float
+    resolution: tuple[int, int],
+    priors: torch.Tensor,
+    score_thresh: float,
 ) -> Callable:
     def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
         scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
@@ -179,7 +194,7 @@ def postprocess(
         return labels.unsqueeze(-1)
 
     return partial(
-        run_postprocess_pipeline,
+        decode,
         loss=Loss(
             bboxes=Subloss(
                 decode=partial(
@@ -193,7 +208,6 @@ def postprocess(
             ),
             labels=Subloss(decode=decode_labels),
         ),
-        unbatch_fn=partial(nms_unbatch, iou_thresh=0.5),
     )
 
 
@@ -214,7 +228,7 @@ def ssd_postprocess(
         return probs.max(dim=-1)[0].unsqueeze(-1)
 
     return partial(
-        run_postprocess_pipeline,
+        decode,
         loss=Loss(
             bboxes=Subloss(
                 decode=partial(
@@ -227,13 +241,12 @@ def ssd_postprocess(
             scores=Subloss(decode=decode_scores),
             labels=Subloss(decode=decode_labels),
         ),
-        unbatch_fn=partial(nms_unbatch, iou_thresh=0.5),
     )
 
 
-def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatch:
+def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatchEncoded:
     boxes, classes = preds
-    return PerBatch(
+    return PerBatchEncoded(
         bboxes=boxes,
         scores=classes,
         labels=classes,
