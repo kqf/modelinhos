@@ -32,7 +32,7 @@ class Subloss:
 
 @dataclass(frozen=True)
 class Loss:
-    boxes: Subloss
+    bboxes: Subloss
     scores: Subloss
     labels: Subloss
 
@@ -214,7 +214,7 @@ def postprocess(
     return partial(
         run_postprocess_pipeline,
         loss=Loss(
-            boxes=Subloss(
+            bboxes=Subloss(
                 decode=partial(
                     decode_boxes,
                     priors=priors,
@@ -252,7 +252,7 @@ def ssd_postprocess(
     return partial(
         run_postprocess_pipeline,
         loss=Loss(
-            boxes=Subloss(
+            bboxes=Subloss(
                 decode=partial(
                     decode_boxes,
                     priors=priors,
