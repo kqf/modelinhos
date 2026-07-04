@@ -54,7 +54,7 @@ class Loss:
     labels: Subloss
 
 
-def sample_to_image_tensors(annotations: list[TrainAnnotation]) -> PerImage:
+def anno2tensors(annotations: list[TrainAnnotation]) -> PerImage:
     kwargs = {}
     for f in fields(PerImage):
         if values := [getattr(a, f.name) for a in annotations]:
@@ -65,7 +65,7 @@ def sample_to_image_tensors(annotations: list[TrainAnnotation]) -> PerImage:
     return PerImage(**kwargs)
 
 
-def collate_image_tensors(
+def collate_labels(
     tensors_list: list[PerImage],
     pad_value: float = -1.0,
 ) -> PerBatch:
@@ -156,14 +156,14 @@ class SampleDataset(torch.utils.data.Dataset):
         sample = self.samples[idx]
         bgr = cv2.imread(str(sample.file_name))
         image = self.transform(bgr)
-        batch = sample_to_image_tensors(sample.annotations)
+        batch = anno2tensors(sample.annotations)
         return image, batch
 
 
 @dataclass(frozen=True)
 class Collate:
     pad_value: float = -1.0
-    i2b: Callable = collate_image_tensors
+    i2b: Callable = collate_labels
     unc: Callable = un_collate
     nms: Callable = partial(nms_unbatch, iou_thresh=0.5)
     to_samples: Callable = to_sample
