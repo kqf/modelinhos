@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from dacite import Config, from_dict
 from dataclasses_json import dataclass_json
@@ -20,21 +20,24 @@ class Annotation:
 @dataclass(frozen=True)
 class TrainAnnotation:
     bboxes: AbsoluteXYXY
-    labels: tuple[int]
-    scores: tuple[float]
+    labels: tuple[int, ...]
+    scores: tuple[float, ...]
+
+
+AnnotationT = TypeVar("AnnotationT")
 
 
 @dataclass_json
 @dataclass
-class Sample:
+class Sample(Generic[AnnotationT]):
     file_name: Path
-    annotations: list[Annotation]
+    annotations: list[AnnotationT]
 
 
-def to_sample(entry: dict[str, Any]) -> Sample:
+def to_sample(entry: dict[str, Any]) -> Sample[Annotation]:
     try:
         return from_dict(
-            data_class=Sample,
+            data_class=Sample[Annotation],
             data=entry,
             config=Config(cast=[tuple, Path]),
         )
@@ -43,7 +46,10 @@ def to_sample(entry: dict[str, Any]) -> Sample:
         raise e
 
 
-def read_samples(path: Path, relative=True) -> list[Sample]:
+def read_samples(
+    path: Path,
+    relative: bool = True,
+) -> list[Sample[Annotation]]:
     path = Path(path)
     with open(path) as f:
         df = json.load(f)
@@ -51,9 +57,9 @@ def read_samples(path: Path, relative=True) -> list[Sample]:
     if relative:
         for sample in samples:
             sample.file_name = path.parent / sample.file_name
-    return list(samples)
+    return samples
 
 
-def save_samples(samples: list[Sample], path: Path) -> None:
+def save_samples(samples: list[Sample[Annotation]], path: Path) -> None:
     with open(path, "w") as f:
         json.dump([sample.to_dict() for sample in samples], f)  # type: ignore

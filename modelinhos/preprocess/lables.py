@@ -1,5 +1,4 @@
 import logging
-from copy import deepcopy
 from dataclasses import dataclass, field
 
 from modelinhos.sample import Annotation, Sample, TrainAnnotation
@@ -19,45 +18,54 @@ class LabelEncoder:
         elif self.i2l and not self.l2i:
             self.l2i = {v: k for k, v in self.i2l.items()}
 
-    def fit(self, samples: list[Sample]) -> "LabelEncoder":
+    def fit(self, samples: list[Sample[Annotation]]) -> "LabelEncoder":
         if self.l2i and self.i2l:
-            logger.info("Already fitted, skipping for now.")
             return self
-
         ul = sorted({ann.labels for s in samples for ann in s.annotations})
         self.l2i = {label: idx for idx, label in enumerate(ul)}
         self.i2l = {idx: label for label, idx in self.l2i.items()}
         return self
 
-    def transform(self, samples: list[Sample]) -> list[Sample]:
-        samples = [deepcopy(s) for s in samples]
-        for sample in samples:
-            sample.annotations = [
-                TrainAnnotation(
-                    bboxes=ann.bboxes,
-                    scores=ann.scores,
-                    labels=self.l2i[ann.labels],
-                )
-                for ann in sample.annotations
-            ]
+    def transform(
+        self, samples: list[Sample[Annotation]]
+    ) -> list[Sample[TrainAnnotation]]:
+        return [
+            Sample(
+                file_name=sample.file_name,
+                annotations=[
+                    TrainAnnotation(
+                        bboxes=ann.bboxes,
+                        scores=(ann.scores,),
+                        labels=(self.l2i[ann.labels],),
+                    )
+                    for ann in sample.annotations
+                ],
+            )
+            for sample in samples
+        ]
 
-        return samples
-
-    def fit_transform(self, samples: list[Sample]) -> list[Sample]:
+    def fit_transform(
+        self, samples: list[Sample[Annotation]]
+    ) -> list[Sample[TrainAnnotation]]:
         return self.fit(samples).transform(samples)
 
-    def inverse_transform(self, samples: list[Sample]) -> list[Sample]:
-        samples = [deepcopy(s) for s in samples]
-        for sample in samples:
-            sample.annotations = [
-                Annotation(
-                    bboxes=ann.bboxes,
-                    scores=ann.scores[0],
-                    labels=self.i2l[int(ann.labels[0])],
-                )
-                for ann in sample.annotations
-            ]
-        return samples
+    def inverse_transform(
+        self, samples: list[Sample[TrainAnnotation]]
+    ) -> list[Sample[Annotation]]:
+        return [
+            Sample(
+                file_name=sample.file_name,
+                annotations=[
+                    Annotation(
+                        bboxes=ann.bboxes,
+                        scores=ann.scores[0],
+                        labels=self.i2l[int(ann.labels[0])],
+                    )
+                    for ann in sample.annotations
+                ],
+            )
+            for sample in samples
+        ]
 
 
 class DoNothingEncoder:
