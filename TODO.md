@@ -20,11 +20,14 @@ Things to do:
 - [x] Add a separate test for inference when needed
 - [x] Add bbox, class, label to batches
 - [x] Add batch / un_batch functions
-- [ ] Eliminate box encoding / decoding to a separate file
-- [ ] Move the file_names to batches
-- [ ] Move the redundant parameters to decode
-- [ ] Write down the desired flow dataloader -> collate -> encode -> decode -> un_batch -> to_sample
-- [ ] Think of the composable pipeline instead of classes ? or vice versa -> class defines how to transform itself
+- [x] Eliminate box encoding / decoding to a separate file
+- [x] Move the file_names to batches <--- Doesn't belong to batches tbh
+- [x] Move the redundant parameters to decode
+- [x] Write down the desired flow dataloader -> collate -> encode -> decode -> un_batch -> to_sample
+- [x] Think of the composable pipeline instead of classes ? or vice versa -> class defines how to transform itself
+- [ ] Remove weights being exposed to the outside world in Detector
+- [ ] Add the actuall loss
+- [ ] Make the whole thing train on fake data
 - [ ] Add generalized decode function
 - [ ] Move to_preds to a model wrapper
 - [ ] Add the fcos inference
