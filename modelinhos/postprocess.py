@@ -12,11 +12,6 @@ import torchvision
 from modelinhos.preprocess.boxes import decode_boxes
 from modelinhos.sample import Sample, TrainAnnotation
 
-# Every field's width AND dtype come straight from TrainAnnotation's own type
-# hints: len(get_args(...)) is the fixed tuple width, and the first arg's
-# Python type tells us the dtype torch.tensor() would have inferred anyway.
-# This is the one place that reads TrainAnnotation's shape;
-# nothing else needs to.
 _ANNOTATION_HINTS = typing.get_type_hints(TrainAnnotation)
 
 
@@ -95,14 +90,14 @@ def un_collate(batched: PerBatch, pad_value: float = -1.0) -> list[PerImage]:
     ]
 
 
-def to_sample(unbatched: list[PerImage]) -> list[Sample]:
+def to_sample(unbatched: list[PerImage]) -> list[Sample[TrainAnnotation]]:
     samples = []
     for per_image in unbatched:
         fnames = [f.name for f in fields(per_image)]
         rows = zip(*(getattr(per_image, name) for name in fnames))
         annotations = [
             TrainAnnotation(
-                **{n: tuple(v.tolist()) for n, v in zip(fnames, row)},
+                **{n: tuple(v.tolist()) for n, v in zip(fnames, row)},  # type: ignore
             )
             for row in rows
         ]
@@ -146,7 +141,7 @@ def run_postprocess_pipeline(
     predictions: PerBatch,
     loss: Loss,
     unbatch_fn: Callable,
-) -> list[Sample]:
+) -> list[Sample[TrainAnnotation]]:
     batched_data = decode(predictions, loss)
     unbatched = unbatch_fn(batched_data)
     return to_sample(unbatched)
@@ -250,13 +245,13 @@ def torchvision_to_samples(
     priors,
     resolution,
     score_thresh,
-):
+) -> list[Sample[TrainAnnotation]]:
     return [
         Sample(
             file_name=Path("fake-file.png"),
             annotations=[
                 TrainAnnotation(
-                    bboxes=tuple(b.tolist()),
+                    bboxes=tuple(b.tolist()),  # type: ignore
                     labels=(ll.item(),),
                     scores=(s.item(),),
                 )
