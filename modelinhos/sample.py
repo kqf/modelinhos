@@ -12,9 +12,9 @@ AbsoluteXYXY = tuple[float, float, float, float]
 @dataclass_json
 @dataclass
 class Annotation:
-    bbox: AbsoluteXYXY
-    label: str
-    score: float = float("nan")
+    bboxes: AbsoluteXYXY
+    labels: str
+    scores: float = float("nan")
 
 
 @dataclass_json

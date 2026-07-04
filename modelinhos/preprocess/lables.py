@@ -24,7 +24,7 @@ class LabelEncoder:
             logger.info("Already fitted, skipping for now.")
             return self
 
-        ul = sorted({ann.label for s in samples for ann in s.annotations})
+        ul = sorted({ann.labels for s in samples for ann in s.annotations})
         self.l2i = {label: idx for idx, label in enumerate(ul)}
         self.i2l = {idx: label for label, idx in self.l2i.items()}
         return self
@@ -34,7 +34,7 @@ class LabelEncoder:
         for sample in samples:
             for ann in sample.annotations:
                 # TODO: Fix me later, ignore for now
-                ann.label = self.l2i[ann.label]  # type: ignore
+                ann.labels = self.l2i[ann.labels]  # type: ignore
         return samples
 
     def fit_transform(self, samples: list[Sample]) -> list[Sample]:
@@ -44,7 +44,7 @@ class LabelEncoder:
         samples = [deepcopy(s) for s in samples]
         for sample in samples:
             for ann in sample.annotations:
-                ann.label = self.i2l[int(ann.label)]
+                ann.labels = self.i2l[int(ann.labels)]
         return samples
 
 

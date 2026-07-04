@@ -13,14 +13,14 @@ from modelinhos.sample import Annotation, Sample
 
 @dataclass(frozen=True)
 class PerBatch:
-    boxes: torch.Tensor  # (B, K, 4)
+    bboxes: torch.Tensor  # (B, K, 4)
     scores: torch.Tensor  # (B, K, 1)
     labels: torch.Tensor  # (B, K, 1)
 
 
 @dataclass(frozen=True)
 class PerImage:
-    boxes: torch.Tensor  # (K, 4)
+    bboxes: torch.Tensor  # (K, 4)
     scores: torch.Tensor  # (K, 1)
     labels: torch.Tensor  # (K, 1)
 
@@ -40,20 +40,20 @@ class Loss:
 def sample_to_image_tensors(sample: Sample) -> PerImage:
     if not sample.annotations:
         return PerImage(
-            boxes=torch.empty((0, 4), dtype=torch.float32),
+            bboxes=torch.empty((0, 4), dtype=torch.float32),
             scores=torch.empty((0,), dtype=torch.float32),
             labels=torch.empty((0,), dtype=torch.long),
         )
 
     return PerImage(
-        boxes=torch.tensor(
-            [ann.bbox for ann in sample.annotations], dtype=torch.float32
+        bboxes=torch.tensor(
+            [ann.bboxes for ann in sample.annotations], dtype=torch.float32
         ),
         scores=torch.tensor(
-            [ann.score for ann in sample.annotations], dtype=torch.float32
+            [ann.scores for ann in sample.annotations], dtype=torch.float32
         ),
         labels=torch.tensor(
-            [ann.label for ann in sample.annotations], dtype=torch.long
+            [ann.labels for ann in sample.annotations], dtype=torch.long
         ),
     )
 
@@ -65,12 +65,12 @@ def to_sample(
     for per_image in unbatched:
         annotations = [
             Annotation(
-                bbox=tuple(b.tolist()),  # type: ignore
-                score=s.item(),
-                label=l.item(),
+                bboxes=tuple(b.tolist()),  # type: ignore
+                scores=s.item(),
+                labels=l.item(),
             )
             for b, s, l in zip(  # noqa
-                per_image.boxes, per_image.scores, per_image.labels
+                per_image.bboxes, per_image.scores, per_image.labels
             )
         ]
         output.append(
@@ -96,12 +96,12 @@ def collate_image_tensors(
     for i, t in enumerate(tensors_list):
         n = len(t.labels)
         if n > 0:
-            b_boxes[i, :n] = t.boxes
+            b_boxes[i, :n] = t.bboxes
             b_scores[i, :n] = t.scores
             b_labels[i, :n] = t.labels
 
     return PerBatch(
-        boxes=b_boxes,
+        bboxes=b_boxes,
         scores=b_scores,
         labels=b_labels,
     )
@@ -109,13 +109,13 @@ def collate_image_tensors(
 
 def un_collate(batched: PerBatch, pad_value: float = -1.0) -> list[PerImage]:
     results = []
-    for i in range(batched.boxes.shape[0]):
+    for i in range(batched.bboxes.shape[0]):
         # Find valid elements by checking labels against the pad_value
         valid_mask = batched.labels[i] != pad_value
 
         results.append(
             PerImage(
-                boxes=batched.boxes[i][valid_mask],
+                bboxes=batched.bboxes[i][valid_mask],
                 scores=batched.scores[i][valid_mask],
                 labels=batched.labels[i][valid_mask],
             )
@@ -131,7 +131,7 @@ def nms_unbatch(
     results = []
     for b in un_collate(batched, pad_value=pad_value):
         keep_nms = torchvision.ops.batched_nms(
-            b.boxes,
+            b.bboxes,
             b.scores,
             b.labels,
             iou_thresh,
@@ -273,7 +273,7 @@ def ssd_postprocess(
 def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatch:
     boxes, classes = preds
     return PerBatch(
-        boxes=boxes,
+        bboxes=boxes,
         scores=classes,
         labels=classes,
     )
@@ -290,9 +290,9 @@ def torchvision_to_samples(
             file_name=Path("fake-file.png"),
             annotations=[
                 Annotation(
-                    bbox=b.tolist(),
-                    label=ll.item(),
-                    score=s.item(),
+                    bboxes=b.tolist(),
+                    labels=ll.item(),
+                    scores=s.item(),
                 )
                 for b, s, ll in zip(
                     pred["boxes"].numpy(),
