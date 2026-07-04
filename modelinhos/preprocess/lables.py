@@ -2,7 +2,7 @@ import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from modelinhos.sample import Sample
+from modelinhos.sample import Annotation, Sample, TrainAnnotation
 
 # module logger
 logger = logging.getLogger(__name__)
@@ -32,9 +32,15 @@ class LabelEncoder:
     def transform(self, samples: list[Sample]) -> list[Sample]:
         samples = [deepcopy(s) for s in samples]
         for sample in samples:
-            for ann in sample.annotations:
-                # TODO: Fix me later, ignore for now
-                ann.labels = self.l2i[ann.labels]  # type: ignore
+            sample.annotations = [
+                TrainAnnotation(
+                    bboxes=ann.bboxes,
+                    scores=ann.scores,
+                    labels=self.l2i[ann.labels],
+                )
+                for ann in sample.annotations
+            ]
+
         return samples
 
     def fit_transform(self, samples: list[Sample]) -> list[Sample]:
@@ -43,8 +49,14 @@ class LabelEncoder:
     def inverse_transform(self, samples: list[Sample]) -> list[Sample]:
         samples = [deepcopy(s) for s in samples]
         for sample in samples:
-            for ann in sample.annotations:
-                ann.labels = self.i2l[int(ann.labels)]
+            sample.annotations = [
+                Annotation(
+                    bboxes=ann.bboxes,
+                    scores=ann.scores[0],
+                    labels=self.i2l[int(ann.labels[0])],
+                )
+                for ann in sample.annotations
+            ]
         return samples
 
 

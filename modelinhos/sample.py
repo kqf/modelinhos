@@ -17,6 +17,13 @@ class Annotation:
     scores: float = float("nan")
 
 
+@dataclass(frozen=True)
+class TrainAnnotation:
+    bboxes: AbsoluteXYXY
+    labels: tuple[int]
+    scores: tuple[float]
+
+
 @dataclass_json
 @dataclass
 class Sample:
