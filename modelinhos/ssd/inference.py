@@ -2,10 +2,8 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Callable, Protocol, runtime_checkable
 
-import cv2
 import numpy as np
 import torch
-import torchvision.transforms as T
 import tqdm
 
 from modelinhos.postprocess import (
@@ -16,45 +14,9 @@ from modelinhos.postprocess import (
     to_preds,
     torchvision_to_samples,
 )
+from modelinhos.preprocess.image import build_transform, normalize
 from modelinhos.preprocess.lables import DoNothingEncoder
 from modelinhos.sample import Sample
-
-
-def normalize(
-    image: torch.Tensor,
-    image_mean=(0.485, 0.456, 0.406),
-    image_std=(0.229, 0.224, 0.225),
-):
-    dtype, device = image.dtype, image.device
-    mean = torch.as_tensor(image_mean, dtype=dtype, device=device)
-    std = torch.as_tensor(image_std, dtype=dtype, device=device)
-    return (image - mean[:, None, None]) / std[:, None, None]
-
-
-def build_transform(weights, normalize):
-    return T.Compose(
-        [
-            T.Lambda(
-                lambda frame: cv2.cvtColor(
-                    frame,
-                    cv2.COLOR_BGR2RGB,
-                )
-            ),
-            T.Lambda(
-                lambda frame: (
-                    torch.from_numpy(
-                        frame,
-                    )
-                    .permute(2, 0, 1)
-                    .float()
-                    / 255.0
-                )
-            ),
-            weights.transforms(),
-            T.Lambda(normalize),
-        ]
-    )
-
 
 DataloaderBuilder = Callable[
     [torch.utils.data.Dataset],
