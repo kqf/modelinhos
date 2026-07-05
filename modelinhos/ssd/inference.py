@@ -22,7 +22,7 @@ class Detector:
     def __init__(
         self,
         build_model: Callable,
-        trainer: Callable = build_trainer,
+        trainer: Callable = build_trainer(),
         lencoder: SampleEncoder = None,
     ):
         self.model, self.transforms, self.decode, self.w, collate = (
