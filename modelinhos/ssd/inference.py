@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Callable, Optional, Protocol, runtime_checkable
+from typing import Callable, Optional
 
 import numpy as np
 import torch
@@ -13,21 +13,9 @@ from modelinhos.postprocess import (
     torchvision_to_samples,
 )
 from modelinhos.preprocess.image import build_transform, normalize
-from modelinhos.preprocess.lables import DoNothingEncoder
+from modelinhos.preprocess.lables import DoNothingEncoder, SampleEncoder
 from modelinhos.sample import Sample
 from modelinhos.trainer.simple import build_trainer
-
-
-@runtime_checkable
-class SampleEncoder(Protocol):
-    l2i: dict[str, int]
-    i2l: dict[int, str]
-
-    def fit_transform(self, samples: list[Sample]) -> list[Sample]: ...
-
-    def transform(self, samples: list[Sample]) -> list[Sample]: ...
-
-    def inverse_transform(self, samples: list[Sample]) -> list[Sample]: ...
 
 
 class Detector:

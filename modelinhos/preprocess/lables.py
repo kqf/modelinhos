@@ -1,10 +1,23 @@
 import logging
 from dataclasses import dataclass, field
+from typing import Protocol, runtime_checkable
 
 from modelinhos.sample import Annotation, Sample, TrainAnnotation
 
 # module logger
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class SampleEncoder(Protocol):
+    l2i: dict[str, int]
+    i2l: dict[int, str]
+
+    def fit_transform(self, samples: list[Sample]) -> list[Sample]: ...
+
+    def transform(self, samples: list[Sample]) -> list[Sample]: ...
+
+    def inverse_transform(self, samples: list[Sample]) -> list[Sample]: ...
 
 
 @dataclass
