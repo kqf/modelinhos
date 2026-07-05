@@ -15,6 +15,7 @@ from modelinhos.postprocess import (
 from modelinhos.preprocess.image import build_transform, normalize
 from modelinhos.preprocess.lables import DoNothingEncoder
 from modelinhos.sample import Sample
+from modelinhos.trainer.simple import build_trainer
 
 
 @runtime_checkable
@@ -33,7 +34,7 @@ class Detector:
     def __init__(
         self,
         build_model: Callable,
-        trainer: Callable,
+        trainer: Callable = build_trainer,
         lencoder: SampleEncoder = None,
     ):
         self.model, self.transforms, self.decode, self.w, collate = (
