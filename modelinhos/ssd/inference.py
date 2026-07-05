@@ -137,8 +137,7 @@ def custom_model(
     return (
         DetectionModel(model),
         build_transform(weights, normalize),
-        partial(
-            postprocess,
+        postprocess(
             resolution=resolution,
             priors=anchors,
             score_thresh=th,

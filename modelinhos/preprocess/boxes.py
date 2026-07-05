@@ -6,11 +6,11 @@ import torch
 def decode_boxes(
     rel_codes: torch.Tensor,  # (B, N, 4)
     priors: torch.Tensor,  # (N, 4)  normalised cxcywh
-    image_size: tuple[int, int],  # (H, W)
+    resolution: tuple[int, int],  # (H, W)
     weights: tuple = (1.0, 1.0, 1.0, 1.0),
     bbox_xform_clip: float = math.log(1000.0 / 16),
 ) -> torch.Tensor:  # (B, N, 4)  pixel xyxy
-    H, W = image_size
+    H, W = resolution
     pcx, pcy, pw, ph = (
         priors.to(rel_codes)
         * priors.new_tensor(
