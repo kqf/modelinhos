@@ -13,18 +13,16 @@ from modelinhos.sample import Annotation, Sample
 
 @dataclass(frozen=True)
 class PerBatch:
-    boxes: torch.Tensor  # (B, N, 4)
-    scores: torch.Tensor  # (B, N) or (B, N, C)
-    labels: torch.Tensor  # (B, N)
-    file_names: list[Path]
+    boxes: torch.Tensor  # (B, K, 4)
+    scores: torch.Tensor  # (B, K, 1)
+    labels: torch.Tensor  # (B, K, 1)
 
 
 @dataclass(frozen=True)
 class PerImage:
     boxes: torch.Tensor  # (K, 4)
-    scores: torch.Tensor  # (K,)
-    labels: torch.Tensor  # (K,)
-    file_name: Path
+    scores: torch.Tensor  # (K, 1)
+    labels: torch.Tensor  # (K, 1)
 
 
 def sample_to_image_tensors(sample: Sample) -> PerImage:
@@ -33,7 +31,6 @@ def sample_to_image_tensors(sample: Sample) -> PerImage:
             boxes=torch.empty((0, 4), dtype=torch.float32),
             scores=torch.empty((0,), dtype=torch.float32),
             labels=torch.empty((0,), dtype=torch.long),
-            file_name=sample.file_name,
         )
 
     return PerImage(
@@ -46,28 +43,36 @@ def sample_to_image_tensors(sample: Sample) -> PerImage:
         labels=torch.tensor(
             [ann.label for ann in sample.annotations], dtype=torch.long
         ),
-        file_name=sample.file_name,
     )
 
 
-def image_tensors_to_sample(
-    img_tensors: PerImage,
-) -> Sample:
-    annotations = [
-        Annotation(
-            bbox=tuple(b.tolist()),  # type: ignore
-            score=s.item(),
-            label=l.item(),
+def to_sample(
+    unbatched: list[PerImage],
+) -> list[Sample]:
+    output = []
+    for per_image in unbatched:
+        annotations = [
+            Annotation(
+                bbox=tuple(b.tolist()),  # type: ignore
+                score=s.item(),
+                label=l.item(),
+            )
+            for b, s, l in zip(  # noqa
+                per_image.boxes, per_image.scores, per_image.labels
+            )
+        ]
+        output.append(
+            Sample(
+                file_name=Path("fake-file.png"),
+                annotations=annotations,
+            )
         )
-        for b, s, l in zip(  # noqa
-            img_tensors.boxes, img_tensors.scores, img_tensors.labels
-        )
-    ]
-    return Sample(file_name=img_tensors.file_name, annotations=annotations)
+    return output
 
 
 def collate_image_tensors(
-    tensors_list: list[PerImage], pad_value: float = -1.0
+    tensors_list: list[PerImage],
+    pad_value: float = -1.0,
 ) -> PerBatch:
     max_len = max((len(t.labels) for t in tensors_list), default=0)
     B = len(tensors_list)
@@ -83,13 +88,10 @@ def collate_image_tensors(
             b_scores[i, :n] = t.scores
             b_labels[i, :n] = t.labels
 
-    b_file_names = [t.file_name for t in tensors_list]
-
     return PerBatch(
         boxes=b_boxes,
         scores=b_scores,
         labels=b_labels,
-        file_names=b_file_names,
     )
 
 
@@ -106,7 +108,6 @@ def uncollate_batched_tensors(
                 boxes=batched.boxes[i][valid_mask],
                 scores=batched.scores[i][valid_mask],
                 labels=batched.labels[i][valid_mask],
-                file_name=batched.file_names[i],
             )
         )
     return results
@@ -124,7 +125,6 @@ def decode_standard(
         boxes=boxes,
         scores=scores,
         labels=labels,
-        file_names=predictions.file_names,
     )
 
 
@@ -151,7 +151,6 @@ def decode_ssd(
         boxes=boxes,
         scores=scores,
         labels=labels,
-        file_names=predictions.file_names,
     )
 
 
@@ -173,7 +172,6 @@ def nms_unbatch(
                 boxes=b[keep_nms],
                 scores=s[keep_nms],
                 labels=ll[keep_nms],
-                file_name=batched.file_names[i],
             )
         )
     return results
@@ -196,53 +194,7 @@ def run_postprocess_pipeline(
     unbatched = unbatch_fn(batched_data, score_thresh=score_thresh)
 
     # 3. Map back to domain objects
-    return [image_tensors_to_sample(img_tensors) for img_tensors in unbatched]
-
-
-postprocess = partial(
-    run_postprocess_pipeline,
-    decode_fn=decode_standard,
-    unbatch_fn=partial(
-        nms_unbatch,
-        iou_thresh=0.5,
-    ),
-)
-
-ssd_postprocess = partial(
-    run_postprocess_pipeline,
-    decode_fn=decode_ssd,
-    unbatch_fn=partial(
-        nms_unbatch,
-        iou_thresh=0.5,
-    ),
-)
-
-
-def torchvision_to_samples(
-    predictions,
-    priors,
-    resolution,
-    score_thresh,
-):
-    return [
-        Sample(
-            file_name=Path("fake-file.png"),
-            annotations=[
-                Annotation(
-                    bbox=b.tolist(),
-                    label=ll.item(),
-                    score=s.item(),
-                )
-                for b, s, ll in zip(
-                    pred["boxes"].numpy(),
-                    pred["scores"].numpy(),
-                    pred["labels"].numpy(),
-                )
-                if s > score_thresh
-            ],
-        )
-        for pred in predictions
-    ]
+    return to_sample(unbatched)
 
 
 def sample_collate_fn(batch: list[tuple]) -> tuple:
@@ -281,5 +233,49 @@ def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatch:
         boxes=boxes,
         scores=classes,
         labels=torch.empty_like(classes),
-        file_names=[Path("fake-file.png") for _ in range(len(boxes))],
     )
+
+
+postprocess = partial(
+    run_postprocess_pipeline,
+    decode_fn=decode_standard,
+    unbatch_fn=partial(
+        nms_unbatch,
+        iou_thresh=0.5,
+    ),
+)
+
+ssd_postprocess = partial(
+    run_postprocess_pipeline,
+    decode_fn=decode_ssd,
+    unbatch_fn=partial(
+        nms_unbatch,
+        iou_thresh=0.5,
+    ),
+)
+
+
+def torchvision_to_samples(
+    predictions,
+    priors,
+    resolution,
+    score_thresh,
+):
+    return [
+        Sample(
+            annotations=[
+                Annotation(
+                    bbox=b.tolist(),
+                    label=ll.item(),
+                    score=s.item(),
+                )
+                for b, s, ll in zip(
+                    pred["boxes"].numpy(),
+                    pred["scores"].numpy(),
+                    pred["labels"].numpy(),
+                )
+                if s > score_thresh
+            ],
+        )
+        for pred in predictions
+    ]
