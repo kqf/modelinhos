@@ -143,32 +143,3 @@ class SimpleTrainer:
                 self.decode(self.model(blob.to(self.device)))
             )
         return preds
-
-
-def build_trainer(
-    loss_fn: Callable = print,
-    metrics: Optional[Callable] = None,
-    optimizer_builder: Callable = default_optimizer_builder,
-    lr: float = 1e-3,
-    train_dataloader_builder: DLBuilder = default_dataloader_builder,
-    valid_dataloader_builder: DLBuilder = default_dataloader_builder,
-    epochs: int = 1,
-    device: Optional[str] = None,
-) -> Callable[..., SimpleTrainer]:
-    def _build(model, decode, collate, label_encoder) -> SimpleTrainer:
-        return SimpleTrainer(
-            model=model,
-            decode=decode,
-            collate=collate,
-            label_encoder=label_encoder,
-            loss_fn=loss_fn,
-            metrics=metrics,
-            optimizer_builder=optimizer_builder,
-            lr=lr,
-            train_dataloader_builder=train_dataloader_builder,
-            valid_dataloader_builder=valid_dataloader_builder,
-            epochs=epochs,
-            device=device,
-        )
-
-    return _build

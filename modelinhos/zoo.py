@@ -1,7 +1,7 @@
-"""Detector builders. `Detector` should only ever be instantiated here —
-every script/test should build one through one of these named functions."""
+"""Detector builders. `Detector`/`TorchvisionDetector` should only ever be
+instantiated here — every script/test should build one through one of
+these named functions."""
 
-from functools import partial
 from typing import Optional
 
 from torchvision.models.detection import (
@@ -11,7 +11,11 @@ from torchvision.models.detection import (
 from torchvision.models.detection.retinanet import retinanet_resnet50_fpn_v2
 
 from modelinhos.preprocess.lables import LabelEncoder
-from modelinhos.ssd.inference import Detector, custom_model, torchvision_model
+from modelinhos.ssd.inference import (
+    DetectionConfig,
+    Detector,
+    TorchvisionDetector,
+)
 from modelinhos.ssd.lite import (
     build_ssd_loss,
     build_ssdlite,
@@ -19,7 +23,6 @@ from modelinhos.ssd.lite import (
     ssd_normalize,
 )
 from modelinhos.ssd.retinanet import build_torchvision_retinanet
-from modelinhos.trainer.simple import build_trainer
 
 
 def _torchvision_label_encoder(
@@ -39,13 +42,10 @@ def build_inference_only_ssd(
     lencoder: Optional[LabelEncoder] = None,
 ) -> Detector:
     """Reference torchvision-native SSDLite, used as a comparison baseline."""
-    return Detector(
-        partial(
-            torchvision_model,
-            build_model=ssdlite320_mobilenet_v3_large,
-            resolution=resolution,
-            weights=weights,
-        ),
+    return TorchvisionDetector(
+        build_model=ssdlite320_mobilenet_v3_large,
+        resolution=resolution,
+        weights=weights,
         lencoder=lencoder or _torchvision_label_encoder(weights),
     )
 
@@ -57,13 +57,10 @@ def build_inference_only_retina(
 ) -> Detector:
     """Reference torchvision-native RetinaNet, used as a comparison
     baseline."""
-    return Detector(
-        partial(
-            torchvision_model,
-            build_model=retinanet_resnet50_fpn_v2,
-            resolution=resolution,
-            weights=weights,
-        ),
+    return TorchvisionDetector(
+        build_model=retinanet_resnet50_fpn_v2,
+        resolution=resolution,
+        weights=weights,
         lencoder=lencoder or _torchvision_label_encoder(weights),
     )
 
@@ -78,19 +75,18 @@ def build_inference_only_custom_ssd(
 ) -> Detector:
     """Our SSD reimplementation, loaded with (possibly mismatched) pretrained
     weights, inference only."""
-    return Detector(
-        partial(
-            custom_model,
-            build_model=partial(build_model, n_classes=n_classes),
-            resolution=resolution,
-            weights=weights,
-            loss=build_ssd_loss,
-            normalize=ssd_normalize,
-            th=th,
+    return DetectionConfig(
+        build_model=lambda weights, resolution: build_model(
+            weights=weights, resolution=resolution, n_classes=n_classes
         ),
+        resolution=resolution,
+        weights=weights,
         lencoder=lencoder
         or _torchvision_label_encoder(weights, resolution=resolution),
-    )
+        loss=build_ssd_loss,
+        normalize=ssd_normalize,
+        th=th,
+    ).build()
 
 
 def build_inference_only_custom_retina(
@@ -103,17 +99,16 @@ def build_inference_only_custom_retina(
 ) -> Detector:
     """Our RetinaNet reimplementation, loaded with (possibly mismatched)
     pretrained weights, inference only (no training loss defined yet)."""
-    return Detector(
-        partial(
-            custom_model,
-            build_model=partial(build_model, n_classes=n_classes),
-            resolution=resolution,
-            weights=weights,
-            th=th,
+    return DetectionConfig(
+        build_model=lambda weights, resolution: build_model(
+            weights=weights, resolution=resolution, n_classes=n_classes
         ),
+        resolution=resolution,
+        weights=weights,
         lencoder=lencoder
         or _torchvision_label_encoder(weights, resolution=resolution),
-    )
+        th=th,
+    ).build()
 
 
 def build_trainable_ssd(
@@ -126,23 +121,17 @@ def build_trainable_ssd(
     fit (it decides the classification head size and, conventionally,
     reserves index 0 for background via l2i_forced)."""
     n_classes = len(lencoder.l2i)
-    # anchors only depend on the resolution, not on the weights, so this
-    # is a cheap way to get the priors needed to build the loss below
-    _, priors = build_ssdlite(resolution=resolution)
-    return Detector(
-        build_model=partial(
-            custom_model,
-            resolution=resolution,
-            build_model=partial(build_ssdlite, n_classes=n_classes),
+    return DetectionConfig(
+        build_model=lambda weights, resolution: build_ssdlite(
             weights=weights,
-            # builds custom_model's own (decode-only) loss instance
-            loss=build_ssd_loss,
-            normalize=ssd_normalize,
+            resolution=resolution,
+            n_classes=n_classes,
         ),
+        resolution=resolution,
+        weights=weights,
         lencoder=lencoder,
-        # separate DetectionLoss instance, used for backprop
-        build_trainer=build_trainer(
-            loss_fn=build_ssd_loss(priors, score_thresh=0.4),
-            epochs=epochs,
-        ),
-    )
+        loss=build_ssd_loss,
+        normalize=ssd_normalize,
+        th=0.4,
+        epochs=epochs,
+    ).build()
