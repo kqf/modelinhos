@@ -14,7 +14,6 @@ from torchvision.models.detection.retinanet import (
 )
 
 from modelinhos.plot import plot
-from modelinhos.postprocess import ssd_postprocess
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Annotation, Sample
 from modelinhos.ssd.inference import (
@@ -26,6 +25,8 @@ from modelinhos.ssd.lite import (
     build_ssdlite,
     build_torchvision_ssdlite,
     ssd_normalize,
+    # Now it's ssd loss
+    ssd_postprocess,
 )
 from modelinhos.ssd.retinanet import (
     build_torchvision_retinanet,

@@ -1,9 +1,11 @@
+from functools import partial
 from typing import Callable, Optional
 
 import torch
 import tqdm
 
 from modelinhos.evaluation import MetricCollector
+from modelinhos.postprocess import DetectionLoss, decode
 
 DLBuilder = Callable[
     [torch.utils.data.Dataset, Callable],
@@ -61,11 +63,7 @@ class SimpleTrainer:
         # loss_fn may register buffers (e.g. DetectionLoss.priors) that need
         # to live on the same device as the model/data; plain callables
         # (e.g. the `print` default) have no `.to()` to call.
-        self.loss_fn = (
-            loss_fn.to(self.device)
-            if isinstance(loss_fn, torch.nn.Module)
-            else loss_fn
-        )
+        self.loss_fn = loss_fn.to(self.device)
         self.optimizer = optimizer_builder(self.model.parameters(), lr)
 
     def _score(self, metric_fn, batch, preds):
@@ -146,7 +144,8 @@ class SimpleTrainer:
 
 
 def build_trainer(
-    loss_fn: Callable = print,
+    loss_fn: DetectionLoss,
+    decode: Callable = decode,
     metrics: Optional[Callable] = None,
     optimizer_builder: Callable = default_optimizer_builder,
     lr: float = 1e-3,
@@ -155,10 +154,10 @@ def build_trainer(
     epochs: int = 1,
     device: Optional[str] = None,
 ) -> Callable[..., SimpleTrainer]:
-    def _build(model, decode, collate, label_encoder) -> SimpleTrainer:
+    def _build(model, collate, label_encoder) -> SimpleTrainer:
         return SimpleTrainer(
             model=model,
-            decode=decode,
+            decode=partial(decode, loss=loss_fn),
             collate=collate,
             label_encoder=label_encoder,
             loss_fn=loss_fn,
