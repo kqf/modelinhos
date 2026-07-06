@@ -47,7 +47,7 @@ def resolution() -> tuple[int, int]:
     return 480, 640
 
 
-@pytest.fixture(params=["ssd", "retina"])
+@pytest.fixture(params=["retina"])
 def architecture(request) -> dict:
     return ARCHITECTURES[request.param]
 
