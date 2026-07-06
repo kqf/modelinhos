@@ -12,9 +12,9 @@ from torchvision.models.detection.ssdlite import (
     mobilenet_v3_large,
 )
 
+from modelinhos.detection import DetectionLoss
 from modelinhos.loss.matching import match
 from modelinhos.loss.subloss import Sublosses, WeightedLoss, sum_normalized
-from modelinhos.postprocess import DetectionLoss
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
 from modelinhos.preprocess.image import normalize
 from modelinhos.ssd.anchors import anchors
@@ -109,6 +109,34 @@ def ssd_anchors(resolution: tuple[int, int], backbone) -> torch.Tensor:
     )
 
 
+def torchvision_ssdlite_anchors(resolution: tuple[int, int]) -> torch.Tensor:
+    """Anchors matching build_torchvision_ssdlite. These need real feature
+    map sizes, so (unlike ssdlite_anchors) this builds a throwaway backbone
+    internally -- only for its feature map shapes, no weights loaded."""
+    norm_layer = partial(torch.nn.BatchNorm2d, eps=0.001, momentum=0.03)
+    backbone = _mobilenet_extractor(
+        mobilenet_v3_large(
+            weights=None,
+            progress=False,
+            norm_layer=norm_layer,
+            reduced_tail=True,
+        ),
+        6,
+        norm_layer,
+    )
+    return ssd_anchors(resolution, backbone)
+
+
+def ssdlite_anchors(resolution: tuple[int, int]) -> torch.Tensor:
+    """Anchors matching build_ssdlite -- a pure function of resolution."""
+    return anchors(
+        resolution,
+        sizes=[[32, 64], [64, 128], [128, 256]],
+        steps=[16, 32, 64],
+        clip=False,
+    )
+
+
 ssd_normalize = partial(
     normalize,
     image_mean=(0.5, 0.5, 0.5),
@@ -128,12 +156,10 @@ def build_torchvision_ssdlite(
         num_anchors=6,
         extra=None,
     )
-    priors = ssd_anchors(resolution, model.backbone)
-
     if weights is not None:
         model.load_state_dict(weights.get_state_dict())
     model.eval()
-    return model, priors
+    return model
 
 
 # This configures retina-net like network
@@ -143,21 +169,14 @@ def build_ssdlite(
     weights=None,
 ):
     model = SSDPure(resolution, n_classes=n_classes)
-    priors = anchors(
-        resolution,
-        sizes=[[32, 64], [64, 128], [128, 256]],
-        steps=[16, 32, 64],
-        clip=False,
-    )
-
     if weights is not None:
         model = load_with_mismatch(model, weights.get_state_dict())
-    return model, priors
+    return model
 
 
 # weights for encoding/decoding box regression targets, same convention
-# as torchvision's SSD; shared by ssd_postprocess (decode) and
-# build_ssd_loss (encode) below so the two stay in sync.
+# as torchvision's SSD; build_ssd_loss below uses this for both encode
+# (training) and decode (dec_pred) so the two stay in sync.
 SSD_BOX_WEIGHTS = (10.0, 10.0, 5.0, 5.0)
 
 

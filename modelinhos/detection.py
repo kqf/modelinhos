@@ -11,8 +11,7 @@ import torchvision
 from torch import nn
 
 from modelinhos.loss.matching import match
-from modelinhos.loss.subloss import Sublosses, WeightedLoss
-from modelinhos.preprocess.boxes import decode_boxes
+from modelinhos.loss.subloss import WeightedLoss
 from modelinhos.sample import Sample, TrainAnnotation
 
 C = TypeVar("C")
@@ -296,41 +295,6 @@ class Collate:
 
     def un_batch_nms(self, batch: PerBatch) -> list[Sample]:
         return self.to_samples(self.nms(batch, pad_value=self.pad_value))
-
-
-# Builds the retina loss
-def build_ret_loss(
-    priors: torch.Tensor,
-    score_thresh: float,
-) -> DetectionLoss:
-    def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
-        scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
-        labels = labels.clone()
-        labels[scores <= score_thresh] = int(pad_value)
-        return labels.unsqueeze(-1)
-
-    return DetectionLoss(
-        priors=priors,
-        sublosses=Sublosses(
-            bboxes=WeightedLoss(
-                loss=None,
-                dec_pred=partial(
-                    decode_boxes,
-                    priors=priors,
-                ),
-            ),
-            scores=WeightedLoss(
-                loss=None,
-                dec_pred=lambda x: torch.sigmoid(x)
-                .max(dim=-1)[0]
-                .unsqueeze(-1),
-            ),
-            labels=WeightedLoss(
-                loss=None,
-                dec_pred=decode_labels,
-            ),
-        ),
-    )
 
 
 def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatchEncoded:
