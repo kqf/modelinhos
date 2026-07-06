@@ -133,6 +133,12 @@ class PerBatch:
     scores: torch.Tensor  # (B, K, 1)
     labels: torch.Tensor  # (B, K, 1)
 
+    def to(self, device) -> "PerBatch":
+        return replace(
+            self,
+            **{f.name: getattr(self, f.name).to(device) for f in fields(self)},
+        )
+
 
 @dataclass(frozen=True)
 class PerBatchEncoded:
