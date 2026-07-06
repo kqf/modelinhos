@@ -107,9 +107,7 @@ def collate_image_tensors(
     )
 
 
-def uncollate_batched_tensors(
-    batched: PerBatch, pad_value: float = -1.0
-) -> list[PerImage]:
+def un_collate(batched: PerBatch, pad_value: float = -1.0) -> list[PerImage]:
     results = []
     for i in range(batched.boxes.shape[0]):
         # Find valid elements by checking labels against the pad_value
@@ -125,6 +123,24 @@ def uncollate_batched_tensors(
     return results
 
 
+def nms_unbatch(
+    batched: PerBatch,
+    iou_thresh: float,
+    pad_value: float = -1.0,
+) -> list[PerImage]:
+    results = []
+    for b in un_collate(batched, pad_value=pad_value):
+        keep_nms = torchvision.ops.batched_nms(
+            b.boxes,
+            b.scores,
+            b.labels,
+            iou_thresh,
+        )
+        update = {f.name: getattr(b, f.name)[keep_nms] for f in fields(b)}
+        results.append(replace(b, **update))
+    return results
+
+
 def decode(
     predictions: PerBatch,
     loss: Loss,
@@ -135,29 +151,6 @@ def decode(
         predict = getattr(predictions, f.name)
         update[f.name] = subloss.decode(predict)
     return replace(predictions, **update)
-
-
-def nms_unbatch(
-    batched: PerBatch,
-    score_thresh: float,
-    iou_thresh: float,
-) -> list[PerImage]:
-    results = []
-    for i in range(batched.boxes.shape[0]):
-        b, s, ll = batched.boxes[i], batched.scores[i], batched.labels[i]
-
-        keep = s > score_thresh
-        b, s, ll = b[keep], s[keep], ll[keep]  # noqa
-
-        keep_nms = torchvision.ops.batched_nms(b, s, ll, iou_thresh)
-        results.append(
-            PerImage(
-                boxes=b[keep_nms],
-                scores=s[keep_nms],
-                labels=ll[keep_nms],
-            )
-        )
-    return results
 
 
 def run_postprocess_pipeline(
@@ -212,6 +205,12 @@ def postprocess(
     priors: torch.Tensor,
     score_thresh: float,
 ) -> Callable:
+    def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
+        scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
+        labels = labels.clone()
+        labels[scores <= score_thresh] = int(pad_value)
+        return labels
+
     return partial(
         run_postprocess_pipeline,
         loss=Loss(
@@ -223,12 +222,11 @@ def postprocess(
                 )
             ),
             scores=Subloss(decode=lambda x: torch.sigmoid(x).max(dim=-1)[0]),
-            labels=Subloss(decode=lambda x: torch.sigmoid(x).max(dim=-1)[1]),
+            labels=Subloss(decode=decode_labels),
         ),
         unbatch_fn=partial(
             nms_unbatch,
             iou_thresh=0.5,
-            score_thresh=score_thresh,
         ),
     )
 
@@ -238,15 +236,18 @@ def ssd_postprocess(
     priors: torch.Tensor,
     score_thresh: float,
 ) -> Callable:
-    def decode_scores(raw_logits: torch.Tensor) -> torch.Tensor:
-        probs = torch.softmax(raw_logits, dim=-1)  # (B, N, C)
+    def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
+        probs = torch.softmax(raw_logits, dim=-1)
         probs[..., 0] = 0.0  # exclude background class before taking max
-        return probs.max(dim=-1)[0]
+        scores, labels = probs.max(dim=-1)
+        labels = labels.clone()
+        labels[scores <= score_thresh] = int(pad_value)
+        return labels
 
-    def decode_labels(raw_logits: torch.Tensor) -> torch.Tensor:
-        probs = torch.softmax(raw_logits, dim=-1)  # (B, N, C)
-        probs[..., 0] = 0.0  # exclude background class before taking max
-        return probs.max(dim=-1)[1]
+    def decode_scores(raw_logits: torch.Tensor) -> torch.Tensor:
+        probs = torch.softmax(raw_logits, dim=-1)
+        probs[..., 0] = 0.0
+        return probs.max(dim=-1)[0]
 
     return partial(
         run_postprocess_pipeline,
@@ -265,7 +266,6 @@ def ssd_postprocess(
         unbatch_fn=partial(
             nms_unbatch,
             iou_thresh=0.5,
-            score_thresh=score_thresh,
         ),
     )
 
