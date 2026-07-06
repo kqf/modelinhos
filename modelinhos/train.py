@@ -49,7 +49,6 @@ def build_model(
     )
 
 
-@memory.cache
 def infer(
     resolution: tuple[int, int],
     samples: list[Sample],

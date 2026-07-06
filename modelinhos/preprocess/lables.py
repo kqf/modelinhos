@@ -34,9 +34,8 @@ class LabelEncoder:
     def fit(self, samples: list[Sample[Annotation]]) -> "LabelEncoder":
         if self.l2i and self.i2l:
             return self
-        ul = sorted({ann.labels for s in samples for ann in s.annotations})
-        # index 0 is reserved for the SSD background class
-        self.l2i = {label: idx for idx, label in enumerate(ul, start=1)}
+        ul = sorted({ann.label for s in samples for ann in s.annotations})
+        self.l2i = {label: idx for idx, label in enumerate(ul)}
         self.i2l = {idx: label for label, idx in self.l2i.items()}
         return self
 
@@ -48,9 +47,9 @@ class LabelEncoder:
                 file_name=sample.file_name,
                 annotations=[
                     TrainAnnotation(
-                        bboxes=ann.bboxes,
-                        scores=(ann.scores,),
-                        labels=(self.l2i[ann.labels],),
+                        bboxes=ann.bbox,
+                        scores=(ann.score,),
+                        labels=(self.l2i[ann.label],),
                     )
                     for ann in sample.annotations
                 ],
@@ -71,9 +70,9 @@ class LabelEncoder:
                 file_name=sample.file_name,
                 annotations=[
                     Annotation(
-                        bboxes=ann.bboxes,
-                        scores=ann.scores[0],
-                        labels=self.i2l[int(ann.labels[0])],
+                        bbox=ann.bboxes,
+                        score=ann.scores[0],
+                        label=self.i2l[int(ann.labels[0])],
                     )
                     for ann in sample.annotations
                 ],
