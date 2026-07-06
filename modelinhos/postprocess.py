@@ -1,4 +1,3 @@
-import typing
 from collections.abc import Callable
 from dataclasses import dataclass, fields, replace
 from functools import partial
@@ -11,14 +10,6 @@ import torchvision
 
 from modelinhos.preprocess.boxes import decode_boxes
 from modelinhos.sample import Sample, TrainAnnotation
-
-_ANNOTATION_HINTS = typing.get_type_hints(TrainAnnotation)
-
-
-def _field_spec(name: str) -> tuple[int, torch.dtype]:
-    args = typing.get_args(_ANNOTATION_HINTS[name])
-    dtype = torch.tensor([args[0]()]).dtype
-    return len(args), dtype
 
 
 @dataclass(frozen=True)
@@ -54,16 +45,31 @@ class Loss:
     labels: Subloss
 
 
-# TODO: Don't guess by field specs, shift guessing in collate function
 def anno2tensors(annotations: list[TrainAnnotation]) -> PerImage:
-    kwargs = {}
-    for f in fields(PerImage):
-        if values := [getattr(a, f.name) for a in annotations]:
-            kwargs[f.name] = torch.tensor(values)
-        else:
-            width, dtype = _field_spec(f.name)
-            kwargs[f.name] = torch.empty((0, width), dtype=dtype)
-    return PerImage(**kwargs)
+    return PerImage(
+        **{
+            f.name: (
+                torch.tensor([getattr(a, f.name) for a in annotations])
+                if annotations
+                else torch.empty((0, 1))
+            )
+            for f in fields(PerImage)
+        }
+    )
+
+
+def ensure_correct_shapes(tensors: list[torch.Tensor]) -> list[torch.Tensor]:
+    specs = {(t.shape[1:], t.dtype) for t in tensors if t.numel() > 0}
+    if len(specs) > 1:
+        raise ValueError(f"Expected all andnd dtype, got {specs}")
+
+    if not specs:
+        return tensors
+
+    (width,), dtype = specs.pop()
+
+    # This is needed to reshape empty
+    return [t.reshape(-1, width).to(dtype) for t in tensors]
 
 
 def collate_labels(
