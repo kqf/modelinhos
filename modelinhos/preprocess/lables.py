@@ -1,3 +1,4 @@
+import itertools
 import logging
 from dataclasses import dataclass, field
 from typing import Optional, Protocol, runtime_checkable
@@ -24,6 +25,11 @@ class SampleEncoder(Protocol):
 class LabelEncoder:
     l2i: dict[str, int] = field(default_factory=dict)
     i2l: dict[int, str] = field(default_factory=dict)
+    # entries fit() must assign at these exact indices (e.g. a background
+    # pseudo-label pinned to 0), with the real classes from the data
+    # auto-numbered into whatever indices remain. Never appears on an
+    # actual Sample/Annotation — it's internal loss/decode bookkeeping.
+    l2i_forced: dict[str, int] = field(default_factory=dict)
     # when set, transform()/inverse_transform() normalise bboxes to [0, 1]
     # and back — the one place pixel space and model-internal normalised
     # space meet. None keeps bboxes untouched (e.g. torchvision models,
@@ -40,7 +46,9 @@ class LabelEncoder:
         if self.l2i and self.i2l:
             return self
         ul = sorted({ann.label for s in samples for ann in s.annotations})
-        self.l2i = {label: idx for idx, label in enumerate(ul)}
+        taken = set(self.l2i_forced.values())
+        available = (idx for idx in itertools.count() if idx not in taken)
+        self.l2i = {**self.l2i_forced, **dict(zip(ul, available))}
         self.i2l = {idx: label for label, idx in self.l2i.items()}
         return self
 
