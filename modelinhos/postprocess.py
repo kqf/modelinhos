@@ -10,6 +10,8 @@ import torch.nn.utils.rnn as rnn_utils
 import torchvision
 from torch import nn
 
+from modelinhos.loss.matching import match
+from modelinhos.loss.subloss import WeightedLoss
 from modelinhos.preprocess.boxes import decode_boxes
 from modelinhos.sample import Sample, TrainAnnotation
 
