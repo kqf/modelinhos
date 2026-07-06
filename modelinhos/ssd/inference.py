@@ -8,7 +8,7 @@ from modelinhos.postprocess import (
     Collate,
     PerBatchEncoded,
     SampleDataset,
-    postprocess,
+    ret_postprocess,
     to_preds,
     torchvision_to_samples,
 )
@@ -64,7 +64,7 @@ def custom_model(
     build_model,
     resolution,
     weights,
-    postprocess=postprocess,
+    postprocess=ret_postprocess,
     normalize=normalize,
     th=0.4,
 ):

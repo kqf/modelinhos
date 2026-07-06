@@ -310,7 +310,7 @@ class Collate:
         return self.to_samples(self.nms(batch, pad_value=self.pad_value))
 
 
-def postprocess(
+def ret_postprocess(
     priors: torch.Tensor,
     score_thresh: float,
 ) -> Callable:
