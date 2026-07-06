@@ -26,9 +26,12 @@ memory = Memory(location=".cache", verbose=0)
 
 def build_model(
     resolution: tuple[int, int],
+    lencoder: LabelEncoder,
     epochs: int = 10,
 ):
     weights = SSDLite320_MobileNet_V3_Large_Weights.COCO_V1
+    # +1 for the background class the postprocessing/loss reserve at index 0
+    n_classes = len(lencoder.l2i) + 1
     # anchors only depend on the resolution, not on the weights, so this
     # is a cheap way to get the priors needed to build the loss below
     _, priors = build_ssdlite(resolution=resolution)
@@ -36,14 +39,14 @@ def build_model(
         build_model=partial(
             custom_model,
             resolution=resolution,
-            build_model=build_ssdlite,
+            build_model=partial(build_ssdlite, n_classes=n_classes),
             weights=weights,
             postprocess=ssd_postprocess,
             normalize=ssd_normalize,
         ),
-        lencoder=LabelEncoder(),
+        lencoder=lencoder,
         trainer=build_trainer(
-            loss_fn=build_ssd_loss(priors, resolution),
+            loss_fn=build_ssd_loss(priors),
             epochs=epochs,
         ),
     )
@@ -53,7 +56,8 @@ def infer(
     resolution: tuple[int, int],
     samples: list[Sample],
 ) -> tuple[list[Sample], LabelEncoder]:
-    model = build_model(resolution)
+    lencoder = LabelEncoder(resolution=resolution).fit(samples)
+    model = build_model(resolution, lencoder=lencoder)
     model.fit(samples)
     return model.transform(samples), model.label_encoder
 

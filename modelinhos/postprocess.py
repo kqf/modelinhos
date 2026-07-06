@@ -305,7 +305,6 @@ class Collate:
 
 
 def postprocess(
-    resolution: tuple[int, int],
     priors: torch.Tensor,
     score_thresh: float,
 ) -> Callable:
@@ -318,13 +317,7 @@ def postprocess(
     return partial(
         decode,
         loss=Loss(
-            bboxes=Subloss(
-                decode=partial(
-                    decode_boxes,
-                    priors=priors,
-                    resolution=resolution,
-                )
-            ),
+            bboxes=Subloss(decode=partial(decode_boxes, priors=priors)),
             scores=Subloss(
                 decode=lambda x: torch.sigmoid(x).max(dim=-1)[0].unsqueeze(-1)
             ),
@@ -333,9 +326,7 @@ def postprocess(
     )
 
 
-def ssd_postprocess(
-    resolution: tuple[int, int], priors: torch.Tensor, score_thresh: float
-) -> Callable:
+def ssd_postprocess(priors: torch.Tensor, score_thresh: float) -> Callable:
     def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
         probs = torch.softmax(raw_logits, dim=-1)
         probs[..., 0] = 0.0  # exclude background class before taking max
@@ -356,7 +347,6 @@ def ssd_postprocess(
                 decode=partial(
                     decode_boxes,
                     priors=priors,
-                    resolution=resolution,
                     weights=(10.0, 10.0, 5.0, 5.0),
                 )
             ),

@@ -86,7 +86,6 @@ def custom_model(
         DetectionModel(model),
         build_transform(weights, normalize),
         postprocess(
-            resolution=resolution,
             priors=anchors,
             score_thresh=th,
         ),
