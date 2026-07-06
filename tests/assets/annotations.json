@@ -3,24 +3,24 @@
         "file_name": "person_800_1088.jpg",
         "annotations": [
             {
-                "bboxes": [
+                "bbox": [
                     488,
                     227,
                     597,
                     575
                 ],
-                "labels": "person",
-                "scores": 0.99
+                "label": "person",
+                "score": 0.99
             },
             {
-                "bboxes": [
+                "bbox": [
                     531,
                     289,
                     542,
                     329
                 ],
-                "labels": "tie",
-                "scores": 0.63
+                "label": "tie",
+                "score": 0.63
             }
         ]
     }
