@@ -10,7 +10,7 @@ from torchvision.models.detection.retinanet import (
 )
 from torchvision.models.resnet import ResNet50_Weights, resnet50
 
-from modelinhos.detection import DetectionLoss
+from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match
 from modelinhos.loss.subloss import Sublosses, WeightedLoss, sum_normalized
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes

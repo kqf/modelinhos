@@ -12,7 +12,7 @@ from torchvision.models.detection.ssdlite import (
     mobilenet_v3_large,
 )
 
-from modelinhos.detection import DetectionLoss
+from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match
 from modelinhos.loss.subloss import Sublosses, WeightedLoss, sum_normalized
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes

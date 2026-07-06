@@ -8,7 +8,10 @@ from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
     ssdlite320_mobilenet_v3_large,
 )
-from torchvision.models.detection.retinanet import retinanet_resnet50_fpn_v2
+from torchvision.models.detection.retinanet import (
+    RetinaNet_ResNet50_FPN_V2_Weights,
+    retinanet_resnet50_fpn_v2,
+)
 
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.ssd.inference import (
@@ -159,15 +162,17 @@ def build_trainable_retina(
     resolution: tuple[int, int],
     lencoder: LabelEncoder,
     epochs: int = 10,
-    weights=None,
+    weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
 ) -> Detector:
     """RetinaNet detector configured for training: lencoder.l2i must
     already be fit (it decides the classification head size and,
     conventionally, reserves index 0 for background via l2i_forced). Uses
     build_trainable_retina_loss, not build_ret_loss -- the latter is
-    decode-only. Defaults to no pretrained weights, since the pretrained
-    checkpoint was trained under a different (sigmoid) convention than
-    build_trainable_retina_loss's softmax one."""
+    decode-only. The pretrained checkpoint was trained under a different
+    (sigmoid) convention than build_trainable_retina_loss's softmax one,
+    but gradient descent adapts the head to whatever loss you fine-tune
+    with regardless of its starting point, so it's still a fine (likely
+    better than random) warm start -- pass weights=None to skip it."""
     n_classes = len(lencoder.l2i)
     return DetectionConfig(
         build_model=lambda weights, resolution: bulid_retinanet(
