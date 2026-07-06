@@ -39,6 +39,24 @@ def masked_loss(loss_function: LossFunctionyType) -> LossFunctionyType:
     return f
 
 
+def sum_normalized(loss_function: LossFunctionyType) -> LossFunctionyType:
+    @functools.wraps(loss_function)
+    def f(pred: torch.Tensor, true: torch.Tensor) -> torch.Tensor:
+        loss = loss_function(pred, true)
+        if pred.shape[0] == 0:
+            return torch.nan_to_num(loss, 0)
+        return loss / pred.shape[0]
+
+    return f
+
+
+@dataclass
+class Sublosses:
+    bboxes: WeightedLoss
+    scores: WeightedLoss
+    labels: WeightedLoss
+
+
 def retina_confidence_loss(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,

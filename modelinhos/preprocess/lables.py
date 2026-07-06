@@ -35,7 +35,8 @@ class LabelEncoder:
         if self.l2i and self.i2l:
             return self
         ul = sorted({ann.labels for s in samples for ann in s.annotations})
-        self.l2i = {label: idx for idx, label in enumerate(ul)}
+        # index 0 is reserved for the SSD background class
+        self.l2i = {label: idx for idx, label in enumerate(ul, start=1)}
         self.i2l = {idx: label for label, idx in self.l2i.items()}
         return self
 

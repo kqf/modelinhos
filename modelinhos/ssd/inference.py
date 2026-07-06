@@ -40,7 +40,7 @@ class Detector:
     def fit(
         self, samples: list[Sample], val_samples: Optional[list[Sample]] = None
     ) -> "Detector":
-        encoded = self.label_encoder.transform(samples)
+        encoded = self.label_encoder.fit_transform(samples)
         dataset = SampleDataset(encoded, self.transforms)
 
         val_dataset = None

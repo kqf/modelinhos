@@ -1,3 +1,4 @@
+from functools import partial
 from pathlib import Path
 
 import cv2
@@ -17,19 +18,23 @@ from modelinhos.postprocess import ssd_postprocess
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Sample, read_samples
 from modelinhos.ssd.inference import Detector, custom_model
-from modelinhos.ssd.lite import build_ssdlite, ssd_normalize
+from modelinhos.ssd.lite import build_ssd_loss, build_ssdlite, ssd_normalize
+from modelinhos.trainer.simple import build_trainer
 
 memory = Memory(location=".cache", verbose=0)
 
 
 def build_model(
     resolution: tuple[int, int],
+    epochs: int = 10,
 ):
-    # TODO: Fix the constructor, I want to basically train SSD network architeture
-    # As if it was a retina-net one
     weights = SSDLite320_MobileNet_V3_Large_Weights.COCO_V1
+    # anchors only depend on the resolution, not on the weights, so this
+    # is a cheap way to get the priors needed to build the loss below
+    _, priors = build_ssdlite(resolution=resolution)
     return Detector(
-        build_model=custom_model(
+        build_model=partial(
+            custom_model,
             resolution=resolution,
             build_model=build_ssdlite,
             weights=weights,
@@ -37,8 +42,10 @@ def build_model(
             normalize=ssd_normalize,
         ),
         lencoder=LabelEncoder(),
-        # TODO: Use the simpler trainer
-        trainer=None,
+        trainer=build_trainer(
+            loss_fn=build_ssd_loss(priors, resolution),
+            epochs=epochs,
+        ),
     )
 
 
@@ -75,12 +82,11 @@ def main(
         cv2.imshow("frame", plot(frame, pred))
         cv2.waitKey()
 
-    l2i = le.label_encoder
-    m_ap = mean_average_precision(train, y_pred, l2i=l2i)
+    m_ap = mean_average_precision(train, y_pred, l2i=le.l2i)
     print(m_ap["mAP"].iloc[0])
 
-    aps = per_sample_metrics(train, y_pred, l2i=l2i)
-    visualize_fp_fn(aps, i2l={0: "any"})
+    aps = per_sample_metrics(train, y_pred, l2i=le.l2i)
+    visualize_fp_fn(aps, i2l=le.i2l)
 
 
 if __name__ == "__main__":

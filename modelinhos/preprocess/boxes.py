@@ -36,3 +36,28 @@ def decode_boxes(
         [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2],
         dim=-1,
     )
+
+
+def encode_boxes(
+    boxes: torch.Tensor,  # (..., 4) pixel xyxy ground-truth boxes
+    priors: torch.Tensor,  # (..., 4) normalised cxcywh anchors
+    resolution: tuple[int, int],  # (H, W)
+    weights: tuple = (1.0, 1.0, 1.0, 1.0),
+) -> torch.Tensor:  # (..., 4) regression targets, inverse of decode_boxes
+    H, W = resolution
+    pcx, pcy, pw, ph = (
+        priors.to(boxes) * priors.new_tensor([W, H, W, H])
+    ).unbind(-1)
+
+    gx1, gy1, gx2, gy2 = boxes.unbind(-1)
+    gcx = (gx1 + gx2) / 2
+    gcy = (gy1 + gy2) / 2
+    gw = gx2 - gx1
+    gh = gy2 - gy1
+
+    dx = weights[0] * (gcx - pcx) / pw
+    dy = weights[1] * (gcy - pcy) / ph
+    dw = weights[2] * torch.log(gw / pw)
+    dh = weights[3] * torch.log(gh / ph)
+
+    return torch.stack([dx, dy, dw, dh], dim=-1)
