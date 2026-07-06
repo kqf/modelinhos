@@ -73,17 +73,24 @@ def ensure_correct_shapes(tensors: list[torch.Tensor]) -> list[torch.Tensor]:
 
 
 def collate_labels(
-    tensors_list: list[PerImage],
+    tensors: list[PerImage],
     pad_value: float = -1.0,
 ) -> PerBatch:
+    if not tensors:
+        return PerBatch(
+            bboxes=torch.empty(0),
+            scores=torch.empty(0),
+            labels=torch.empty(0),
+        )
+
     return PerBatch(
         **{
             f.name: rnn_utils.pad_sequence(
-                [getattr(t, f.name) for t in tensors_list],
+                ensure_correct_shapes([getattr(t, f.name) for t in tensors]),
                 batch_first=True,
                 padding_value=pad_value,
             )
-            for f in fields(PerImage)
+            for f in fields(tensors[0])
         }
     )
 
