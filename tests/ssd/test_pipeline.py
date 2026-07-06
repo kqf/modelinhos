@@ -1,10 +1,8 @@
 import pathlib
-from functools import partial
 
 import pytest
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
-    ssdlite320_mobilenet_v3_large,
 )
 
 from modelinhos.evaluation import (
@@ -14,19 +12,16 @@ from modelinhos.evaluation import (
 )
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import read_samples
-from modelinhos.ssd.inference import Detector, torchvision_model
+from modelinhos.ssd.inference import Detector
+from modelinhos.zoo import build_inference_only_ssd
 
 
 @pytest.fixture
 def model(resolution: tuple[int, int]):
     weights = SSDLite320_MobileNet_V3_Large_Weights.COCO_V1
-    return Detector(
-        build_model=partial(
-            torchvision_model,
-            build_model=ssdlite320_mobilenet_v3_large,
-            resolution=resolution,
-            weights=weights,
-        ),
+    return build_inference_only_ssd(
+        weights,
+        resolution,
         lencoder=LabelEncoder(l2i={"person": 1, "tie": 34}),
     )
 

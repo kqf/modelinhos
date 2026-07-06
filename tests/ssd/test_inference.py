@@ -1,4 +1,3 @@
-from functools import partial
 from pathlib import Path
 
 import cv2
@@ -6,31 +5,21 @@ import numpy as np
 import pytest
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
-    ssdlite320_mobilenet_v3_large,
 )
 from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
-    retinanet_resnet50_fpn_v2,
 )
 
 from modelinhos.plot import plot
-from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Annotation, Sample
-from modelinhos.ssd.inference import (
-    Detector,
-    custom_model,
-    torchvision_model,
-)
-from modelinhos.ssd.lite import (
-    build_ssdlite,
-    build_torchvision_ssdlite,
-    ssd_normalize,
-    # Now it's ssd loss
-    ssd_postprocess,
-)
-from modelinhos.ssd.retinanet import (
-    build_torchvision_retinanet,
-    bulid_retinanet,
+from modelinhos.ssd.inference import Detector
+from modelinhos.ssd.lite import build_ssdlite
+from modelinhos.ssd.retinanet import bulid_retinanet
+from modelinhos.zoo import (
+    build_inference_only_custom_retina,
+    build_inference_only_custom_ssd,
+    build_inference_only_retina,
+    build_inference_only_ssd,
 )
 
 
@@ -67,23 +56,6 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
     return cv2.resize(pad(image, *resolution), resolution[::-1])
 
 
-def build_detector(
-    build_model,
-    weights,
-    resolution,
-    encode_resolution=None,
-) -> Detector:
-    labels = weights.meta["categories"]
-    lencoder = LabelEncoder(
-        l2i={label: i for i, label in enumerate(labels)},
-        resolution=encode_resolution,
-    )
-    return Detector(
-        partial(build_model, resolution=resolution, weights=weights),
-        lencoder=lencoder,
-    )
-
-
 def _run_detector(detector: Detector, frame, headless: bool) -> Sample:
     predictions = detector.transform_single(frame)[0]
     annotated = plot(frame, predictions)
@@ -110,16 +82,8 @@ def assert_same_sample(preds, expect):
     "build_reference, build_custom, weights, tv_expected, md_expected",
     [
         pytest.param(
-            partial(
-                torchvision_model,
-                build_model=ssdlite320_mobilenet_v3_large,
-            ),
-            partial(
-                custom_model,
-                build_model=build_torchvision_ssdlite,
-                postprocess=ssd_postprocess,
-                normalize=ssd_normalize,
-            ),
+            build_inference_only_ssd,
+            build_inference_only_custom_ssd,
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             (
                 Sample(
@@ -156,14 +120,8 @@ def assert_same_sample(preds, expect):
             id="ssdlite320_mobilenet_v3_large",
         ),
         pytest.param(
-            partial(
-                torchvision_model,
-                build_model=retinanet_resnet50_fpn_v2,
-            ),
-            partial(
-                custom_model,
-                build_model=build_torchvision_retinanet,
-            ),
+            build_inference_only_retina,
+            build_inference_only_custom_retina,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             Sample(
                 file_name=Path("fake-file.png"),
@@ -220,7 +178,7 @@ def test_weights_match(
 ):
     shape = frame.shape[:2]
     tv_preds = _run_detector(
-        build_detector(build_reference, weights, shape),
+        build_reference(weights, shape),
         frame,
         headless,
     )
@@ -228,7 +186,7 @@ def test_weights_match(
     assert_same_sample(tv_preds, tv_expected)
 
     md_preds = _run_detector(
-        build_detector(build_custom, weights, shape, shape),
+        build_custom(weights, shape),
         frame,
         headless,
     )
@@ -237,47 +195,51 @@ def test_weights_match(
 
 @pytest.mark.skip
 @pytest.mark.parametrize(
-    "build_model, weights",
+    "build_fn, build_model, n_classes, th, weights",
     [
         pytest.param(
-            partial(
-                custom_model,
-                build_model=partial(build_ssdlite, n_classes=91),
-                th=0.01,
-            ),
+            build_inference_only_custom_ssd,
+            build_ssdlite,
+            91,
+            0.01,
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             id="ssdlite320_mobilenet_v3_large",
         ),
         pytest.param(
-            partial(
-                custom_model,
-                build_model=partial(bulid_retinanet, n_classes=91),
-                th=0.05,
-            ),
+            build_inference_only_custom_retina,
+            bulid_retinanet,
+            91,
+            0.05,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             id="retinanet_resnet50_fpn_v2_91",
         ),
         pytest.param(
-            partial(
-                custom_model,
-                build_model=partial(bulid_retinanet, n_classes=2),
-                th=0.01,
-            ),
+            build_inference_only_custom_retina,
+            bulid_retinanet,
+            2,
+            0.01,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             id="retinanet_resnet50_fpn_v2_2",
         ),
         pytest.param(
-            partial(
-                custom_model,
-                # Don't multiply by two because it breaks tests.
-                build_model=partial(bulid_retinanet, n_classes=91 * 1),
-                th=0.01,
-            ),
+            build_inference_only_custom_retina,
+            bulid_retinanet,
+            # Don't multiply by two because it breaks tests.
+            91 * 1,
+            0.01,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             id="retinanet_resnet50_fpn_v2_91_times_1",
         ),
     ],
 )
-def test_inference_works(frame, build_model, weights, headless):
-    model = build_detector(build_model, weights, frame.shape[:2])
+def test_inference_works(
+    frame, build_fn, build_model, n_classes, th, weights, headless
+):
+    model = build_fn(
+        weights,
+        frame.shape[:2],
+        build_model=build_model,
+        n_classes=n_classes,
+        th=th,
+    )
     _run_detector(model, frame, headless)

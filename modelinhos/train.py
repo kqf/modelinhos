@@ -1,12 +1,8 @@
-from functools import partial
 from pathlib import Path
 
 import cv2
 from dadinhos.generate import make_detection_task
 from joblib import Memory
-from torchvision.models.detection import (
-    SSDLite320_MobileNet_V3_Large_Weights,
-)
 
 from modelinhos.evaluation import (
     mean_average_precision,
@@ -16,42 +12,9 @@ from modelinhos.evaluation import (
 from modelinhos.plot import plot
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Sample, read_samples
-from modelinhos.ssd.inference import Detector, custom_model
-from modelinhos.ssd.lite import (
-    build_ssd_loss,
-    build_ssdlite,
-    ssd_normalize,
-)
-from modelinhos.trainer.simple import build_trainer
+from modelinhos.zoo import build_trainable_ssd
 
 memory = Memory(location=".cache", verbose=0)
-
-
-def build_model(
-    resolution: tuple[int, int],
-    lencoder: LabelEncoder,
-    epochs: int = 10,
-):
-    weights = SSDLite320_MobileNet_V3_Large_Weights.COCO_V1
-    # lencoder.l2i already includes the forced "__background__": 0 entry
-    n_classes = len(lencoder.l2i)
-    # anchors only depend on the resolution, not on the weights, so this
-    # is a cheap way to get the priors needed to build the loss below
-    _, priors = build_ssdlite(resolution=resolution)
-    return Detector(
-        build_model=partial(
-            custom_model,
-            resolution=resolution,
-            build_model=partial(build_ssdlite, n_classes=n_classes),
-            weights=weights,
-            normalize=ssd_normalize,
-        ),
-        lencoder=lencoder,
-        build_trainer=build_trainer(
-            loss_fn=build_ssd_loss(priors, score_thresh=0.4),
-            epochs=epochs,
-        ),
-    )
 
 
 def infer(
@@ -62,9 +25,9 @@ def infer(
         resolution=resolution,
         l2i_forced={"__background__": 0},
     ).fit(samples)
-    model = build_model(resolution, lencoder=lencoder)
+    model = build_trainable_ssd(resolution, lencoder=lencoder)
     model.fit(samples)
-    return model.transform(samples), model.label_encoder
+    return model.transform(samples), lencoder
 
 
 def main(
