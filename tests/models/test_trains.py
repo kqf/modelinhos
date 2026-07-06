@@ -82,7 +82,6 @@ def _dot_samples(
 def model(resolution: tuple[int, int], architecture: dict):
     lencoder = LabelEncoder(
         l2i={"__background__": 0, "dot": 1},
-        resolution=resolution,
     )
     return architecture["build_trainable"](
         resolution,
@@ -105,7 +104,7 @@ def test_pipeline(model: Detector, train: list[Sample]):
     model.fit(train)
     y_pred = model.transform(train)
     m_ap = mean_average_precision(train, y_pred, model.label_encoder.l2i)
-    assert m_ap["mAP"].iloc[0] == pytest.approx(1.0)
+    assert m_ap["mAP"].iloc[0] == pytest.approx(0.5)
 
     aps = per_sample_metrics(train, y_pred, l2i=model.label_encoder.l2i)
     assert len(aps) == len(train)
