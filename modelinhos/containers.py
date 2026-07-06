@@ -3,40 +3,17 @@ from dataclasses import dataclass, fields, replace
 from functools import partial
 from pathlib import Path
 
-import cv2
 import torch
 import torch.nn.utils.rnn as rnn_utils
 import torchvision
 
-from modelinhos.loss.loss import DetectionLoss
 from modelinhos.sample import Sample, TrainAnnotation
-
-
-@dataclass(frozen=True)
-class PerImage:
-    bboxes: torch.Tensor  # (K, 4)
-    scores: torch.Tensor  # (K, 1)
-    labels: torch.Tensor  # (K, 1)
-
-
-@dataclass(frozen=True)
-class PerBatch:
-    bboxes: torch.Tensor  # (B, K, 4)
-    scores: torch.Tensor  # (B, K, 1)
-    labels: torch.Tensor  # (B, K, 1)
-
-    def to(self, device) -> "PerBatch":
-        return replace(
-            self,
-            **{f.name: getattr(self, f.name).to(device) for f in fields(self)},
-        )
-
-
-@dataclass(frozen=True)
-class PerBatchEncoded:
-    bboxes: torch.Tensor  # (B, K, 4)
-    scores: torch.Tensor  # (B, K, 1)
-    labels: torch.Tensor  # (B, K, 1)
+from modelinhos.tasks.standard import (
+    PerBatch,
+    PerBatchEncoded,
+    PerImage,
+    map_fields,
+)
 
 
 def anno2tensors(annotations: list[TrainAnnotation]) -> PerImage:
@@ -77,30 +54,21 @@ def collate_labels(
             labels=torch.empty(0),
         )
 
-    return PerBatch(
-        **{
-            f.name: rnn_utils.pad_sequence(
-                ensure_correct_shapes([getattr(t, f.name) for t in tensors]),
-                batch_first=True,
-                padding_value=pad_value,
-            )
-            for f in fields(tensors[0])
-        }
+    return map_fields(
+        lambda *ts: rnn_utils.pad_sequence(
+            ensure_correct_shapes(list(ts)),
+            batch_first=True,
+            padding_value=pad_value,
+        ),
+        *tensors,
+        into=PerBatch,
     )
 
 
 def un_collate(batched: PerBatch, pad_value: float = -1.0) -> list[PerImage]:
     mask = batched.labels[..., 0] != pad_value
     return [
-        PerImage(
-            **{
-                f.name: getattr(
-                    batched,
-                    f.name,
-                )[i][mask[i]]
-                for f in fields(batched)
-            },
-        )
+        map_fields(lambda t: t[i][mask[i]], batched, into=PerImage)
         for i in range(batched.labels.shape[0])
     ]
 
@@ -143,31 +111,6 @@ def nms_unbatch(
     return results
 
 
-def decode(predictions: PerBatchEncoded, loss: DetectionLoss) -> PerBatch:
-    update = {}
-    for f in fields(predictions):
-        subloss = getattr(loss.sublosses, f.name)
-        predict = getattr(predictions, f.name)
-        update[f.name] = subloss.dec_pred(predict)
-    return PerBatch(**update)
-
-
-class SampleDataset(torch.utils.data.Dataset):
-    def __init__(self, samples: list[Sample[TrainAnnotation]], transform):
-        self.samples = samples
-        self.transform = transform
-
-    def __len__(self) -> int:
-        return len(self.samples)
-
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, PerImage]:
-        sample = self.samples[idx]
-        bgr = cv2.imread(str(sample.file_name))
-        image = self.transform(bgr)
-        batch = anno2tensors(sample.annotations)
-        return image, batch
-
-
 @dataclass(frozen=True)
 class Collate:
     pad_value: float = -1.0
@@ -197,30 +140,3 @@ def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatchEncoded:
         scores=classes,
         labels=classes,
     )
-
-
-def torchvision_to_samples(
-    predictions,
-    priors,
-    resolution,
-    score_thresh,
-) -> list[Sample[TrainAnnotation]]:
-    return [
-        Sample(
-            file_name=Path("fake-file.png"),
-            annotations=[
-                TrainAnnotation(
-                    bboxes=tuple(b.tolist()),  # type: ignore
-                    labels=(ll.item(),),
-                    scores=(s.item(),),
-                )
-                for b, s, ll in zip(
-                    pred["boxes"].numpy(),
-                    pred["scores"].numpy(),
-                    pred["labels"].numpy(),
-                )
-                if s > score_thresh
-            ],
-        )
-        for pred in predictions
-    ]

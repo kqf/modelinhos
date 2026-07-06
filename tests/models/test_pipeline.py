@@ -5,6 +5,7 @@ from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
 )
 
+from modelinhos.detector import Detector
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
@@ -12,7 +13,6 @@ from modelinhos.evaluation import (
 )
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import read_samples
-from modelinhos.ssd.inference import Detector
 from modelinhos.zoo import build_inference_only_ssd
 
 

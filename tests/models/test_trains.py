@@ -10,13 +10,13 @@ from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
 )
 
+from modelinhos.detector import Detector
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
 )
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Annotation, Sample
-from modelinhos.ssd.inference import Detector
 from modelinhos.zoo import build_trainable_retina, build_trainable_ssd
 
 # One entry per architecture under test. anchor_size is picked to match

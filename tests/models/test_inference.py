@@ -10,11 +10,11 @@ from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
 )
 
+from modelinhos.detector import Detector
+from modelinhos.models.retinanet import RETINANET
+from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.plot import plot
 from modelinhos.sample import Annotation, Sample
-from modelinhos.ssd.inference import Detector
-from modelinhos.ssd.retinanet import bulid_retinanet, retina_anchors
-from modelinhos.ssd.ssdlite import build_ssdlite, ssdlite_anchors
 from modelinhos.zoo import (
     build_inference_only_custom_retina,
     build_inference_only_custom_ssd,
@@ -195,12 +195,11 @@ def test_weights_match(
 
 @pytest.mark.skip
 @pytest.mark.parametrize(
-    "build_fn, build_model, build_anchors, n_classes, th, weights",
+    "build_fn, arch, n_classes, th, weights",
     [
         pytest.param(
             build_inference_only_custom_ssd,
-            build_ssdlite,
-            ssdlite_anchors,
+            SSDLITE,
             91,
             0.01,
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
@@ -208,8 +207,7 @@ def test_weights_match(
         ),
         pytest.param(
             build_inference_only_custom_retina,
-            bulid_retinanet,
-            retina_anchors,
+            RETINANET,
             91,
             0.05,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
@@ -217,8 +215,7 @@ def test_weights_match(
         ),
         pytest.param(
             build_inference_only_custom_retina,
-            bulid_retinanet,
-            retina_anchors,
+            RETINANET,
             2,
             0.01,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
@@ -226,8 +223,7 @@ def test_weights_match(
         ),
         pytest.param(
             build_inference_only_custom_retina,
-            bulid_retinanet,
-            retina_anchors,
+            RETINANET,
             # Don't multiply by two because it breaks tests.
             91 * 1,
             0.01,
@@ -239,8 +235,7 @@ def test_weights_match(
 def test_inference_works(
     frame,
     build_fn,
-    build_model,
-    build_anchors,
+    arch,
     n_classes,
     th,
     weights,
@@ -249,8 +244,7 @@ def test_inference_works(
     model = build_fn(
         weights,
         frame.shape[:2],
-        build_model=build_model,
-        anchors=build_anchors,
+        arch=arch,
         n_classes=n_classes,
         th=th,
     )

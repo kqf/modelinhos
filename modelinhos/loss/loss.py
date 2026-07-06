@@ -1,24 +1,19 @@
 from collections.abc import Callable
-from dataclasses import fields, is_dataclass
+from dataclasses import fields
 from functools import partial
-from typing import Generic, Protocol, Tuple, TypeVar
+from typing import Tuple
 
 import torch
 from torch import nn
 
 from modelinhos.loss.matching import match
-from modelinhos.loss.subloss import WeightedLoss
-
-C = TypeVar("C")
-
-
-class HasBoxesAndClasses(Protocol, Generic[C]):
-    bbox: C
-    label: C
-    score: C
-
-    @classmethod
-    def is_dataclass(cls) -> bool: ...
+from modelinhos.loss.subloss import Sublosses, WeightedLoss
+from modelinhos.tasks.standard import (
+    PerBatch,
+    PerBatchEncoded,
+    StandardDetection,
+    map_fields,
+)
 
 
 def select(
@@ -48,28 +43,21 @@ def select(
     return pred_all, true_all, anch_all
 
 
-T = TypeVar("T")
-LossContainer = TypeVar(
-    "LossContainer",
-    bound="HasBoxesAndClasses[WeightedLoss]",
-)
-
-
 Matching = Callable[
     [
-        HasBoxesAndClasses[torch.Tensor],
-        HasBoxesAndClasses[torch.Tensor],
+        StandardDetection[torch.Tensor],
+        StandardDetection[torch.Tensor],
         torch.Tensor,
     ],
     Tuple[torch.Tensor, torch.Tensor],
 ]
 
 
-class DetectionLoss(Generic[LossContainer], nn.Module):
+class DetectionLoss(nn.Module):
     def __init__(
         self,
         priors: torch.Tensor,
-        sublosses: LossContainer,
+        sublosses: Sublosses,
         match: Matching = partial(
             match,
             negpos_ratio=7,
@@ -77,16 +65,18 @@ class DetectionLoss(Generic[LossContainer], nn.Module):
         ),
     ) -> None:
         super().__init__()
-        if not is_dataclass(sublosses):
-            raise TypeError("sublosses must be a dataclass instance")
+        if not isinstance(sublosses, StandardDetection):
+            raise TypeError(
+                "sublosses must be a StandardDetection[WeightedLoss]"
+            )
         self.sublosses = sublosses
         self.match = match
         self.register_buffer("priors", priors)
 
     def forward(
         self,
-        y_true: HasBoxesAndClasses[torch.Tensor],
-        y_pred: HasBoxesAndClasses[torch.Tensor],
+        y_true: StandardDetection[torch.Tensor],
+        y_pred: StandardDetection[torch.Tensor],
     ) -> dict[str, torch.Tensor]:
         positives, negatives = self.match(
             y_pred,
@@ -112,3 +102,13 @@ class DetectionLoss(Generic[LossContainer], nn.Module):
 
         losses["loss"] = torch.stack(tuple(losses.values())).sum()
         return losses
+
+    def decode(self, predictions: PerBatchEncoded) -> PerBatch:
+        """Apply each subloss's dec_pred to its field of the raw model
+        output -- the loss owns the codec, so decoding lives with it."""
+        return map_fields(
+            lambda subloss, pred: subloss.dec_pred(pred),
+            self.sublosses,
+            predictions,
+            into=PerBatch,
+        )

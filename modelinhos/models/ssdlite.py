@@ -12,13 +12,14 @@ from torchvision.models.detection.ssdlite import (
     mobilenet_v3_large,
 )
 
+from modelinhos.detector import Architecture
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match
 from modelinhos.loss.subloss import Sublosses, WeightedLoss, sum_normalized
+from modelinhos.models.anchors import anchors
+from modelinhos.models.load import load_with_mismatch
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
 from modelinhos.preprocess.image import normalize
-from modelinhos.ssd.anchors import anchors
-from modelinhos.ssd.load import load_with_mismatch
 
 
 class SSDPureHead(torch.nn.Module):
@@ -235,3 +236,22 @@ def build_ssd_loss(
             overalp=overlap,
         ),
     )
+
+
+# Trainable configuration: retina-style anchors, mismatch-tolerant weight
+# loading -- what modelinhos trains from scratch / fine-tunes.
+SSDLITE = Architecture(
+    build_model=build_ssdlite,
+    anchors=ssdlite_anchors,
+    loss=build_ssd_loss,
+    normalize=ssd_normalize,
+)
+
+# Faithful-to-torchvision configuration, for comparing our inference
+# against the reference implementation.
+TORCHVISION_SSDLITE = Architecture(
+    build_model=build_torchvision_ssdlite,
+    anchors=torchvision_ssdlite_anchors,
+    loss=build_ssd_loss,
+    normalize=ssd_normalize,
+)

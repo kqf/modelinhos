@@ -16,8 +16,8 @@ from modelinhos.evaluation import (
     visualize_pr,
 )
 from modelinhos.plot import plot
+from modelinhos.preprocess.lables import SampleEncoder
 from modelinhos.sample import Sample
-from modelinhos.ssd.inference import SampleEncoder
 from modelinhos.zoo import build_inference_only_ssd
 
 memory = joblib.Memory("./cachedir", verbose=0)

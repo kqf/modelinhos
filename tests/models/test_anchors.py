@@ -7,7 +7,7 @@ import torch
 from torchvision.models.detection.anchor_utils import AnchorGenerator
 from torchvision.models.detection.image_list import ImageList
 
-from modelinhos.ssd.anchors import anchors, tvison_anchors
+from modelinhos.models.anchors import anchors, tvison_anchors
 
 
 def xyxy_to_cxcywh(boxes):
