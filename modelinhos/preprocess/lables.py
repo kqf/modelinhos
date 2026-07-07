@@ -2,7 +2,7 @@ import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from modelinhos.sample import Sample
+from modelinhos.sample import Annotation, Sample, TrainAnnotation
 
 # module logger
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class LabelEncoder:
             logger.info("Already fitted, skipping for now.")
             return self
 
-        ul = sorted({ann.label for s in samples for ann in s.annotations})
+        ul = sorted({ann.labels for s in samples for ann in s.annotations})
         self.l2i = {label: idx for idx, label in enumerate(ul)}
         self.i2l = {idx: label for label, idx in self.l2i.items()}
         return self
@@ -32,9 +32,15 @@ class LabelEncoder:
     def transform(self, samples: list[Sample]) -> list[Sample]:
         samples = [deepcopy(s) for s in samples]
         for sample in samples:
-            for ann in sample.annotations:
-                # TODO: Fix me later, ignore for now
-                ann.label = self.l2i[ann.label]  # type: ignore
+            sample.annotations = [
+                TrainAnnotation(
+                    bboxes=ann.bboxes,
+                    scores=ann.scores,
+                    labels=self.l2i[ann.labels],
+                )
+                for ann in sample.annotations
+            ]
+
         return samples
 
     def fit_transform(self, samples: list[Sample]) -> list[Sample]:
@@ -43,8 +49,14 @@ class LabelEncoder:
     def inverse_transform(self, samples: list[Sample]) -> list[Sample]:
         samples = [deepcopy(s) for s in samples]
         for sample in samples:
-            for ann in sample.annotations:
-                ann.label = self.i2l[int(ann.label)]
+            sample.annotations = [
+                Annotation(
+                    bboxes=ann.bboxes,
+                    scores=ann.scores[0],
+                    labels=self.i2l[int(ann.labels[0])],
+                )
+                for ann in sample.annotations
+            ]
         return samples
 
 
