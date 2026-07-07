@@ -60,6 +60,23 @@ def anchors(
     return output
 
 
+def level_sizes(
+    resolution: tuple[int, int],  # h, w
+    sizes: list[list[int]],
+    steps: list[int],
+    aspect_ratios: tuple[float] | None = None,
+) -> list[int]:
+    """Anchor count per feature map, in the order anchors() above emits
+    them -- what per-level consumers (e.g. atss_match) need to slice the
+    flat priors tensor back into pyramid levels."""
+    aspect_ratios = aspect_ratios or (1.0,)
+    H, W = resolution
+    return [
+        ceil(H / step) * ceil(W / step) * len(aspect_ratios) * len(size)
+        for step, size in zip(steps, sizes)
+    ]
+
+
 def tvison_anchors(
     resolution,
     base_sizes,
