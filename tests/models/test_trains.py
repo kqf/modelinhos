@@ -47,7 +47,7 @@ def resolution() -> tuple[int, int]:
     return 480, 640
 
 
-@pytest.fixture(params=["retina"])
+@pytest.fixture(params=["ssd", "retina"])
 def architecture(request) -> dict:
     return ARCHITECTURES[request.param]
 
@@ -80,8 +80,12 @@ def _dot_samples(
 
 @pytest.fixture
 def model(resolution: tuple[int, int], architecture: dict):
+    # resolution is what makes the encoder normalise GT boxes to [0, 1] --
+    # without it they stay in pixel space, never overlap the normalised
+    # anchors, and the loss silently trains on zero positives.
     lencoder = LabelEncoder(
         l2i={"__background__": 0, "dot": 1},
+        resolution=resolution,
     )
     return architecture["build_trainable"](
         resolution,
@@ -104,7 +108,9 @@ def test_pipeline(model: Detector, train: list[Sample]):
     model.fit(train)
     y_pred = model.transform(train)
     m_ap = mean_average_precision(train, y_pred, model.label_encoder.l2i)
-    assert m_ap["mAP"].iloc[0] == pytest.approx(0.5)
+    # mAP averages only over classes present in the GT, so the reserved
+    # background slot no longer caps a perfect single-class run at 0.5
+    assert m_ap["mAP"].iloc[0] == pytest.approx(1.0)
 
     aps = per_sample_metrics(train, y_pred, l2i=model.label_encoder.l2i)
     assert len(aps) == len(train)

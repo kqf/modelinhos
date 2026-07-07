@@ -13,7 +13,12 @@ from torchvision.models.resnet import ResNet50_Weights, resnet50
 from modelinhos.detector import Architecture
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match
-from modelinhos.loss.subloss import Sublosses, WeightedLoss, sum_normalized
+from modelinhos.loss.subloss import (
+    Sublosses,
+    WeightedLoss,
+    positive_normalized,
+    sum_normalized,
+)
 from modelinhos.models.anchors import anchors, tvison_anchors
 from modelinhos.models.load import load_with_mismatch_from_weights
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
@@ -193,7 +198,9 @@ def build_trainable_retina_loss(
         ),
         scores=WeightedLoss(loss=None, dec_pred=decode_scores),
         labels=WeightedLoss(
-            loss=sum_normalized(partial(F.cross_entropy, reduction="sum")),
+            loss=positive_normalized(
+                partial(F.cross_entropy, reduction="sum")
+            ),
             needs_negatives=True,
             dec_pred=decode_labels,
         ),

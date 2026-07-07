@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import partial
 from typing import Callable, Optional
 
 import torch
@@ -15,12 +16,14 @@ DLBuilder = Callable[
 def default_dataloader_builder(
     dataset,
     collate_fn,
+    shuffle: bool = False,
 ) -> torch.utils.data.DataLoader:
     return torch.utils.data.DataLoader(
         dataset,
         batch_size=1,
         num_workers=0,
         collate_fn=collate_fn,
+        shuffle=shuffle,
     )
 
 
@@ -40,7 +43,9 @@ class TrainConfig:
     lr: float = 1e-3
     optimizer_builder: Callable = default_optimizer_builder
     metrics: Optional[Callable] = None
-    train_dataloader_builder: DLBuilder = default_dataloader_builder
+    train_dataloader_builder: DLBuilder = partial(
+        default_dataloader_builder, shuffle=True
+    )
     valid_dataloader_builder: DLBuilder = default_dataloader_builder
     device: Optional[str] = None
 
@@ -80,12 +85,15 @@ class SimpleTrainer:
         )
 
     def _score(self, metric_fn, batch, preds):
-        true = self.lencoder.inverse_transform(
-            self.collate.un_batch(batch),
-        )
-        pred = self.lencoder.inverse_transform(
-            self.collate.un_batch_nms(self.decode(preds))
-        )
+        # Decoding is metric-only bookkeeping: never track gradients for
+        # it, even when scoring mid-epoch on training predictions.
+        with torch.no_grad():
+            true = self.lencoder.inverse_transform(
+                self.collate.un_batch(batch),
+            )
+            pred = self.lencoder.inverse_transform(
+                self.collate.un_batch_nms(self.decode(preds))
+            )
         metric_fn(true, pred)
 
     def fit(self, dataset, val_dataset=None) -> "SimpleTrainer":
@@ -101,7 +109,6 @@ class SimpleTrainer:
                 preds = self.model(images)
                 loss = self.loss_fn(batch, preds)
                 loss = loss["loss"] if isinstance(loss, dict) else loss
-                print(loss)
 
                 self.optimizer.zero_grad()
                 if torch.is_tensor(loss):
@@ -127,13 +134,20 @@ class SimpleTrainer:
     def _validate(self, metrics_fn, dataset) -> None:
         loader = self.valid_dataloader_builder(dataset, self.collate.collate)
         self.model.eval()
+        val_loss, n_batches = 0.0, 0
         with torch.no_grad():
             for images, batch in tqdm.tqdm(loader, desc="Validation"):
                 images = images.to(self.device)
                 batch = batch.to(self.device)
                 preds = self.model(images)
-                self.loss_fn(batch, preds)
+                loss = self.loss_fn(batch, preds)
+                loss = loss["loss"] if isinstance(loss, dict) else loss
+                if torch.is_tensor(loss):
+                    val_loss += loss.item()
+                    n_batches += 1
                 self._score(metrics_fn, batch, preds)
+        if n_batches:
+            print(f"Valid loss: {val_loss / n_batches}")
 
     def predict(self, dataset) -> list:
         loader = self.valid_dataloader_builder(dataset, self.collate.collate)

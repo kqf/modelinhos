@@ -89,8 +89,27 @@ def _attach_thresholds(results: dict, confidences: dict) -> dict:
     return results
 
 
-def _map_results_to_df(results: dict) -> pd.DataFrame:
-    map_score = float(results.get("mAP", float("nan")))
+def _mean_ap_over_gt_classes(
+    results: dict,
+    gt_class_ids: set[int],
+) -> float:
+    """COCO-style mAP: average AP only over classes that appear in the
+    ground truth. Classes without any GT (e.g. a reserved background slot,
+    or unused label-space entries) must not dilute the mean -- the metric
+    library averages over all num_classes indiscriminately. A GT class the
+    model never predicted still counts, as 0."""
+    aps = [
+        float(class_results[cid]["ap"]) if cid in class_results else 0.0
+        for class_results in results.values()
+        if isinstance(class_results, dict)
+        for cid in gt_class_ids
+    ]
+    if not aps:
+        return float("nan")
+    return float(np.mean(aps))
+
+
+def _map_results_to_df(results: dict, map_score: float) -> pd.DataFrame:
     records: list[dict[str, float]] = []
     for iou, class_id, metrics in _iter_class_results(results):
         recall = metrics["recall"]
@@ -108,6 +127,20 @@ def _map_results_to_df(results: dict) -> pd.DataFrame:
                 "mAP": map_score,
             }
             for r, p, t in zip(recall, precision, thresholds)
+        )
+    if not records:
+        # No curves at all (e.g. an epoch with zero confident detections):
+        # still expose the mAP so callers like df["mAP"].iloc[0] survive.
+        records.append(
+            {
+                "iou": float("nan"),
+                "class_id": float("nan"),
+                "recall": float("nan"),
+                "precision": float("nan"),
+                "threshold": float("nan"),
+                "ap": float("nan"),
+                "mAP": map_score,
+            }
         )
     return pd.DataFrame(records)
 
@@ -146,6 +179,7 @@ class MetricCollector:
         )
 
         self.confidences: dict[int, list[float]] = defaultdict(list)
+        self.gt_class_ids: set[int] = set()
 
     def __call__(
         self,
@@ -164,6 +198,7 @@ class MetricCollector:
 
             self.metric_fn.add(pred, true)
 
+            self.gt_class_ids.update(int(row[4]) for row in true)
             for row in pred:
                 self.confidences[int(row[4])].append(float(row[5]))
 
@@ -174,7 +209,8 @@ class MetricCollector:
             **kwargs,
         )
         results = _attach_thresholds(results, self.confidences)
-        return _map_results_to_df(results)
+        map_score = _mean_ap_over_gt_classes(results, self.gt_class_ids)
+        return _map_results_to_df(results, map_score=map_score)
 
 
 def mean_average_precision(
@@ -216,10 +252,11 @@ def per_sample_metrics(
             iou_thresholds=[iou_threshold],
             mpolicy=mpolicy,
         )
+        gt_class_ids = {int(row[4]) for row in true}
         results.append(
             {
                 "sample_idx": idx,
-                "mAP": float(value["mAP"]),
+                "mAP": _mean_ap_over_gt_classes(value, gt_class_ids),
                 "classes": _per_class_fp_fn(value, pred, true, threshold),
             }
         )
