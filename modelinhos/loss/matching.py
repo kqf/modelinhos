@@ -226,6 +226,22 @@ def match(
     )
 
 
+def match_all_negatives(
+    y_pred: StandardDetection[torch.Tensor],
+    y_true: StandardDetection[torch.Tensor],
+    anchors: torch.Tensor,
+    overalp: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Matching without hard-negative mining: every unmatched anchor is a
+    negative. This is the focal-loss convention (arxiv.org/abs/1708.02002)
+    -- the loss itself downweights easy negatives, so mining on top of it
+    would re-bias the very sample focal loss was designed to keep whole."""
+    positives = torch.stack(
+        [match_boxes(b, anchors, overalp) for b in y_true.bboxes]
+    )
+    return positives, ~positives.any(dim=2)
+
+
 def atss_match(
     y_pred: StandardDetection[torch.Tensor],
     y_true: StandardDetection[torch.Tensor],

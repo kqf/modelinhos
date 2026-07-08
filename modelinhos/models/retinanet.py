@@ -9,10 +9,11 @@ from torchvision.models.detection.retinanet import (
     RetinaNetRegressionHead,
 )
 from torchvision.models.resnet import ResNet50_Weights, resnet50
+from torchvision.ops import sigmoid_focal_loss
 
 from modelinhos.detector import Architecture
 from modelinhos.loss.loss import DetectionLoss
-from modelinhos.loss.matching import match
+from modelinhos.loss.matching import match_all_negatives
 from modelinhos.loss.subloss import (
     Sublosses,
     WeightedLoss,
@@ -120,65 +121,27 @@ def build_torchvision_retinanet(
     return model
 
 
-# Decode-only: matches how the real pretrained RetinaNet weights were
-# actually trained (independent per-class sigmoid, no shared background
-# class) -- used for comparing our reimplementation's inference output
-# against torchvision's. Not usable for training (every loss is None).
+# The single RetinaNet loss, trainable and decode-faithful at once: it
+# uses the independent per-class sigmoid + focal loss convention the real
+# pretrained weights were trained under (arxiv.org/abs/1708.02002), so the
+# same builder serves fine-tuning our reimplementation AND comparing its
+# inference against torchvision's. The box codec keeps the (1, 1, 1, 1)
+# torchvision weights for the same reason: a warm-started regression head
+# emits deltas at the right scale from step 0. There is no hard-negative
+# mining -- focal loss runs over every anchor (see match_all_negatives)
+# and is normalized by the positive count, like the box loss. Channel 0
+# stays reserved for background by the shared l2i convention; its one-hot
+# target is always off, so focal loss trains it to silence and decode
+# zeroes it before taking the max.
 def build_ret_loss(
     priors: torch.Tensor,
     score_thresh: float,
-) -> DetectionLoss:
-    def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
-        scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
-        labels = labels.clone()
-        labels[scores <= score_thresh] = int(pad_value)
-        return labels.unsqueeze(-1)
-
-    return DetectionLoss(
-        priors=priors,
-        sublosses=Sublosses(
-            bboxes=WeightedLoss(
-                loss=None,
-                dec_pred=partial(
-                    decode_boxes,
-                    priors=priors,
-                ),
-            ),
-            scores=WeightedLoss(
-                loss=None,
-                dec_pred=lambda x: torch.sigmoid(x)
-                .max(dim=-1)[0]
-                .unsqueeze(-1),
-            ),
-            labels=WeightedLoss(
-                loss=None,
-                dec_pred=decode_labels,
-            ),
-        ),
-    )
-
-
-# weights for encoding/decoding box regression targets -- same convention
-# as SSD_BOX_WEIGHTS in ssd/ssdlite.py, shared by build_trainable_retina_loss
-# below between encode (training) and decode (dec_pred).
-RETINA_BOX_WEIGHTS = (10.0, 10.0, 5.0, 5.0)
-
-
-# Trainable: unlike build_ret_loss, this defines real losses so our own
-# RetinaNet reimplementation can actually be trained/overfit. It reuses
-# SSD's softmax + reserved-background-class convention rather than true
-# per-class sigmoid/focal loss, since the matching/select machinery this
-# codebase shares across architectures is built around a single class id
-# per anchor, not independent multi-label targets.
-def build_trainable_retina_loss(
-    priors: torch.Tensor,
-    score_thresh: float,
-    negpos_ratio: int = 7,
     overlap: float = 0.35,
-    box_weights: tuple[float, float, float, float] = RETINA_BOX_WEIGHTS,
+    alpha: float = 0.25,
+    gamma: float = 2.0,
 ) -> DetectionLoss:
     def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
-        probs = torch.softmax(raw_logits, dim=-1)
+        probs = torch.sigmoid(raw_logits)
         probs[..., 0] = 0.0  # exclude background class before taking max
         scores, labels = probs.max(dim=-1)
         labels = labels.clone()
@@ -186,21 +149,30 @@ def build_trainable_retina_loss(
         return labels.unsqueeze(-1)
 
     def decode_scores(raw_logits: torch.Tensor) -> torch.Tensor:
-        probs = torch.softmax(raw_logits, dim=-1)
+        probs = torch.sigmoid(raw_logits)
         probs[..., 0] = 0.0
         return probs.max(dim=-1)[0].unsqueeze(-1)
+
+    def focal_loss(y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
+        # select() hands over one integer class id per anchor (0 for the
+        # mined-in negatives); the sigmoid convention wants per-class
+        # binary targets, with background rows all-off.
+        target = F.one_hot(y_true, num_classes=y_pred.shape[-1])
+        target = target.to(y_pred.dtype)
+        target[:, 0] = 0.0
+        return sigmoid_focal_loss(
+            y_pred, target, alpha=alpha, gamma=gamma, reduction="sum"
+        )
 
     sublosses = Sublosses(
         bboxes=WeightedLoss(
             loss=sum_normalized(partial(F.smooth_l1_loss, reduction="sum")),
-            enc_true=partial(encode_boxes, weights=box_weights),
-            dec_pred=partial(decode_boxes, priors=priors, weights=box_weights),
+            enc_true=encode_boxes,
+            dec_pred=partial(decode_boxes, priors=priors),
         ),
         scores=WeightedLoss(loss=None, dec_pred=decode_scores),
         labels=WeightedLoss(
-            loss=positive_normalized(
-                partial(F.cross_entropy, reduction="sum")
-            ),
+            loss=positive_normalized(focal_loss),
             needs_negatives=True,
             dec_pred=decode_labels,
         ),
@@ -208,19 +180,19 @@ def build_trainable_retina_loss(
     return DetectionLoss(
         priors=priors,
         sublosses=sublosses,
-        match=partial(match, negpos_ratio=negpos_ratio, overalp=overlap),
+        match=partial(match_all_negatives, overalp=overlap),
     )
 
 
-# Trainable configuration (softmax + background convention).
+# Trainable configuration (sigmoid focal loss, matching the checkpoint).
 RETINANET = Architecture(
     build_model=bulid_retinanet,
     anchors=retina_anchors,
-    loss=build_trainable_retina_loss,
+    loss=build_ret_loss,
 )
 
-# Faithful-to-torchvision configuration with the decode-only sigmoid loss,
-# for comparing our inference against the reference implementation.
+# Faithful-to-torchvision configuration -- same loss, torchvision's own
+# anchors/head shape, for comparing our inference against the reference.
 TORCHVISION_RETINANET = Architecture(
     build_model=build_torchvision_retinanet,
     anchors=torchvision_retina_anchors,
