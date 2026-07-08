@@ -161,7 +161,11 @@ def build_ret_loss(
         target = target.to(y_pred.dtype)
         target[:, 0] = 0.0
         return sigmoid_focal_loss(
-            y_pred, target, alpha=alpha, gamma=gamma, reduction="sum"
+            y_pred,
+            target,
+            alpha=alpha,
+            gamma=gamma,
+            reduction="sum",
         )
 
     sublosses = Sublosses(
