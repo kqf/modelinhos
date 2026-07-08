@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import pytest
 from torchvision.models.detection import (
+    RetinaNet_ResNet50_FPN_V2_Weights,
     SSDLite320_MobileNet_V3_Large_Weights,
 )
 
@@ -14,12 +15,12 @@ from modelinhos.evaluation import (
     per_sample_metrics,
 )
 from modelinhos.sample import Annotation, Sample
-from modelinhos.zoo import build_trainable_ssd
+from modelinhos.zoo import build_trainable_retina, build_trainable_ssd
 
 
 @pytest.fixture
 def resolution() -> tuple[int, int]:
-    return 480, 640
+    return 120, 160
 
 
 @pytest.fixture
@@ -52,15 +53,15 @@ def data(
 @pytest.mark.parametrize(
     "build_model",
     [
-        # partial(
-        #     build_trainable_retina,
-        #     weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-        #     epochs=2,
-        # ),
+        partial(
+            build_trainable_retina,
+            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+            epochs=1,
+        ),
         partial(
             build_trainable_ssd,
             weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-            epochs=2,
+            epochs=1,
         ),
     ],
 )

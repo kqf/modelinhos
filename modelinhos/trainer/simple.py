@@ -17,10 +17,11 @@ def default_dataloader_builder(
     dataset,
     collate_fn,
     shuffle: bool = False,
+    batch_size: int = 2,
 ) -> torch.utils.data.DataLoader:
     return torch.utils.data.DataLoader(
         dataset,
-        batch_size=1,
+        batch_size=batch_size,
         num_workers=0,
         collate_fn=collate_fn,
         shuffle=shuffle,
