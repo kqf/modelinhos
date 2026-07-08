@@ -29,12 +29,12 @@ from modelinhos.trainer.simple import TrainConfig
 
 def _torchvision_label_encoder(
     weights,
-    resolution: Optional[tuple[int, int]] = None,
+    resolution: tuple[int, int],
 ) -> LabelEncoder:
     labels = weights.meta["categories"]
     return LabelEncoder(
-        l2i={label: i for i, label in enumerate(labels)},
         resolution=resolution,
+        l2i={label: i for i, label in enumerate(labels)},
     )
 
 
@@ -48,7 +48,11 @@ def build_inference_only_ssd(
         build_model=ssdlite320_mobilenet_v3_large,
         resolution=resolution,
         weights=weights,
-        lencoder=lencoder or _torchvision_label_encoder(weights),
+        lencoder=lencoder
+        or _torchvision_label_encoder(
+            weights,
+            resolution=(1, 1),
+        ),
     )
 
 
@@ -63,7 +67,11 @@ def build_inference_only_retina(
         build_model=retinanet_resnet50_fpn_v2,
         resolution=resolution,
         weights=weights,
-        lencoder=lencoder or _torchvision_label_encoder(weights),
+        lencoder=lencoder
+        or _torchvision_label_encoder(
+            weights,
+            (1, 1),
+        ),
     )
 
 
@@ -80,7 +88,10 @@ def build_inference_only_custom_ssd(
     return build_detector(
         replace(arch, weights=weights),
         lencoder=lencoder
-        or _torchvision_label_encoder(weights, resolution=resolution),
+        or _torchvision_label_encoder(
+            weights,
+            resolution=resolution,
+        ),
         resolution=resolution,
         th=th,
         n_classes=n_classes,
@@ -101,7 +112,10 @@ def build_inference_only_custom_retina(
     return build_detector(
         replace(arch, weights=weights),
         lencoder=lencoder
-        or _torchvision_label_encoder(weights, resolution=resolution),
+        or _torchvision_label_encoder(
+            weights,
+            resolution=resolution,
+        ),
         resolution=resolution,
         th=th,
         n_classes=n_classes,
@@ -115,14 +129,17 @@ def build_trainable_ssd(
     weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
 ) -> Detector:
     """SSD detector configured for training: lencoder.l2i must already be
-    fit (it decides the classification head size and, conventionally,
-    reserves index 0 for background via l2i_forced)."""
+    fit (it decides the classification head size; index 0 is reserved for
+    background, which LabelEncoder enforces). The head is sized from
+    lencoder.l2i here, before fit() ever sees data, so the default
+    encoder must come pre-fit -- an unfit LabelEncoder(resolution=...)
+    only works when the caller passes n_classes some other way."""
     return build_detector(
         replace(SSDLITE, weights=weights),
         lencoder=lencoder
         or LabelEncoder(
-            l2i={"__background__": 0, "dot": 1},
             resolution=resolution,
+            l2i={"__background__": 0, "dot": 1},
         ),
         resolution=resolution,
         train=TrainConfig(epochs=epochs),
@@ -136,20 +153,17 @@ def build_trainable_retina(
     weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
 ) -> Detector:
     """RetinaNet detector configured for training: lencoder.l2i must
-    already be fit (it decides the classification head size and,
-    conventionally, reserves index 0 for background via l2i_forced). The
-    loss (build_ret_loss) is the sigmoid focal loss the pretrained
-    checkpoint was itself trained under, so the warm start is
-    convention-exact: the head starts quiet (prior-probability biases)
-    instead of firing everywhere. Pass weights=None to train from
-    scratch."""
+    already be fit (it decides the classification head size; index 0 is
+    reserved for background, which LabelEncoder enforces). The loss
+    (build_ret_loss) is the sigmoid focal loss the pretrained checkpoint
+    was itself trained under, so the warm start is convention-exact: the
+    head starts quiet (prior-probability biases) instead of firing
+    everywhere. Pass weights=None to train from scratch. As with
+    build_trainable_ssd, the head is sized from lencoder.l2i at build
+    time, so the default encoder comes pre-fit."""
     return build_detector(
         replace(RETINANET, weights=weights),
-        lencoder=lencoder
-        or LabelEncoder(
-            l2i={"__background__": 0, "dot": 1},
-            resolution=resolution,
-        ),
+        lencoder=lencoder or LabelEncoder(resolution=resolution),
         resolution=resolution,
         train=TrainConfig(epochs=epochs),
     )

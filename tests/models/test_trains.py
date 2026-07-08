@@ -14,6 +14,7 @@ from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
 )
+from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Annotation, Sample
 from modelinhos.zoo import build_trainable_retina, build_trainable_ssd
 
@@ -70,7 +71,11 @@ def test_pipeline(
     resolution: tuple[int, int],
     data: list[Sample],
 ):
-    model = build_model(resolution=resolution)
+    # Learn l2i from the data itself (the full from-scratch path). The
+    # encoder must be fit BEFORE building: the classification head is
+    # sized from len(l2i) at construction time.
+    lencoder = LabelEncoder(resolution=resolution).fit(data)
+    model = build_model(resolution=resolution, lencoder=lencoder)
     model.fit(data)
     y_pred = model.transform(data)
     m_ap = mean_average_precision(data, y_pred, model.label_encoder.l2i)
