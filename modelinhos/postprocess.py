@@ -12,11 +12,6 @@ import torchvision
 from modelinhos.preprocess.boxes import decode_boxes
 from modelinhos.sample import Sample, TrainAnnotation
 
-# Every field's width AND dtype come straight from TrainAnnotation's own type
-# hints: len(get_args(...)) is the fixed tuple width, and the first arg's
-# Python type tells us the dtype torch.tensor() would have inferred anyway.
-# This is the one place that reads TrainAnnotation's shape;
-# nothing else needs to.
 _ANNOTATION_HINTS = typing.get_type_hints(TrainAnnotation)
 
 
@@ -27,6 +22,13 @@ def _field_spec(name: str) -> tuple[int, torch.dtype]:
 
 
 @dataclass(frozen=True)
+class PerImage:
+    bboxes: torch.Tensor  # (K, 4)
+    scores: torch.Tensor  # (K, 1)
+    labels: torch.Tensor  # (K, 1)
+
+
+@dataclass(frozen=True)
 class PerBatch:
     bboxes: torch.Tensor  # (B, K, 4)
     scores: torch.Tensor  # (B, K, 1)
@@ -34,10 +36,10 @@ class PerBatch:
 
 
 @dataclass(frozen=True)
-class PerImage:
-    bboxes: torch.Tensor  # (K, 4)
-    scores: torch.Tensor  # (K, 1)
-    labels: torch.Tensor  # (K, 1)
+class PerBatchEncoded:
+    bboxes: torch.Tensor  # (B, K, 4)
+    scores: torch.Tensor  # (B, K, 1)
+    labels: torch.Tensor  # (B, K, 1)
 
 
 @dataclass(frozen=True)
@@ -52,7 +54,7 @@ class Loss:
     labels: Subloss
 
 
-def sample_to_image_tensors(annotations: list[TrainAnnotation]) -> PerImage:
+def anno2tensors(annotations: list[TrainAnnotation]) -> PerImage:
     kwargs = {}
     for f in fields(PerImage):
         if values := [getattr(a, f.name) for a in annotations]:
@@ -63,7 +65,7 @@ def sample_to_image_tensors(annotations: list[TrainAnnotation]) -> PerImage:
     return PerImage(**kwargs)
 
 
-def collate_image_tensors(
+def collate_labels(
     tensors_list: list[PerImage],
     pad_value: float = -1.0,
 ) -> PerBatch:
@@ -95,14 +97,14 @@ def un_collate(batched: PerBatch, pad_value: float = -1.0) -> list[PerImage]:
     ]
 
 
-def to_sample(unbatched: list[PerImage]) -> list[Sample]:
+def to_sample(unbatched: list[PerImage]) -> list[Sample[TrainAnnotation]]:
     samples = []
     for per_image in unbatched:
         fnames = [f.name for f in fields(per_image)]
         rows = zip(*(getattr(per_image, name) for name in fnames))
         annotations = [
             TrainAnnotation(
-                **{n: tuple(v.tolist()) for n, v in zip(fnames, row)},
+                **{n: tuple(v.tolist()) for n, v in zip(fnames, row)},  # type: ignore
             )
             for row in rows
         ]
@@ -133,33 +135,17 @@ def nms_unbatch(
     return results
 
 
-def decode(predictions: PerBatch, loss: Loss) -> PerBatch:
+def decode(predictions: PerBatchEncoded, loss: Loss) -> PerBatch:
     update = {}
     for f in fields(predictions):
         subloss = getattr(loss, f.name)
         predict = getattr(predictions, f.name)
         update[f.name] = subloss.decode(predict)
-    return replace(predictions, **update)
-
-
-def run_postprocess_pipeline(
-    predictions: PerBatch,
-    loss: Loss,
-    unbatch_fn: Callable,
-) -> list[Sample]:
-    batched_data = decode(predictions, loss)
-    unbatched = unbatch_fn(batched_data)
-    return to_sample(unbatched)
-
-
-def sample_collate_fn(batch: list[tuple]) -> tuple:
-    images = torch.stack([item[0] for item in batch])
-    batched = collate_image_tensors([item[1] for item in batch])
-    return images, batched
+    return PerBatch(**update)
 
 
 class SampleDataset(torch.utils.data.Dataset):
-    def __init__(self, samples: list[Sample], transform):
+    def __init__(self, samples: list[Sample[TrainAnnotation]], transform):
         self.samples = samples
         self.transform = transform
 
@@ -170,12 +156,36 @@ class SampleDataset(torch.utils.data.Dataset):
         sample = self.samples[idx]
         bgr = cv2.imread(str(sample.file_name))
         image = self.transform(bgr)
-        batch = sample_to_image_tensors(sample.annotations)
+        batch = anno2tensors(sample.annotations)
         return image, batch
 
 
+@dataclass(frozen=True)
+class Collate:
+    pad_value: float = -1.0
+    i2b: Callable = collate_labels
+    unc: Callable = un_collate
+    nms: Callable = partial(nms_unbatch, iou_thresh=0.5)
+    to_samples: Callable = to_sample
+
+    def collate(
+        self,
+        collected: list[tuple[torch.Tensor, PerImage]],
+    ) -> tuple[torch.Tensor, PerBatch]:
+        images, labels = zip(*collected)
+        return torch.stack(images), self.i2b(labels)
+
+    def un_batch(self, batch: PerBatch) -> list[Sample]:
+        return self.to_samples(self.unc(batch, pad_value=self.pad_value))
+
+    def un_batch_nms(self, batch: PerBatch) -> list[Sample]:
+        return self.to_samples(self.nms(batch, pad_value=self.pad_value))
+
+
 def postprocess(
-    resolution: tuple[int, int], priors: torch.Tensor, score_thresh: float
+    resolution: tuple[int, int],
+    priors: torch.Tensor,
+    score_thresh: float,
 ) -> Callable:
     def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
         scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
@@ -184,7 +194,7 @@ def postprocess(
         return labels.unsqueeze(-1)
 
     return partial(
-        run_postprocess_pipeline,
+        decode,
         loss=Loss(
             bboxes=Subloss(
                 decode=partial(
@@ -198,7 +208,6 @@ def postprocess(
             ),
             labels=Subloss(decode=decode_labels),
         ),
-        unbatch_fn=partial(nms_unbatch, iou_thresh=0.5),
     )
 
 
@@ -219,7 +228,7 @@ def ssd_postprocess(
         return probs.max(dim=-1)[0].unsqueeze(-1)
 
     return partial(
-        run_postprocess_pipeline,
+        decode,
         loss=Loss(
             bboxes=Subloss(
                 decode=partial(
@@ -232,13 +241,12 @@ def ssd_postprocess(
             scores=Subloss(decode=decode_scores),
             labels=Subloss(decode=decode_labels),
         ),
-        unbatch_fn=partial(nms_unbatch, iou_thresh=0.5),
     )
 
 
-def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatch:
+def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatchEncoded:
     boxes, classes = preds
-    return PerBatch(
+    return PerBatchEncoded(
         bboxes=boxes,
         scores=classes,
         labels=classes,
@@ -250,13 +258,13 @@ def torchvision_to_samples(
     priors,
     resolution,
     score_thresh,
-):
+) -> list[Sample[TrainAnnotation]]:
     return [
         Sample(
             file_name=Path("fake-file.png"),
             annotations=[
                 TrainAnnotation(
-                    bboxes=tuple(b.tolist()),
+                    bboxes=tuple(b.tolist()),  # type: ignore
                     labels=(ll.item(),),
                     scores=(s.item(),),
                 )

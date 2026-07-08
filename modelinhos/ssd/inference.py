@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from functools import partial
 from typing import Callable, Protocol, runtime_checkable
 
@@ -7,10 +6,10 @@ import torch
 import tqdm
 
 from modelinhos.postprocess import (
-    PerBatch,
+    Collate,
+    PerBatchEncoded,
     SampleDataset,
     postprocess,
-    sample_collate_fn,
     to_preds,
     torchvision_to_samples,
 )
@@ -19,19 +18,20 @@ from modelinhos.preprocess.lables import DoNothingEncoder
 from modelinhos.sample import Sample
 
 DataloaderBuilder = Callable[
-    [torch.utils.data.Dataset],
+    [torch.utils.data.Dataset, Callable],
     torch.utils.data.DataLoader,
 ]
 
 
 def default_dataloader_builder(
-    dataset: torch.utils.data.Dataset,
+    dataset,
+    collate_fn,
 ) -> torch.utils.data.DataLoader:
     return torch.utils.data.DataLoader(
         dataset,
         batch_size=1,
         num_workers=0,
-        collate_fn=sample_collate_fn,
+        collate_fn=collate_fn,
     )
 
 
@@ -47,62 +47,53 @@ class SampleEncoder(Protocol):
     def inverse_transform(self, samples: list[Sample]) -> list[Sample]: ...
 
 
-@runtime_checkable
-class Trainer(Protocol):
-    model: torch.nn.Module
-
-    def fit(
-        self,
-        samples: list[Sample],
-    ) -> torch.nn.Module: ...
-
-
-@dataclass
-class DoNothingTrainer:
-    model: torch.nn.Module
-    anchors: torch.Tensor
-
-    def fit(self, samples: list[Sample]) -> torch.nn.Module:
-        return self.model
-
-
-TrainerFactory = Callable[[torch.nn.Module, torch.Tensor], Trainer]
-
-
 class Detector:
     def __init__(
         self,
-        build_model,
+        build_model=lambda: print,
+        build_metrics=None,
         lencoder: SampleEncoder = None,
-        build_trainer: TrainerFactory = DoNothingTrainer,
         train_dataloader: DataloaderBuilder = default_dataloader_builder,
         valid_dataloader: DataloaderBuilder = default_dataloader_builder,
     ):
-        self.model, self.transforms, self.postprocess, self.w = build_model()
+        self.model, self.transforms, self.decode, self.w, collate = (
+            build_model()
+        )
         self.label_encoder = lencoder or DoNothingEncoder()
-        self.trainer = build_trainer(self.model, None)
         self.train_dataloader = train_dataloader
         self.valid_dataloader = valid_dataloader
+        self.loss = print
+        self.metrics = build_metrics
+        self.collate = collate
 
     def fit(self, samples: list[Sample]) -> "Detector":
-        self.trainer.fit(self.label_encoder.fit_transform(samples))
+        encoded = self.label_encoder.transform(samples)
+        dataset = SampleDataset(encoded, self.transforms)
+        loader = self.train_dataloader(dataset, self.collate.collate)
+        self.model.train()
+        for images, batch in tqdm.tqdm(loader):
+            preds = self.model(images)
+            losses = self.loss(batch, preds)
+            print(losses)
+            true = self.label_encoder.inverse_transform(
+                self.collate.un_batch(batch),
+            )
+            pred = self.label_encoder.inverse_transform(
+                self.collate.un_batch_nms(self.decode(preds))
+            )
+            self.metrics(true, pred)
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
         encoded = self.label_encoder.transform(samples)
-        dataset = SampleDataset(
-            encoded,
-            self.transforms,
-        )
-        loader = self.valid_dataloader(dataset)
+        dataset = SampleDataset(encoded, self.transforms)
+        loader = self.valid_dataloader(dataset, self.collate.collate)
         self.model.eval()
         results = []
         with torch.no_grad():
             for images, _ in tqdm.tqdm(loader):
                 results.extend(
-                    self.postprocess(
-                        predictions=self.model(images),
-                    )
+                    self.collate.un_batch_nms(self.decode(self.model(images)))
                 )
         return self.label_encoder.inverse_transform(results)
 
@@ -110,9 +101,8 @@ class Detector:
         self.model.eval()
         blob = self.transforms(frame).unsqueeze(0)
         with torch.no_grad():
-            return self.postprocess(
-                predictions=self.model(blob),
-            )
+            preds = self.collate.un_batch_nms(self.decode(self.model(blob)))
+        return self.label_encoder.inverse_transform(preds)
 
 
 def custom_model(
@@ -131,7 +121,7 @@ def custom_model(
 
             self.model = model
 
-        def forward(self, x: torch.nn.Module) -> PerBatch:
+        def forward(self, x: torch.nn.Module) -> PerBatchEncoded:
             return to_preds(self.model(x))
 
     return (
@@ -143,6 +133,7 @@ def custom_model(
             score_thresh=th,
         ),
         weights,
+        Collate(),
     )
 
 
@@ -163,4 +154,8 @@ def torchvision_model(
             score_thresh=th,
         ),
         weights,
+        Collate(
+            nms=lambda x, pad_value: x,
+            to_samples=lambda x: x,
+        ),
     )
