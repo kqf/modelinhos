@@ -156,9 +156,9 @@ class SimpleTrainer:
         with torch.no_grad():
             for images, _ in tqdm.tqdm(loader, desc="Prediction"):
                 images = images.to(self.device)
-                results.extend(
-                    self.collate.un_batch_nms(self.decode(self.model(images)))
-                )
+                x = self.decode(self.model(images))
+                y = self.collate.un_batch_nms(x)
+                results.extend(y)
         return results
 
     def predict_single(self, blob: torch.Tensor) -> list:
