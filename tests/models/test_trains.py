@@ -8,34 +8,13 @@ import pytest
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
 )
-from torchvision.models.detection.retinanet import (
-    RetinaNet_ResNet50_FPN_V2_Weights,
-)
 
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
 )
 from modelinhos.sample import Annotation, Sample
-from modelinhos.zoo import build_trainable_retina, build_trainable_ssd
-
-# One entry per architecture under test. anchor_size is picked to match
-# that architecture's own smallest anchor (see ssd/ssdlite.py /
-# ssd/retinanet.py), so the synthetic dot lands on a well-matched anchor.
-ARCHITECTURES = {
-    "ssd": {
-        "build_trainable": build_trainable_ssd,
-        "weights": SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-        "epochs": 2,
-    },
-    "retina": {
-        "build_trainable": build_trainable_retina,
-        "weights": RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-        # heads train from scratch even with a pretrained warm start (see
-        # build_trainable_retina), so give it a few more epochs than SSD.
-        "epochs": 3,
-    },
-}
+from modelinhos.zoo import build_trainable_ssd
 
 
 @pytest.fixture
@@ -67,7 +46,7 @@ def data(
         label="dot",
         score=1.0,
     )
-    return [Sample(file_name=file_name, annotations=[annotation])] * 8
+    return [Sample(file_name=file_name, annotations=[annotation])] * 32
 
 
 @pytest.mark.parametrize(
@@ -81,7 +60,7 @@ def data(
         partial(
             build_trainable_ssd,
             weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-            epochs=4,
+            epochs=2,
         ),
     ],
 )
