@@ -130,15 +130,15 @@ def atss_boxes(
 
     # Per pyramid level, the topk anchors closest to each GT centre:
     # [n_candidates, n_obj] flat anchor indices
-    candidates = []
+    candidates_ = []
     start = 0
     for size in sizes:
         _, idx = distances[start : start + size].topk(
             min(topk, size), dim=0, largest=False
         )
-        candidates.append(idx + start)
+        candidates_.append(idx + start)
         start += size
-    candidates = torch.cat(candidates, dim=0)
+    candidates = torch.cat(candidates_, dim=0)
 
     # The adaptive part: each GT gets its own IoU threshold from the
     # statistics of its candidates (std is NaN for a single candidate)
