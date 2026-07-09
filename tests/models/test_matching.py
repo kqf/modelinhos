@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from functools import partial
 
 import pytest
@@ -5,14 +6,14 @@ import torch
 
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import atss_boxes, atss_match, match
-from modelinhos.models.anchors import anchors, level_sizes
+from modelinhos.models.anchors import AnchorConfig, anchors, level_sizes
 from modelinhos.models.ssdlite import build_ssd_loss
 from modelinhos.tasks.standard import PerBatch, PerBatchEncoded
 
-SSDLITE_ANCHOR_CONFIG = {
-    "sizes": [[32, 64], [64, 128], [128, 256]],
-    "steps": [16, 32, 64],
-}
+SSDLITE_ANCHOR_CONFIG = AnchorConfig(
+    sizes=[(32, 64), (64, 128), (128, 256)],
+    steps=[16, 32, 64],
+)
 
 
 @pytest.fixture
@@ -24,12 +25,12 @@ def resolution() -> tuple[int, int]:
 
 @pytest.fixture
 def priors(resolution) -> torch.Tensor:
-    return anchors(resolution, **SSDLITE_ANCHOR_CONFIG, clip=False)
+    return anchors(resolution, **asdict(SSDLITE_ANCHOR_CONFIG), clip=False)
 
 
 @pytest.fixture
 def levels(resolution) -> list[int]:
-    return level_sizes(resolution, **SSDLITE_ANCHOR_CONFIG)
+    return level_sizes(resolution, **asdict(SSDLITE_ANCHOR_CONFIG))
 
 
 @pytest.fixture
@@ -67,12 +68,12 @@ def test_level_sizes_match_anchor_layout():
         for aspect_ratios in [None, (0.5, 1.0, 2.0)]:
             expected = anchors(
                 resolution,
-                **SSDLITE_ANCHOR_CONFIG,
+                **asdict(SSDLITE_ANCHOR_CONFIG),
                 aspect_ratios=aspect_ratios,
             ).shape[0]
             sizes = level_sizes(
                 resolution,
-                **SSDLITE_ANCHOR_CONFIG,
+                **asdict(SSDLITE_ANCHOR_CONFIG),
                 aspect_ratios=aspect_ratios,
             )
             assert sum(sizes) == expected
