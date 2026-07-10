@@ -41,15 +41,13 @@ def _torchvision_label_encoder(
 def build_reference_ssd(
     weights,
     resolution: tuple[int, int],
-    lencoder: Optional[LabelEncoder] = None,
 ) -> Detector:
     """Reference torchvision-native SSDLite, used as a comparison baseline."""
     return TorchvisionDetector(
         build_model=ssdlite320_mobilenet_v3_large,
         resolution=resolution,
         weights=weights,
-        lencoder=lencoder
-        or _torchvision_label_encoder(
+        lencoder=_torchvision_label_encoder(
             weights,
             resolution=(1, 1),
         ),
@@ -59,7 +57,6 @@ def build_reference_ssd(
 def build_reference_retina(
     weights,
     resolution: tuple[int, int],
-    lencoder: Optional[LabelEncoder] = None,
 ) -> Detector:
     """Reference torchvision-native RetinaNet, used as a comparison
     baseline."""
@@ -67,8 +64,7 @@ def build_reference_retina(
         build_model=retinanet_resnet50_fpn_v2,
         resolution=resolution,
         weights=weights,
-        lencoder=lencoder
-        or _torchvision_label_encoder(
+        lencoder=_torchvision_label_encoder(
             weights,
             (1, 1),
         ),
