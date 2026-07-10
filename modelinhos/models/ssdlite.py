@@ -12,7 +12,7 @@ from torchvision.models.detection.ssdlite import (
     mobilenet_v3_large,
 )
 
-from modelinhos.detector import Architecture
+from modelinhos.detector import DetectionRecipe
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match
 from modelinhos.loss.subloss import (
@@ -286,7 +286,7 @@ ssd_normalize = partial(
 )
 
 
-SSDLITE = Architecture(
+SSDLITE = DetectionRecipe(
     build_model=build_ssdlite,
     anchors=ssdlite_anchors,
     loss=build_ssd_loss,
@@ -297,7 +297,7 @@ SSDLITE = Architecture(
 # head shape, for comparing our inference against the reference -- and
 # trainable like any other flavor (mismatch-tolerant loading, so the head
 # can be sized for any label set).
-TORCHVISION_SSDLITE = Architecture(
+TORCHVISION_SSDLITE = DetectionRecipe(
     build_model=build_torchvision_ssdlite,
     anchors=torchvision_ssdlite_anchors,
     loss=build_ssd_loss,

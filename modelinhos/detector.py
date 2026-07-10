@@ -71,7 +71,7 @@ class Detector:
 
 
 @dataclass(frozen=True)
-class Architecture:
+class DetectionRecipe:
     """What defines a model family: how to build the network, its anchors,
     and the loss builder (the loss owns the encode/decode codec). Presets
     live next to their model definitions in modelinhos/models/."""
@@ -84,11 +84,12 @@ class Architecture:
 
 
 def build_detector(
-    arch: Architecture,
+    arch: DetectionRecipe,
     lencoder: SampleEncoder,
     resolution: tuple[int, int],
     train: TrainConfig = TrainConfig(),
     th: float = 0.4,
+    weights: Any = None,
 ) -> Detector:
     """Assemble a Detector from an architecture, a label encoder and the
     training knobs. The classification head is sized from lencoder.l2i,
@@ -107,7 +108,7 @@ def build_detector(
     # MetricCollector in evaluation.py.
     n_classes = max(lencoder.l2i.values()) + 1
     model = arch.build_model(
-        weights=arch.weights,
+        weights=weights,
         resolution=resolution,
         n_classes=n_classes,
     )

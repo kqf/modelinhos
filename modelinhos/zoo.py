@@ -20,7 +20,7 @@ from torchvision.models.detection.retinanet import (
 )
 
 from modelinhos.detector import (
-    Architecture,
+    DetectionRecipe,
     Detector,
     TorchvisionDetector,
     build_detector,
@@ -78,7 +78,7 @@ def build_reference_retina(
 def build_ssd(
     resolution: tuple[int, int],
     lencoder: LabelEncoder,
-    arch: Architecture = TORCHVISION_SSDLITE,
+    arch: DetectionRecipe = TORCHVISION_SSDLITE,
     weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
     epochs: int = 10,
     th: float = 0.4,
@@ -102,7 +102,7 @@ def build_ssd(
 def build_retina(
     resolution: tuple[int, int],
     lencoder: LabelEncoder,
-    arch: Architecture = TORCHVISION_RETINANET,
+    arch: DetectionRecipe = TORCHVISION_RETINANET,
     weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
     epochs: int = 10,
     th: float = 0.4,

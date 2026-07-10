@@ -11,7 +11,7 @@ from torchvision.models.detection.retinanet import (
 from torchvision.models.resnet import ResNet50_Weights, resnet50
 from torchvision.ops import sigmoid_focal_loss
 
-from modelinhos.detector import Architecture
+from modelinhos.detector import DetectionRecipe
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match_all_negatives
 from modelinhos.loss.subloss import (
@@ -189,7 +189,7 @@ def build_ret_loss(
 
 
 # Trainable configuration (sigmoid focal loss, matching the checkpoint).
-RETINANET = Architecture(
+RETINANET = DetectionRecipe(
     build_model=bulid_retinanet,
     anchors=retina_anchors,
     loss=build_ret_loss,
@@ -199,7 +199,7 @@ RETINANET = Architecture(
 # anchors/head shape, for comparing our inference against the reference.
 # Trainable like any other flavor (mismatch-tolerant loading, so the head
 # can be sized for any label set).
-TORCHVISION_RETINANET = Architecture(
+TORCHVISION_RETINANET = DetectionRecipe(
     build_model=build_torchvision_retinanet,
     anchors=torchvision_retina_anchors,
     loss=build_ret_loss,
