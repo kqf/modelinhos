@@ -46,7 +46,7 @@ class SimpleTrainer:
     ):
         self.decode = decode
         self.collate = collate
-        self.label_encoder = label_encoder
+        self.lencoder = label_encoder
         self.loss_fn = loss_fn
         self.metrics_fn = metrics
         self.train_dataloader_builder = train_dataloader_builder
@@ -63,10 +63,10 @@ class SimpleTrainer:
         if self.metrics_fn is None:
             return
 
-        true = self.label_encoder.inverse_transform(
+        true = self.lencoder.inverse_transform(
             self.collate.un_batch(batch),
         )
-        pred = self.label_encoder.inverse_transform(
+        pred = self.lencoder.inverse_transform(
             self.collate.un_batch_nms(self.decode(preds))
         )
         self.metrics_fn(true, pred)

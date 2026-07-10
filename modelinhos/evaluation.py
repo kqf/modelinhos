@@ -127,6 +127,56 @@ def _per_sample_to_df(results: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+class MetricCollector:
+    def __init__(
+        self,
+        l2i: dict[str, int],
+        metric_fn=None,
+        iou_thresholds: list[float] | None = None,
+    ):
+        num_classes = max(l2i.values()) + 1
+
+        self.l2i = l2i
+        self.iou_thresholds = iou_thresholds or [0.5]
+
+        self.metric_fn = metric_fn or MetricBuilder.build_evaluation_metric(
+            "map_2d",
+            async_mode=True,
+            num_classes=num_classes,
+        )
+
+        self.confidences: dict[int, list[float]] = defaultdict(list)
+
+    def __call__(
+        self,
+        y_true: list[Sample],
+        y_pred: list[Sample],
+    ) -> None:
+        if len(y_true) != len(y_pred):
+            raise ValueError(
+                f"y_true and y_pred must have the same length, "
+                f"got {len(y_true)} and {len(y_pred)}"
+            )
+
+        for true_sample, pred_sample in zip(y_true, y_pred):
+            true = _annotations_to_true(true_sample, self.l2i)
+            pred = _annotations_to_pred(pred_sample, self.l2i)
+
+            self.metric_fn.add(pred, true)
+
+            for row in pred:
+                self.confidences[int(row[4])].append(float(row[5]))
+
+    def value(self, *args, **kwargs) -> pd.DataFrame:
+        results = self.metric_fn.value(
+            iou_thresholds=self.iou_thresholds,
+            *args,
+            **kwargs,
+        )
+        results = _attach_thresholds(results, self.confidences)
+        return _map_results_to_df(results)
+
+
 def mean_average_precision(
     y_true: list[Sample],
     y_pred: list[Sample],
@@ -135,31 +185,12 @@ def mean_average_precision(
     *args,
     **kwargs,
 ) -> pd.DataFrame:
-    iou_thresholds = iou_thresholds or [0.5]
-
-    if len(y_true) != len(y_pred):
-        raise ValueError(
-            f"y_true and y_pred must have the same length, "
-            f"got {len(y_true)} and {len(y_pred)}"
-        )
-
-    num_classes = max(l2i.values()) + 1
-    metric_fn = MetricBuilder.build_evaluation_metric(
-        "map_2d", async_mode=True, num_classes=num_classes
+    metric = MetricCollector(
+        l2i=l2i,
+        iou_thresholds=iou_thresholds,
     )
-
-    confidences: dict[int, list[float]] = defaultdict(list)
-    for true_sample, pred_sample in zip(y_true, y_pred):
-        true = _annotations_to_true(true_sample, l2i)
-        pred = _annotations_to_pred(pred_sample, l2i)
-        metric_fn.add(pred, true)
-
-        for row in pred:
-            confidences[int(row[4])].append(float(row[5]))
-
-    results = metric_fn.value(iou_thresholds=iou_thresholds, *args, **kwargs)
-    results = _attach_thresholds(results, confidences)
-    return _map_results_to_df(results)
+    metric(y_true, y_pred)
+    return metric.value(*args, **kwargs)
 
 
 def per_sample_metrics(
@@ -182,7 +213,8 @@ def per_sample_metrics(
         )
         metric_fn.add(pred, true)
         value = metric_fn.value(
-            iou_thresholds=[iou_threshold], mpolicy=mpolicy
+            iou_thresholds=[iou_threshold],
+            mpolicy=mpolicy,
         )
         results.append(
             {
