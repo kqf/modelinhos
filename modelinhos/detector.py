@@ -96,12 +96,16 @@ def build_detector(
     independently (anchors only matter to the loss), and the DetectionLoss
     instance is created exactly once -- it serves both backprop and
     decoding."""
-    n_classes = len(lencoder.l2i)
-    if not n_classes:
+    if not lencoder.l2i:
         raise ValueError(
             "the label encoder has no classes -- fit it before building "
             "the detector (the classification head is sized from l2i)"
         )
+    # max index + 1, not len(): duplicate labels (COCO's "N/A" slots)
+    # collapse in the dict, but the head must still cover every channel
+    # the checkpoint was trained with -- same convention as
+    # MetricCollector in evaluation.py.
+    n_classes = max(lencoder.l2i.values()) + 1
     model = arch.build_model(
         weights=arch.weights,
         resolution=resolution,
