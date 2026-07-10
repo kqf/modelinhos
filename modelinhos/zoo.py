@@ -38,7 +38,7 @@ def _torchvision_label_encoder(
     )
 
 
-def build_inference_only_ssd(
+def build_reference_ssd(
     weights,
     resolution: tuple[int, int],
     lencoder: Optional[LabelEncoder] = None,
@@ -56,7 +56,7 @@ def build_inference_only_ssd(
     )
 
 
-def build_inference_only_retina(
+def build_reference_retina(
     weights,
     resolution: tuple[int, int],
     lencoder: Optional[LabelEncoder] = None,
