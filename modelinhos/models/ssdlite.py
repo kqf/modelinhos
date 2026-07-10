@@ -292,7 +292,6 @@ SSDLITE = DetectionRecipe(
     anchors=ssdlite_anchors,
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(ssd_normalize),
-    reference=torchvision_reference(ssdlite320_mobilenet_v3_large),
 )
 
 # Faithful-to-torchvision configuration: torchvision's own anchors and

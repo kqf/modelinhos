@@ -194,7 +194,6 @@ RETINANET = DetectionRecipe(
     build_model=bulid_retinanet,
     anchors=retina_anchors,
     loss=build_ret_loss,
-    reference=torchvision_reference(retinanet_resnet50_fpn_v2),
 )
 
 # Faithful-to-torchvision configuration -- same loss, torchvision's own
