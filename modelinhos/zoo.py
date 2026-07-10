@@ -8,8 +8,6 @@ Architecture. The build_reference_* baselines are the exception: they wrap
 torchvision-native models verbatim and are inference-only by construction
 (torchvision computes its losses internally)."""
 
-from dataclasses import replace
-
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
     ssdlite320_mobilenet_v3_large,
@@ -91,7 +89,8 @@ def build_ssd(
     pretrained detector exactly. Pass arch=SSDLITE for the trimmed custom
     flavor, weights=None to start from scratch."""
     return build_detector(
-        replace(arch, weights=weights),
+        arch=arch,
+        weights=weights,
         lencoder=lencoder,
         resolution=resolution,
         th=th,
@@ -117,7 +116,8 @@ def build_retina(
     everywhere. Pass arch=RETINANET for the trimmed custom flavor,
     weights=None to start from scratch."""
     return build_detector(
-        replace(arch, weights=weights),
+        arch=arch,
+        weights=weights,
         lencoder=lencoder,
         resolution=resolution,
         th=th,
