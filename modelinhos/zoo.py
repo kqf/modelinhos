@@ -139,7 +139,6 @@ def build_trainable_ssd(
         lencoder=lencoder
         or LabelEncoder(
             resolution=resolution,
-            l2i={"__background__": 0, "dot": 1},
         ),
         resolution=resolution,
         train=TrainConfig(epochs=epochs),

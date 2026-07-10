@@ -60,6 +60,8 @@ def read_samples(
     return samples
 
 
-def save_samples(samples: list[Sample[Annotation]], path: Path) -> None:
+def save_samples(samples: list[Sample[Annotation]], path: Path) -> Path:
+    path.parent.mkdir(exist_ok=True, parents=True)
     with open(path, "w") as f:
         json.dump([sample.to_dict() for sample in samples], f)  # type: ignore
+    return path
