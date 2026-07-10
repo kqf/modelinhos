@@ -78,47 +78,51 @@ def assert_same_sample(preds, expect):
 
 
 @pytest.mark.parametrize(
-    "build_reference, build_custom, weights, tv_expected, md_expected",
+    "resolution, build_reference, build_custom, weights, tv_expected, md_expected",
     [
         pytest.param(
+            (320, 320),
             build_reference_ssd,
             build_ssd,
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-            (
-                Sample(
-                    file_name=Path("fake-file.png"),
-                    annotations=[
-                        Annotation(
-                            bbox=(
-                                481.7032165527344,
-                                225.93629455566406,
-                                597.848388671875,
-                                589.3338623046875,
-                            ),
-                            label="person",
-                            score=0.8167938590049744,
-                        )
-                    ],
-                )
+            Sample(
+                file_name=Path("fake-file.png"),
+                annotations=[
+                    Annotation(
+                        bbox=(
+                            125.99763488769531,
+                            56.866600036621094,
+                            196.1458282470703,
+                            264.6971130371094,
+                        ),
+                        label="person",
+                        score=0.9418545961380005,
+                    )
+                ],
             ),
             Sample(
                 file_name=Path("fake-file.png"),
                 annotations=[
                     Annotation(
                         bbox=(
-                            357.0254,
-                            -50.3667,
-                            712.4014,
-                            814.3435,
+                            125.92370986938477,
+                            54.23077583312988,
+                            195.98981857299805,
+                            263.4918975830078,
                         ),
                         label="person",
-                        score=0.9986,
+                        score=0.8907293081283569,
                     )
                 ],
             ),
             id="ssdlite320_mobilenet_v3_large",
         ),
         pytest.param(
+            # This is magic resolution to avoid additional geometric conversion
+            (
+                800,
+                1088,
+            ),
             build_reference_retina,
             build_retina,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
@@ -167,6 +171,7 @@ def assert_same_sample(preds, expect):
     ],
 )
 def test_weights_match(
+    resolution,
     frame,
     build_reference,
     build_custom,
