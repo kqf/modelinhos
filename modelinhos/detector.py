@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -9,7 +9,7 @@ import torch
 from modelinhos.containers import Collate, to_preds
 from modelinhos.data import SampleDataset
 from modelinhos.loss.loss import DetectionLoss
-from modelinhos.preprocess.image import build_transform, normalize
+from modelinhos.preprocess.image import rgb_normalized_image_encoder
 from modelinhos.preprocess.lables import DoNothingEncoder, SampleEncoder
 from modelinhos.sample import Sample, TrainAnnotation
 from modelinhos.tasks.standard import PerBatchEncoded
@@ -37,35 +37,35 @@ class Detector:
     def __init__(
         self,
         trainer: SimpleTrainer,
-        transforms: Callable,
+        image_encoder: Callable,
         label_encoder: Optional[SampleEncoder] = None,
     ):
         self._trainer = trainer
-        self.transforms = transforms
+        self.image_encoder = image_encoder
         self.label_encoder = label_encoder or DoNothingEncoder()
 
     def fit(
         self, samples: list[Sample], val_samples: Optional[list[Sample]] = None
     ) -> "Detector":
         encoded = self.label_encoder.fit_transform(samples)
-        dataset = SampleDataset(encoded, self.transforms)
+        dataset = SampleDataset(encoded, self.image_encoder)
 
         val_dataset = None
         if val_samples is not None:
             val_encoded = self.label_encoder.transform(val_samples)
-            val_dataset = SampleDataset(val_encoded, self.transforms)
+            val_dataset = SampleDataset(val_encoded, self.image_encoder)
 
         self._trainer.fit(dataset, val_dataset)
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
         encoded = self.label_encoder.transform(samples)
-        dataset = SampleDataset(encoded, self.transforms)
+        dataset = SampleDataset(encoded, self.image_encoder)
         preds = self._trainer.predict(dataset)
         return self.label_encoder.inverse_transform(preds)
 
     def transform_single(self, frame: np.ndarray) -> list[Sample]:
-        blob = self.transforms(frame).unsqueeze(0)
+        blob = self.image_encoder(frame).unsqueeze(0)
         preds = self._trainer.predict_single(blob)
         return self.label_encoder.inverse_transform(preds)
 
@@ -79,7 +79,7 @@ class Architecture:
     build_model: Callable  # (weights, resolution, n_classes) -> nn.Module
     anchors: Callable  # (resolution) -> priors tensor
     loss: Callable  # (priors, score_thresh) -> DetectionLoss
-    normalize: Callable = normalize
+    iencoder: Callable = field(default_factory=rgb_normalized_image_encoder)
     weights: Any = None
 
 
@@ -123,7 +123,7 @@ def build_detector(
     )
     return Detector(
         trainer=trainer,
-        transforms=build_transform(arch.weights, arch.normalize),
+        image_encoder=arch.iencoder,
         label_encoder=lencoder,
     )
 
@@ -186,6 +186,6 @@ class TorchvisionDetector(Detector):
         )
         super().__init__(
             trainer=trainer,
-            transforms=build_transform(weights, lambda x: x),
+            image_encoder=rgb_normalized_image_encoder(lambda x: x),
             label_encoder=lencoder,
         )

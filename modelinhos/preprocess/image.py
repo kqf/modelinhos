@@ -3,7 +3,18 @@ import torch
 import torchvision.transforms as T
 
 
-def build_transform(weights, normalize):
+def normalize(
+    image: torch.Tensor,
+    image_mean=(0.485, 0.456, 0.406),
+    image_std=(0.229, 0.224, 0.225),
+):
+    dtype, device = image.dtype, image.device
+    mean = torch.as_tensor(image_mean, dtype=dtype, device=device)
+    std = torch.as_tensor(image_std, dtype=dtype, device=device)
+    return (image - mean[:, None, None]) / std[:, None, None]
+
+
+def rgb_normalized_image_encoder(normalize=normalize):
     return T.Compose(
         [
             T.Lambda(
@@ -22,18 +33,6 @@ def build_transform(weights, normalize):
                     / 255.0
                 )
             ),
-            weights.transforms(),
             T.Lambda(normalize),
         ]
     )
-
-
-def normalize(
-    image: torch.Tensor,
-    image_mean=(0.485, 0.456, 0.406),
-    image_std=(0.229, 0.224, 0.225),
-):
-    dtype, device = image.dtype, image.device
-    mean = torch.as_tensor(image_mean, dtype=dtype, device=device)
-    std = torch.as_tensor(image_std, dtype=dtype, device=device)
-    return (image - mean[:, None, None]) / std[:, None, None]
