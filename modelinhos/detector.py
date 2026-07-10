@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -11,7 +10,7 @@ from modelinhos.data import SampleDataset
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.preprocess.image import rgb_normalized_image_encoder
 from modelinhos.preprocess.lables import DoNothingEncoder, SampleEncoder
-from modelinhos.sample import Sample, TrainAnnotation
+from modelinhos.sample import Annotation, Sample
 from modelinhos.tasks.standard import PerBatchEncoded
 from modelinhos.trainer.simple import SimpleTrainer, TrainConfig
 
@@ -31,8 +30,8 @@ class DetectionModel(torch.nn.Module):
 class Detector:
     """Thin wrapper around an already-built trainer: converts between
     Sample objects and whatever the trainer's dataset/decode expect.
-    Built exclusively by build_detector()/TorchvisionDetector -- do not
-    construct directly elsewhere."""
+    Built exclusively by build_detector() -- do not construct directly
+    elsewhere."""
 
     def __init__(
         self,
@@ -72,15 +71,24 @@ class Detector:
 
 @dataclass(frozen=True)
 class DetectionRecipe:
-    """What defines a model family: how to build the network, its anchors,
-    and the loss builder (the loss owns the encode/decode codec). Presets
-    live next to their model definitions in modelinhos/models/."""
+    """The internally consistent definition of how detection works for one
+    model family: the anchors must be the ones the loss encodes against,
+    which must match the head layout build_model produces, which must see
+    pixels the way iencoder prepares them. Everything here is fixed before
+    any data is seen; the label space (lencoder) and geometry (resolution)
+    arrive at build_detector() time. Presets live next to their model
+    definitions in modelinhos/models/."""
 
     build_model: Callable  # (weights, resolution, n_classes) -> nn.Module
     anchors: Callable  # (resolution) -> priors tensor
     loss: Callable  # (priors, score_thresh) -> DetectionLoss
+    # BGR uint8 HWC ndarray -> normalized float CHW tensor. Must be a
+    # built encoder, not the rgb_normalized_image_encoder factory itself.
     iencoder: Callable = field(default_factory=rgb_normalized_image_encoder)
-    weights: Any = None
+    # (weights, frames, th) -> list[Sample]: the torchvision-native
+    # upstream this recipe mirrors (see torchvision_reference), used as
+    # the ground truth in parity tests. None when there is no upstream.
+    reference: Optional[Callable] = None
 
 
 def build_detector(
@@ -129,64 +137,50 @@ def build_detector(
     )
 
 
-def torchvision_to_samples(
-    predictions,
-    priors,
-    resolution,
-    score_thresh,
-) -> list[Sample[TrainAnnotation]]:
-    return [
-        Sample(
-            file_name=Path("fake-file.png"),
-            annotations=[
-                TrainAnnotation(
-                    bboxes=tuple(b.tolist()),  # type: ignore
-                    labels=(ll.item(),),
-                    scores=(s.item(),),
-                )
-                for b, s, ll in zip(
-                    pred["boxes"].cpu().numpy(),
-                    pred["scores"].cpu().numpy(),
-                    pred["labels"].cpu().numpy(),
-                )
-                if s > score_thresh
-            ],
-        )
-        for pred in predictions
-    ]
+def torchvision_reference(build_model: Callable) -> Callable:
+    """Wrap a torchvision-native detection model constructor into a plain
+    predict function -- (weights, frames, th) -> list[Sample]. The
+    reference path needs none of the Detector machinery: torchvision
+    models resize and normalize internally (GeneralizedRCNNTransform),
+    work in pixel space end to end, and name their own classes via
+    weights.meta. Used as DetectionRecipe.reference for parity tests."""
+    encode = rgb_normalized_image_encoder(lambda x: x)
 
-
-class TorchvisionDetector(Detector):
-    """Reference detector wrapping a torchvision-native model verbatim, for
-    comparison against our own reimplementations. Inference only -- there is
-    no DetectionLoss here, since torchvision computes its own loss
-    internally and we never train through this path."""
-
-    def __init__(
-        self,
-        build_model: Callable,
-        resolution: tuple[int, int],
-        weights: Any,
-        lencoder: Optional[SampleEncoder] = None,
-        anchors=None,
+    def predict(
+        weights,
+        frames: list[np.ndarray],
         th: float = 0.4,
-    ):
-        trainer = SimpleTrainer(
-            model=build_model(weights=weights),
-            decode=partial(
-                torchvision_to_samples,
-                priors=anchors,
-                resolution=resolution,
-                score_thresh=th,
-            ),
-            collate=Collate(
-                nms=lambda x, pad_value: x,
-                to_samples=lambda x: x,
-            ),
-            label_encoder=lencoder or DoNothingEncoder(),
-        )
-        super().__init__(
-            trainer=trainer,
-            image_encoder=rgb_normalized_image_encoder(lambda x: x),
-            label_encoder=lencoder,
-        )
+        batch_size: int = 8,
+    ) -> list[Sample[Annotation]]:
+        model = build_model(weights=weights)
+        # eval() is load-bearing: torchvision models in train mode demand
+        # targets inside forward() and would raise without them.
+        model.eval()
+        categories = weights.meta["categories"]
+        results: list[Sample[Annotation]] = []
+        with torch.no_grad():
+            for start in range(0, len(frames), batch_size):
+                batch = frames[start : start + batch_size]
+                predictions = model([encode(frame) for frame in batch])
+                results.extend(
+                    Sample(
+                        file_name=Path("fake-file.png"),
+                        annotations=[
+                            Annotation(
+                                bbox=tuple(box.tolist()),  # type: ignore
+                                label=categories[int(label)],
+                                score=float(score),
+                            )
+                            for box, score, label in zip(
+                                pred["boxes"].cpu().numpy(),
+                                pred["scores"].cpu().numpy(),
+                                pred["labels"].cpu().numpy(),
+                            )
+                            if score > th
+                        ],
+                    )
+                    for pred in predictions
+                )
+        return results
+
+    return predict

@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 from torchvision.models.detection import (
     _utils as det_utils,
+    ssdlite320_mobilenet_v3_large,
 )
 from torchvision.models.detection.ssdlite import (
     SSDLiteClassificationHead,
@@ -12,7 +13,7 @@ from torchvision.models.detection.ssdlite import (
     mobilenet_v3_large,
 )
 
-from modelinhos.detector import DetectionRecipe
+from modelinhos.detector import DetectionRecipe, torchvision_reference
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match
 from modelinhos.loss.subloss import (
@@ -291,6 +292,7 @@ SSDLITE = DetectionRecipe(
     anchors=ssdlite_anchors,
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(ssd_normalize),
+    reference=torchvision_reference(ssdlite320_mobilenet_v3_large),
 )
 
 # Faithful-to-torchvision configuration: torchvision's own anchors and
@@ -302,4 +304,5 @@ TORCHVISION_SSDLITE = DetectionRecipe(
     anchors=torchvision_ssdlite_anchors,
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(ssd_normalize),
+    reference=torchvision_reference(ssdlite320_mobilenet_v3_large),
 )

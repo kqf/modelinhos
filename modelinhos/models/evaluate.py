@@ -15,19 +15,13 @@ from modelinhos.evaluation import (
     visualize_fp_fn,
     visualize_pr,
 )
+from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.plot import plot
 from modelinhos.preprocess.lables import SampleEncoder
 from modelinhos.sample import Sample
-from modelinhos.zoo import build_reference_ssd
+from modelinhos.zoo import coco_label_encoder
 
 memory = joblib.Memory("./cachedir", verbose=0)
-
-
-def build_model(
-    resolution: tuple[int, int] = (300, 300),
-    weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-):
-    return build_reference_ssd(weights, resolution)
 
 
 @contextmanager
@@ -45,11 +39,17 @@ def timer(name):
 
 
 @memory.cache()
-def infer(samples: list[Sample]) -> tuple[list[Sample], SampleEncoder]:
-    model = build_model()
+def infer(
+    samples: list[Sample],
+    weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+) -> tuple[list[Sample], SampleEncoder]:
+    frames = [cv2.imread(str(sample.file_name)) for sample in samples]
+    assert TORCHVISION_SSDLITE.reference is not None
     with timer("inference"):
-        y_pred = model.transform(samples)
-    return y_pred, model.label_encoder
+        y_pred = TORCHVISION_SSDLITE.reference(weights, frames)
+    # torchvision-native predictions are in pixel space end to end, so
+    # the encoder is only consulted for its l2i/i2l mappings here.
+    return y_pred, coco_label_encoder(weights, resolution=(1, 1))
 
 
 def main():

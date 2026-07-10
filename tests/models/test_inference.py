@@ -10,16 +10,11 @@ from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
 )
 
-from modelinhos.detector import Detector
+from modelinhos.models.retinanet import TORCHVISION_RETINANET
+from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.plot import plot
 from modelinhos.sample import Annotation, Sample
-from modelinhos.zoo import (
-    build_reference_retina,
-    build_reference_ssd,
-    build_retina,
-    build_ssd,
-    coco_label_encoder,
-)
+from modelinhos.zoo import build_retina, build_ssd, coco_label_encoder
 
 
 def pad(image: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
@@ -55,8 +50,7 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
     return cv2.resize(pad(image, *resolution), resolution[::-1])
 
 
-def _run_detector(detector: Detector, frame, headless: bool) -> Sample:
-    predictions = detector.transform_single(frame)[0]
+def _show(frame, predictions: Sample, headless: bool) -> Sample:
     annotated = plot(frame, predictions)
     # sourcery skip: no-conditionals-in-tests
     if not headless:
@@ -78,11 +72,11 @@ def assert_same_sample(preds, expect):
 
 
 @pytest.mark.parametrize(
-    "resolution, build_reference, build_custom, weights, tv_expected, md_expected",
+    "resolution, arch, build_custom, weights, tv_expected, md_expected",
     [
         pytest.param(
             (320, 320),
-            build_reference_ssd,
+            TORCHVISION_SSDLITE,
             build_ssd,
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             Sample(
@@ -123,7 +117,7 @@ def assert_same_sample(preds, expect):
                 800,
                 1088,
             ),
-            build_reference_retina,
+            TORCHVISION_RETINANET,
             build_retina,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             Sample(
@@ -173,7 +167,7 @@ def assert_same_sample(preds, expect):
 def test_weights_match(
     resolution,
     frame,
-    build_reference,
+    arch,
     build_custom,
     weights,
     tv_expected,
@@ -181,21 +175,16 @@ def test_weights_match(
     headless,
 ):
     shape = frame.shape[:2]
-    tv_preds = _run_detector(
-        build_reference(weights, shape),
-        frame,
-        headless,
-    )
+    assert arch.reference is not None
+    tv_preds = _show(frame, arch.reference(weights, [frame])[0], headless)
     # NB: We accept the difference between Custom and TV
     assert_same_sample(tv_preds, tv_expected)
 
-    md_preds = _run_detector(
-        build_custom(
-            resolution=shape,
-            lencoder=coco_label_encoder(weights, resolution=shape),
-            weights=weights,
-        ),
-        frame,
-        headless,
+    detector = build_custom(
+        resolution=shape,
+        lencoder=coco_label_encoder(weights, resolution=shape),
+        arch=arch,
+        weights=weights,
     )
+    md_preds = _show(frame, detector.transform_single(frame)[0], headless)
     assert_same_sample(md_preds, md_expected)

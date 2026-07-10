@@ -7,11 +7,12 @@ from torchvision.models.detection.retinanet import (
     LastLevelP6P7,
     RetinaNetClassificationHead,
     RetinaNetRegressionHead,
+    retinanet_resnet50_fpn_v2,
 )
 from torchvision.models.resnet import ResNet50_Weights, resnet50
 from torchvision.ops import sigmoid_focal_loss
 
-from modelinhos.detector import DetectionRecipe
+from modelinhos.detector import DetectionRecipe, torchvision_reference
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match_all_negatives
 from modelinhos.loss.subloss import (
@@ -193,6 +194,7 @@ RETINANET = DetectionRecipe(
     build_model=bulid_retinanet,
     anchors=retina_anchors,
     loss=build_ret_loss,
+    reference=torchvision_reference(retinanet_resnet50_fpn_v2),
 )
 
 # Faithful-to-torchvision configuration -- same loss, torchvision's own
@@ -203,4 +205,5 @@ TORCHVISION_RETINANET = DetectionRecipe(
     build_model=build_torchvision_retinanet,
     anchors=torchvision_retina_anchors,
     loss=build_ret_loss,
+    reference=torchvision_reference(retinanet_resnet50_fpn_v2),
 )
