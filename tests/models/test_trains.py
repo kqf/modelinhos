@@ -1,3 +1,7 @@
+import matplotlib
+
+matplotlib.use("Agg")
+
 import pathlib
 from functools import partial
 from typing import Callable
@@ -54,7 +58,6 @@ def data(
 
 @pytest.fixture
 def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
-    # TODO: Save data to that file
     return save_samples(data, tmp_path / "data" / "annotations.json")
 
 
