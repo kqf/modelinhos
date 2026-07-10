@@ -9,10 +9,11 @@ from modelinhos.evaluation import (
     per_sample_metrics,
     visualize_fp_fn,
 )
+from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.plot import plot
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Sample, read_samples
-from modelinhos.zoo import build_trainable_ssd
+from modelinhos.zoo import build_ssd
 
 memory = Memory(location=".cache", verbose=0)
 
@@ -22,7 +23,7 @@ def infer(
     samples: list[Sample],
 ) -> tuple[list[Sample], LabelEncoder]:
     lencoder = LabelEncoder(resolution=resolution).fit(samples)
-    model = build_trainable_ssd(resolution, lencoder=lencoder)
+    model = build_ssd(resolution, lencoder=lencoder, arch=SSDLITE)
     model.fit(samples)
     return model.transform(samples), lencoder
 

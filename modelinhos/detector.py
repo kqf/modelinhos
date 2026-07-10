@@ -89,18 +89,18 @@ def build_detector(
     resolution: tuple[int, int],
     train: TrainConfig = TrainConfig(),
     th: float = 0.4,
-    n_classes: Optional[int] = None,
 ) -> Detector:
     """Assemble a Detector from an architecture, a label encoder and the
-    training knobs. Model and priors are built independently (anchors only
-    matter to the loss), and the DetectionLoss instance is created exactly
-    once -- it serves both backprop and decoding."""
-    if n_classes is None:
-        n_classes = len(lencoder.l2i)
+    training knobs. The classification head is sized from lencoder.l2i,
+    so the encoder must be fit before building. Model and priors are built
+    independently (anchors only matter to the loss), and the DetectionLoss
+    instance is created exactly once -- it serves both backprop and
+    decoding."""
+    n_classes = len(lencoder.l2i)
     if not n_classes:
         raise ValueError(
-            "n_classes resolved to 0 -- pass n_classes explicitly or fit "
-            "the label encoder before building the detector"
+            "the label encoder has no classes -- fit it before building "
+            "the detector (the classification head is sized from l2i)"
         )
     model = arch.build_model(
         weights=arch.weights,

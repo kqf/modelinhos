@@ -166,8 +166,7 @@ def build_torchvision_ssdlite(
         extra=None,
     )
     if weights is not None:
-        model.load_state_dict(weights.get_state_dict())
-    model.eval()
+        model = load_with_mismatch(model, weights.get_state_dict())
     return model
 
 
@@ -290,8 +289,10 @@ SSDLITE = Architecture(
     normalize=ssd_normalize,
 )
 
-# Faithful-to-torchvision configuration, for comparing our inference
-# against the reference implementation.
+# Faithful-to-torchvision configuration: torchvision's own anchors and
+# head shape, for comparing our inference against the reference -- and
+# trainable like any other flavor (mismatch-tolerant loading, so the head
+# can be sized for any label set).
 TORCHVISION_SSDLITE = Architecture(
     build_model=build_torchvision_ssdlite,
     anchors=torchvision_ssdlite_anchors,
