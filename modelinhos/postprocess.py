@@ -54,6 +54,7 @@ class Loss:
     labels: Subloss
 
 
+# TODO: Don't guess by field specs, shift guessing in collate function
 def anno2tensors(annotations: list[TrainAnnotation]) -> PerImage:
     kwargs = {}
     for f in fields(PerImage):
