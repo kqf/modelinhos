@@ -25,11 +25,14 @@ Things to do:
 - [x] Move the redundant parameters to decode
 - [x] Write down the desired flow dataloader -> collate -> encode -> decode -> un_batch -> to_sample
 - [x] Think of the composable pipeline instead of classes ? or vice versa -> class defines how to transform itself
-- [ ] Remove weights being exposed to the outside world in Detector
-- [ ] Add the actuall loss
-- [ ] Make the whole thing train on fake data
-- [ ] Add generalized decode function
-- [ ] Move to_preds to a model wrapper
+- [x] Remove weights being exposed to the outside world in Detector
+- [x] Add the actuall loss
+- [x] Make the whole thing train on fake data
+- [x] Add generalized decode function
+- [x] Move to_preds to a model wrapper
+- [x] Add the BlazeNet inference (anchors parametrization)
+- [x] Implement the BlazeNet tests
+- [ ] Make Detection behave like any classification model
 - [ ] Add the fcos inference
-- [ ] Add the BlazeNet inference (anchors parametrization)
-- [ ] Implement the BlazeNet tests
+- [ ] Sanitize the BlazeNet
+- [ ] Make the BlazeNet a part of a group
