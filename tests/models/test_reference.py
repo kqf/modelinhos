@@ -164,7 +164,7 @@ def assert_same_sample(preds, expect):
         ),
     ],
 )
-def test_weights_match(
+def test_references_match(
     resolution,
     frame,
     arch,
