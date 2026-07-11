@@ -25,11 +25,8 @@ class Detector:
         trainer: Callable = build_trainer(),
         lencoder: SampleEncoder = None,
     ):
-        self.model, self.transforms, self.decode, self.w, collate = (
-            build_model()
-        )
+        self.model, self.transforms, self.decode, self.collate = build_model()
         self.label_encoder = lencoder or DoNothingEncoder()
-        self.collate = collate
         self._trainer = trainer(
             self.model,
             self.decode,
@@ -40,7 +37,7 @@ class Detector:
     def fit(
         self, samples: list[Sample], val_samples: Optional[list[Sample]] = None
     ) -> "Detector":
-        encoded = self.label_encoder.transform(samples)
+        encoded = self.label_encoder.fit_transform(samples)
         dataset = SampleDataset(encoded, self.transforms)
 
         val_dataset = None
@@ -86,11 +83,9 @@ def custom_model(
         DetectionModel(model),
         build_transform(weights, normalize),
         postprocess(
-            resolution=resolution,
             priors=anchors,
             score_thresh=th,
         ),
-        weights,
         Collate(),
     )
 
@@ -111,7 +106,6 @@ def torchvision_model(
             resolution=resolution,
             score_thresh=th,
         ),
-        weights,
         Collate(
             nms=lambda x, pad_value: x,
             to_samples=lambda x: x,
