@@ -1,7 +1,8 @@
 from functools import partial
+from pathlib import Path
 
 import torch
-import torch.nn.functional as F
+import torchvision
 from torchvision.models.detection import (
     _utils as det_utils,
 )
@@ -12,11 +13,9 @@ from torchvision.models.detection.ssdlite import (
     mobilenet_v3_large,
 )
 
-from modelinhos.loss.matching import match
-from modelinhos.loss.subloss import Sublosses, WeightedLoss, sum_normalized
-from modelinhos.postprocess import DetectionLoss
-from modelinhos.preprocess.boxes import encode_boxes
+from modelinhos.preprocess.boxes import decode_boxes
 from modelinhos.preprocess.image import normalize
+from modelinhos.sample import Annotation, Sample
 from modelinhos.ssd.anchors import anchors
 from modelinhos.ssd.load import load_with_mismatch
 
@@ -109,6 +108,82 @@ def ssd_anchors(resolution: tuple[int, int], backbone) -> torch.Tensor:
     )
 
 
+def ssd_postprocess(
+    preds,
+    priors,
+    resolution,
+    score_thresh=0.004,
+    iou_thresh=0.5,
+) -> list[Sample]:
+    raw_deltas, raw_logits = preds
+
+    device = raw_deltas.device
+    priors = priors.to(device)
+
+    boxes = decode_boxes(
+        raw_deltas,
+        priors,
+        resolution,
+        weights=(10.0, 10.0, 5.0, 5.0),
+    )
+
+    scores_all = torch.softmax(raw_logits, dim=-1)
+
+    annotations: list[Annotation] = []
+
+    for b in range(scores_all.shape[0]):
+        boxes_b = boxes[b]
+        scores_b = scores_all[b]
+
+        image_boxes = []
+        image_scores = []
+        image_labels = []
+
+        for cls in range(1, scores_b.shape[1]):  # skip background
+            cls_scores = scores_b[:, cls]
+
+            keep = cls_scores > score_thresh
+            if not keep.any():
+                continue
+
+            image_boxes.append(boxes_b[keep])
+            image_scores.append(cls_scores[keep])
+            image_labels.append(
+                torch.full_like(cls_scores[keep], cls, dtype=torch.int64)
+            )
+
+        if not image_boxes:
+            continue  # just skip empty images
+
+        image_boxes = torch.cat(image_boxes, dim=0)
+        image_scores = torch.cat(image_scores, dim=0)
+        image_labels = torch.cat(image_labels, dim=0)
+
+        keep = torchvision.ops.batched_nms(
+            image_boxes, image_scores, image_labels, iou_thresh
+        )
+
+        # convert to Annotation objects
+        annotations.extend(
+            Annotation(
+                bboxes=tuple(bbox.cpu().numpy().tolist()),  # type: ignore
+                scores=score.cpu().numpy().item(),
+                labels=label.cpu().numpy().item(),
+            )
+            for bbox, score, label in zip(
+                image_boxes[keep],
+                image_scores[keep],
+                image_labels[keep],
+            )
+        )
+    return [
+        Sample(
+            file_name=Path("fake-file.png"),
+            annotations=list(annotations),
+        )
+    ]
+
+
 ssd_normalize = partial(
     normalize,
     image_mean=(0.5, 0.5, 0.5),
@@ -153,33 +228,3 @@ def build_ssdlite(
     if weights is not None:
         model = load_with_mismatch(model, weights.get_state_dict())
     return model, priors
-
-
-# weights for encoding/decoding box regression targets, same convention
-# as torchvision's SSD (see postprocess.ssd_postprocess)
-ssd_box_weights = (10.0, 10.0, 5.0, 5.0)
-
-
-def build_ssd_loss(
-    priors: torch.Tensor,
-    negpos_ratio: int = 7,
-    overlap: float = 0.35,
-) -> DetectionLoss:
-    sublosses = Sublosses(
-        bboxes=WeightedLoss(
-            loss=sum_normalized(partial(F.smooth_l1_loss, reduction="sum")),
-            enc_true=partial(encode_boxes, weights=ssd_box_weights),
-        ),
-        # scores are derived from the same logits as labels at decode
-        # time, there is nothing to train here
-        scores=WeightedLoss(loss=None),
-        labels=WeightedLoss(
-            loss=sum_normalized(partial(F.cross_entropy, reduction="sum")),
-            needs_negatives=True,
-        ),
-    )
-    return DetectionLoss(
-        priors=priors,
-        sublosses=sublosses,
-        match=partial(match, negpos_ratio=negpos_ratio, overalp=overlap),
-    )
