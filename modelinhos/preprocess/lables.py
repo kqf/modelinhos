@@ -13,6 +13,9 @@ class SampleEncoder(Protocol):
     l2i: dict[str, int]
     i2l: dict[int, str]
 
+    @property
+    def n_classes(self) -> int: ...
+
     def fit_transform(self, samples: list[Sample]) -> list[Sample]: ...
 
     def transform(self, samples: list[Sample]) -> list[Sample]: ...
@@ -58,6 +61,21 @@ class LabelEncoder:
             )
             self.l2i.update(self.l2i_background)
             self.i2l[0] = background
+
+    @property
+    def n_classes(self) -> int:
+        """Classification head size: max index + 1, not len() --
+        duplicate labels (COCO's "N/A" slots) collapse in the dict, but
+        the head must still cover every channel the checkpoint was
+        trained with. Same convention as MetricCollector in
+        evaluation.py."""
+        if not self.l2i:
+            raise ValueError(
+                "the label encoder has no classes -- fit it (or provide "
+                "l2i) before asking for n_classes; the classification "
+                "head is sized from it"
+            )
+        return max(self.l2i.values()) + 1
 
     def fit(self, samples: list[Sample[Annotation]]) -> "LabelEncoder":
         if self.l2i:
@@ -128,6 +146,7 @@ class LabelEncoder:
 class DoNothingEncoder:
     l2i: dict[str, int] = {}
     i2l: dict[int, str] = {}
+    n_classes: int = 0
 
     def fit_transform(self, samples: list[Sample]) -> list[Sample]:
         return samples

@@ -7,12 +7,12 @@ import torch
 
 from modelinhos.containers import Collate, to_preds
 from modelinhos.data import SampleDataset
+from modelinhos.engine import Engine
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.preprocess.image import rgb_normalized_image_encoder
 from modelinhos.preprocess.lables import DoNothingEncoder, SampleEncoder
 from modelinhos.sample import Annotation, Sample
 from modelinhos.tasks.standard import PerBatchEncoded
-from modelinhos.trainer.simple import SimpleTrainer, TrainConfig
 
 
 class DetectionModel(torch.nn.Module):
@@ -28,18 +28,18 @@ class DetectionModel(torch.nn.Module):
 
 
 class Detector:
-    """Thin wrapper around an already-built trainer: converts between
-    Sample objects and whatever the trainer's dataset/decode expect.
-    Built exclusively by build_detector() -- do not construct directly
-    elsewhere."""
+    """The stable public API: samples in, samples out, regardless of
+    which model family or training engine sits behind it. Converts
+    between Sample objects (pixel space, string labels) and whatever
+    the engine's dataset/decode expect. Compose via build_detector()."""
 
     def __init__(
         self,
-        trainer: SimpleTrainer,
+        engine: Engine,
         image_encoder: Callable,
         label_encoder: Optional[SampleEncoder] = None,
     ):
-        self._trainer = trainer
+        self._engine = engine
         self.image_encoder = image_encoder
         self.label_encoder = label_encoder or DoNothingEncoder()
 
@@ -54,19 +54,32 @@ class Detector:
             val_encoded = self.label_encoder.transform(val_samples)
             val_dataset = SampleDataset(val_encoded, self.image_encoder)
 
-        self._trainer.fit(dataset, val_dataset)
+        self._engine.fit(dataset, val_dataset)
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
         encoded = self.label_encoder.transform(samples)
         dataset = SampleDataset(encoded, self.image_encoder)
-        preds = self._trainer.predict(dataset)
+        preds = self._engine.predict(dataset)
         return self.label_encoder.inverse_transform(preds)
 
     def transform_single(self, frame: np.ndarray) -> list[Sample]:
         blob = self.image_encoder(frame).unsqueeze(0)
-        preds = self._trainer.predict_single(blob)
+        preds = self._engine.predict_single(blob)
         return self.label_encoder.inverse_transform(preds)
+
+
+@dataclass(frozen=True)
+class Baked:
+    """What a recipe produces once the label space and geometry are
+    known: the framework-agnostic, tensor-level pieces every training
+    engine consumes. The loss owns the codec -- decoding raw model
+    output is loss.decode."""
+
+    model: torch.nn.Module
+    loss: DetectionLoss
+    collate: Collate
+    iencoder: Callable
 
 
 @dataclass(frozen=True)
@@ -75,8 +88,8 @@ class DetectionRecipe:
     model family: the anchors must be the ones the loss encodes against,
     which must match the head layout build_model produces, which must see
     pixels the way iencoder prepares them. Everything here is fixed before
-    any data is seen; the label space (lencoder) and geometry (resolution)
-    arrive at build_detector() time. Presets live next to their model
+    any data is seen; the label space (n_classes) and geometry
+    (resolution) arrive at bake() time. Presets live next to their model
     definitions in modelinhos/models/."""
 
     build_model: Callable  # (weights, resolution, n_classes) -> nn.Module
@@ -90,49 +103,56 @@ class DetectionRecipe:
     # the ground truth in parity tests. None when there is no upstream.
     reference: Optional[Callable] = None
 
+    def bake(
+        self,
+        n_classes: int,
+        resolution: tuple[int, int],
+        weights: Any = None,
+        th: float = 0.4,
+    ) -> Baked:
+        """Tie the pieces together for one label space and geometry.
+        Model and priors are built independently (anchors only matter to
+        the loss), and the DetectionLoss instance is created exactly
+        once -- it serves both backprop and decoding."""
+        model = self.build_model(
+            weights=weights,
+            resolution=resolution,
+            n_classes=n_classes,
+        )
+        priors = self.anchors(resolution)
+        loss: DetectionLoss = self.loss(priors=priors, score_thresh=th)
+        return Baked(
+            model=DetectionModel(model),
+            loss=loss,
+            collate=Collate(),
+            iencoder=self.iencoder,
+        )
+
+
+EngineBuilder = Callable[[Baked], Engine]
+
 
 def build_detector(
     arch: DetectionRecipe,
     lencoder: SampleEncoder,
     resolution: tuple[int, int],
-    train: TrainConfig = TrainConfig(),
+    engine: EngineBuilder,
     th: float = 0.4,
     weights: Any = None,
 ) -> Detector:
-    """Assemble a Detector from an architecture, a label encoder and the
-    training knobs. The classification head is sized from lencoder.l2i,
-    so the encoder must be fit before building. Model and priors are built
-    independently (anchors only matter to the loss), and the DetectionLoss
-    instance is created exactly once -- it serves both backprop and
-    decoding."""
-    if not lencoder.l2i:
-        raise ValueError(
-            "the label encoder has no classes -- fit it before building "
-            "the detector (the classification head is sized from l2i)"
-        )
-    # max index + 1, not len(): duplicate labels (COCO's "N/A" slots)
-    # collapse in the dict, but the head must still cover every channel
-    # the checkpoint was trained with -- same convention as
-    # MetricCollector in evaluation.py.
-    n_classes = max(lencoder.l2i.values()) + 1
-    model = arch.build_model(
-        weights=weights,
+    """Compose the three independent choices -- architecture (recipe),
+    label space (lencoder) and training backend (engine) -- into a
+    Detector. The classification head is sized from lencoder.n_classes,
+    so the encoder must be fit before building."""
+    baked = arch.bake(
+        n_classes=lencoder.n_classes,
         resolution=resolution,
-        n_classes=n_classes,
-    )
-    priors = arch.anchors(resolution)
-    loss_fn: DetectionLoss = arch.loss(priors=priors, score_thresh=th)
-    trainer = SimpleTrainer(
-        model=DetectionModel(model),
-        decode=loss_fn.decode,
-        collate=Collate(),
-        label_encoder=lencoder,
-        loss_fn=loss_fn,
-        config=train,
+        weights=weights,
+        th=th,
     )
     return Detector(
-        trainer=trainer,
-        image_encoder=arch.iencoder,
+        engine=engine(baked),
+        image_encoder=baked.iencoder,
         label_encoder=lencoder,
     )
 
