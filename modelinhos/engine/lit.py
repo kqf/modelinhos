@@ -131,12 +131,17 @@ def lightning_engine(
     max_epochs: int = 1,
     lr: float = 1e-3,
     batch_size: int = 2,
+    num_workers: int = 0,
     optimizer_builder: Callable = default_optimizer_builder,
+    train_dataloader_builder: Optional[DLBuilder] = None,
+    valid_dataloader_builder: Optional[DLBuilder] = None,
     trainer_kwargs: Optional[dict] = None,
 ) -> Callable[[Baked], LightningEngine]:
     """Baked -> LightningEngine builder for build_detector(engine=...).
-    trainer_kwargs are merged over the quiet defaults (no logger, no
-    checkpointing)."""
+    batch_size/num_workers cover the common case (same vocabulary as the
+    other engines); pass a *_dataloader_builder to take over loader
+    construction entirely -- it wins over the knobs. trainer_kwargs are
+    merged over the quiet defaults (no logger, no checkpointing)."""
 
     def build(baked: Baked) -> LightningEngine:
         return LightningEngine(
@@ -148,14 +153,18 @@ def lightning_engine(
             ),
             decode=baked.loss.decode,
             collate=baked.collate,
-            train_dataloader_builder=partial(
+            train_dataloader_builder=train_dataloader_builder
+            or partial(
                 default_dataloader_builder,
                 shuffle=True,
                 batch_size=batch_size,
+                num_workers=num_workers,
             ),
-            valid_dataloader_builder=partial(
+            valid_dataloader_builder=valid_dataloader_builder
+            or partial(
                 default_dataloader_builder,
                 batch_size=batch_size,
+                num_workers=num_workers,
             ),
             trainer_kwargs={
                 "max_epochs": max_epochs,

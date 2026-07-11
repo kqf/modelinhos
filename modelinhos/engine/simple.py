@@ -23,11 +23,12 @@ def default_dataloader_builder(
     collate_fn,
     shuffle: bool = False,
     batch_size: int = 2,
+    num_workers: int = 0,
 ) -> torch.utils.data.DataLoader:
     return torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
-        num_workers=0,
+        num_workers=num_workers,
         collate_fn=collate_fn,
         shuffle=shuffle,
     )
@@ -141,9 +142,16 @@ class SimpleTrainer:
 def simple_engine(
     max_epochs: int = 1,
     lr: float = 1e-3,
+    batch_size: int = 2,
+    num_workers: int = 0,
+    train_dataloader_builder: Optional[DLBuilder] = None,
+    valid_dataloader_builder: Optional[DLBuilder] = None,
     **knobs,
 ) -> Callable[[Baked], SimpleTrainer]:
-    """Baked -> SimpleTrainer builder for build_detector(engine=...)."""
+    """Baked -> SimpleTrainer builder for build_detector(engine=...).
+    batch_size/num_workers cover the common case (same vocabulary as the
+    other engines); pass a *_dataloader_builder to take over loader
+    construction entirely -- it wins over the knobs."""
 
     def build(baked: Baked) -> SimpleTrainer:
         return SimpleTrainer(
@@ -153,6 +161,19 @@ def simple_engine(
             collate=baked.collate,
             max_epochs=max_epochs,
             lr=lr,
+            train_dataloader_builder=train_dataloader_builder
+            or partial(
+                default_dataloader_builder,
+                shuffle=True,
+                batch_size=batch_size,
+                num_workers=num_workers,
+            ),
+            valid_dataloader_builder=valid_dataloader_builder
+            or partial(
+                default_dataloader_builder,
+                batch_size=batch_size,
+                num_workers=num_workers,
+            ),
             **knobs,
         )
 

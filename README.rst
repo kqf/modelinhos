@@ -71,7 +71,7 @@ Usage
         (480, 640),
         lencoder=lencoder,
         arch=SSDLITE,
-        engine=simple_engine(epochs=10),
+        engine=simple_engine(max_epochs=10, batch_size=16, num_workers=8),
     )
     detector.fit(samples)
     predictions = detector.transform(samples)
@@ -88,8 +88,14 @@ modelinhos[skorch]`` / ``modelinhos[lightning]``):
         (480, 640),
         lencoder=lencoder,
         arch=SSDLITE,
-        engine=skorch_engine(max_epochs=10, lr=1e-3),
+        engine=skorch_engine(max_epochs=10, batch_size=16, num_workers=8),
     )
+
+Every engine builder speaks the same common vocabulary (``max_epochs``,
+``lr``, ``batch_size``, ``num_workers``); anything beyond that is passed
+in the framework's own idiom (``iterator_train__*`` for skorch,
+``trainer_kwargs`` for lightning, ``*_dataloader_builder`` callables for
+full control over loader construction).
 
 ``tests/models/test_trains.py`` runs this exact pipeline for every
 model family crossed with every engine -- it is the reference example

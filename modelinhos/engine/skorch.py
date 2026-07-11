@@ -80,12 +80,15 @@ def skorch_engine(
     max_epochs: int = 1,
     lr: float = 1e-3,
     batch_size: int = 2,
+    num_workers: int = 0,
     optimizer=torch.optim.Adam,
     **net_kwargs,
 ) -> Callable[[Baked], SkorchEngine]:
     """Baked -> SkorchEngine builder for build_detector(engine=...).
-    Any extra net_kwargs go straight to DetectionNet (callbacks,
-    iterator_train__shuffle, device, ...)."""
+    batch_size/num_workers cover the common case (same vocabulary as the
+    other engines); any extra net_kwargs go straight to DetectionNet in
+    skorch's own vocabulary (callbacks, iterator_train__shuffle, device,
+    ...) and win over the knobs."""
 
     def build(baked: Baked) -> SkorchEngine:
         return SkorchEngine(
@@ -93,16 +96,20 @@ def skorch_engine(
                 module=baked.model,
                 criterion=baked.loss,
                 collate=baked.collate,
-                max_epochs=max_epochs,
-                lr=lr,
-                batch_size=batch_size,
-                optimizer=optimizer,
                 # base NeuralNet defaults to ValidSplit(5); our val split
                 # arrives via fit(val_dataset) as a predefined_split
                 train_split=None,
-                iterator_train__collate_fn=baked.collate.collate,
-                iterator_valid__collate_fn=baked.collate.collate,
-                **net_kwargs,
+                **{
+                    "max_epochs": max_epochs,
+                    "lr": lr,
+                    "batch_size": batch_size,
+                    "optimizer": optimizer,
+                    "iterator_train__collate_fn": baked.collate.collate,
+                    "iterator_valid__collate_fn": baked.collate.collate,
+                    "iterator_train__num_workers": num_workers,
+                    "iterator_valid__num_workers": num_workers,
+                    **net_kwargs,
+                },
             )
         )
 
