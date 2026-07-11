@@ -93,7 +93,7 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
 @pytest.mark.parametrize(
     "engine",
     [
-        pytest.param(simple_engine(epochs=1), id="simple"),
+        pytest.param(simple_engine(max_epochs=1), id="simple"),
         pytest.param(skorch_engine(max_epochs=1), id="skorch"),
         pytest.param(lightning_engine(max_epochs=1), id="lightning"),
     ],

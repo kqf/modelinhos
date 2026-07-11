@@ -46,7 +46,7 @@ def build_ssd(
     lencoder: LabelEncoder,
     arch: DetectionRecipe = TORCHVISION_SSDLITE,
     weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-    engine: EngineBuilder = simple_engine(epochs=10),
+    engine: EngineBuilder = simple_engine(max_epochs=10),
     th: float = 0.4,
 ) -> Detector:
     """Our SSD reimplementation. lencoder must be fit: the classification
@@ -73,7 +73,7 @@ def build_retina(
     lencoder: LabelEncoder,
     arch: DetectionRecipe = TORCHVISION_RETINANET,
     weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-    engine: EngineBuilder = simple_engine(epochs=10),
+    engine: EngineBuilder = simple_engine(max_epochs=10),
     th: float = 0.4,
 ) -> Detector:
     """Our RetinaNet reimplementation. Same contract as build_ssd:
