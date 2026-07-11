@@ -10,7 +10,9 @@ import cv2
 import numpy as np
 import pytest
 
+from modelinhos.engine.lit import lightning_engine
 from modelinhos.engine.simple import simple_engine
+from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
@@ -21,24 +23,6 @@ from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Annotation, Sample, read_samples, save_samples
 from modelinhos.zoo import build_retina, build_ssd
-
-
-def _simple():
-    return simple_engine(epochs=1)
-
-
-def _skorch():
-    pytest.importorskip("skorch")
-    from modelinhos.engine.skorch import skorch_engine
-
-    return skorch_engine(max_epochs=1)
-
-
-def _lightning():
-    pytest.importorskip("lightning")
-    from modelinhos.engine.lit import lightning_engine
-
-    return lightning_engine(max_epochs=1)
 
 
 @pytest.fixture
@@ -109,9 +93,9 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
 @pytest.mark.parametrize(
     "engine",
     [
-        pytest.param(_simple, id="simple"),
-        pytest.param(_skorch, id="skorch"),
-        pytest.param(_lightning, id="lightning"),
+        pytest.param(simple_engine(epochs=1), id="simple"),
+        pytest.param(skorch_engine(max_epochs=1), id="skorch"),
+        pytest.param(lightning_engine(max_epochs=1), id="lightning"),
     ],
 )
 def test_pipeline(
@@ -132,7 +116,7 @@ def test_pipeline(
     model = build_model(
         resolution=resolution,
         lencoder=lencoder,
-        engine=engine(),
+        engine=engine,
     )
     model.fit(data)
     y_pred = model.transform(data)

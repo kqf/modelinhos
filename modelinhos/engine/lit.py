@@ -12,7 +12,13 @@ import torch
 try:
     import lightning.pytorch as pl
 except ImportError:  # older installs use the standalone package name
-    import pytorch_lightning as pl
+    try:
+        import pytorch_lightning as pl
+    except ImportError as e:
+        raise ImportError(
+            "the lightning engine needs lightning installed -- "
+            "pip install modelinhos[lightning]"
+        ) from e
 
 from modelinhos.detector import Baked
 from modelinhos.engine.simple import (

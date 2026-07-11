@@ -10,8 +10,15 @@ criterion_.decode. Importing this module requires skorch
 from typing import Callable
 
 import torch
-from skorch import NeuralNet
-from skorch.helper import predefined_split
+
+try:
+    from skorch import NeuralNet
+    from skorch.helper import predefined_split
+except ImportError as e:
+    raise ImportError(
+        "the skorch engine needs skorch installed -- "
+        "pip install modelinhos[skorch]"
+    ) from e
 
 from modelinhos.containers import Collate
 from modelinhos.detector import Baked
