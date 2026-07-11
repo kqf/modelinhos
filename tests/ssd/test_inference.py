@@ -99,9 +99,9 @@ def assert_same_sample(preds, expect):
     assert len(preds.annotations) == len(expect.annotations)
 
     for tv, md in zip(preds.annotations, expect.annotations):
-        assert tv.label == md.label
-        assert tv.score == pytest.approx(md.score, 1e-4)
-        for x1, x2 in zip(tv.bbox, md.bbox):
+        assert tv.labels == md.labels
+        assert tv.scores == pytest.approx(md.scores, 1e-4)
+        for x1, x2 in zip(tv.bboxes, md.bboxes):
             assert x1 == pytest.approx(x2, abs=0.01)
 
 
@@ -125,14 +125,14 @@ def assert_same_sample(preds, expect):
                     file_name=Path("fake-file.png"),
                     annotations=[
                         Annotation(
-                            bbox=(
+                            bboxes=(
                                 481.7032165527344,
                                 225.93629455566406,
                                 597.848388671875,
                                 589.3338623046875,
                             ),
-                            label="person",
-                            score=0.8167938590049744,
+                            labels="person",
+                            scores=0.8167938590049744,
                         )
                     ],
                 )
@@ -141,14 +141,14 @@ def assert_same_sample(preds, expect):
                 file_name=Path("fake-file.png"),
                 annotations=[
                     Annotation(
-                        bbox=(
+                        bboxes=(
                             357.0254,
                             -50.3667,
                             712.4014,
                             814.3435,
                         ),
-                        label="person",
-                        score=0.9986,
+                        labels="person",
+                        scores=0.9986,
                     )
                 ],
             ),
@@ -168,24 +168,24 @@ def assert_same_sample(preds, expect):
                 file_name=Path("fake-file.png"),
                 annotations=[
                     Annotation(
-                        bbox=(
+                        bboxes=(
                             488.3135681152344,
                             227.34669494628906,
                             597.8914184570312,
                             575.18212890625,
                         ),
-                        label="person",
-                        score=0.9937841892242432,
+                        labels="person",
+                        scores=0.9937841892242432,
                     ),
                     Annotation(
-                        bbox=(
+                        bboxes=(
                             531.1905517578125,
                             289.6827392578125,
                             542.9974365234375,
                             329.750732421875,
                         ),
-                        label="tie",
-                        score=0.6264503002166748,
+                        labels="tie",
+                        scores=0.6264503002166748,
                     ),
                 ],
             ),
@@ -193,14 +193,14 @@ def assert_same_sample(preds, expect):
                 file_name=Path("fake-file.png"),
                 annotations=[
                     Annotation(
-                        bbox=(
+                        bboxes=(
                             491.05938720703125,
                             230.8584747314453,
                             593.6303100585938,
                             572.8419189453125,
                         ),
-                        label="person",
-                        score=0.9877095222473145,
+                        labels="person",
+                        scores=0.9877095222473145,
                     )
                 ],
             ),
