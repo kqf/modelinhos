@@ -56,7 +56,6 @@ dependencies = [
     "tqdm",
     "requests",
     "matplotlib",
-    "dadinhos",
     "joblib"
 ]
 readme = { file = "README.rst", content-type = "text/x-rst" }

@@ -3,8 +3,6 @@ from typing import Callable, Optional
 import torch
 import tqdm
 
-from modelinhos.evaluation import MetricCollector
-
 DLBuilder = Callable[
     [torch.utils.data.Dataset, Callable],
     torch.utils.data.DataLoader,
@@ -49,7 +47,8 @@ class SimpleTrainer:
         self.decode = decode
         self.collate = collate
         self.lencoder = label_encoder
-        self.metrics_fn = metrics or MetricCollector
+        self.loss_fn = loss_fn
+        self.metrics_fn = metrics
         self.train_dataloader_builder = train_dataloader_builder
         self.valid_dataloader_builder = valid_dataloader_builder
         self.epochs = epochs
@@ -58,78 +57,58 @@ class SimpleTrainer:
             device or ("cuda" if torch.cuda.is_available() else "cpu")
         )
         self.model = model.to(self.device)
-        # loss_fn may register buffers (e.g. DetectionLoss.priors) that need
-        # to live on the same device as the model/data; plain callables
-        # (e.g. the `print` default) have no `.to()` to call.
-        self.loss_fn = (
-            loss_fn.to(self.device)
-            if isinstance(loss_fn, torch.nn.Module)
-            else loss_fn
-        )
         self.optimizer = optimizer_builder(self.model.parameters(), lr)
 
-    def _score(self, metric_fn, batch, preds):
+    def _score(self, batch, preds):
+        if self.metrics_fn is None:
+            return
+
         true = self.lencoder.inverse_transform(
             self.collate.un_batch(batch),
         )
         pred = self.lencoder.inverse_transform(
             self.collate.un_batch_nms(self.decode(preds))
         )
-        metric_fn(true, pred)
+        self.metrics_fn(true, pred)
 
     def fit(self, dataset, val_dataset=None) -> "SimpleTrainer":
         loader = self.train_dataloader_builder(dataset, self.collate.collate)
 
-        for epoch in range(self.epochs):
+        for _ in range(self.epochs):
             self.model.train()
-            trainm = self.metrics_fn(self.lencoder.l2i)
-            epoch_loss, n_batches = 0.0, 0
-            for images, batch in tqdm.tqdm(loader, desc=f"Epoch {epoch}"):
+            for images, targets in tqdm.tqdm(loader):
                 images = images.to(self.device)
-                batch = batch.to(self.device)
                 preds = self.model(images)
-                loss = self.loss_fn(batch, preds)
-                loss = loss["loss"] if isinstance(loss, dict) else loss
-                print(loss)
+                loss = self.loss_fn(targets, preds)
 
                 self.optimizer.zero_grad()
                 if torch.is_tensor(loss):
                     loss.backward()
                     self.optimizer.step()
-                    epoch_loss += loss.item()
-                    n_batches += 1
 
-                self._score(trainm, batch, preds)
+                self._score(targets, preds)
 
-            if n_batches:
-                print(f"Epoch {epoch}, train loss: {epoch_loss / n_batches}")
-            print(f"Epoch {epoch}, train mAP: {trainm.value().iloc[0]['mAP']}")
-
-            if val_dataset is None:
-                continue
-            validm = self.metrics_fn(self.lencoder.l2i)
-            self._validate(validm, val_dataset)
-            print(f"Epoch {epoch}, valid mAP: {validm.value().iloc[0]['mAP']}")
+            if val_dataset is not None:
+                self._validate(val_dataset)
 
         return self
 
-    def _validate(self, metrics_fn, dataset) -> None:
+    def _validate(self, dataset) -> None:
         loader = self.valid_dataloader_builder(dataset, self.collate.collate)
         self.model.eval()
         with torch.no_grad():
-            for images, batch in tqdm.tqdm(loader, desc="Validation"):
+            for images, targets in tqdm.tqdm(loader):
                 images = images.to(self.device)
-                batch = batch.to(self.device)
                 preds = self.model(images)
-                self.loss_fn(batch, preds)
-                self._score(metrics_fn, batch, preds)
+                self.loss_fn(targets, preds)
+                self._score(targets, preds)
 
     def predict(self, dataset) -> list:
         loader = self.valid_dataloader_builder(dataset, self.collate.collate)
         self.model.eval()
         results = []
         with torch.no_grad():
-            for images, _ in tqdm.tqdm(loader, desc="Prediction"):
+            for images, _ in tqdm.tqdm(loader):
                 images = images.to(self.device)
                 results.extend(
                     self.collate.un_batch_nms(self.decode(self.model(images)))
