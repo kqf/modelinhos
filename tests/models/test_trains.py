@@ -50,7 +50,7 @@ def data(
     cv2.imwrite(str(file_name), image)
 
     annotation = Annotation(
-        bbox=(float(x1), float(y1), float(x2), float(y2)),
+        bbox=(float(x1) / w, float(y1) / h, float(x2) / w, float(y2) / h),
         label="dot",
         score=1.0,
     )
@@ -110,7 +110,6 @@ def test_pipeline(
     # encoder must be fit BEFORE building: the classification head is
     # sized from lencoder.n_classes at construction time.
     lencoder = LabelEncoder(
-        resolution=resolution,
         l2i={"__background__": 0, "dot": 1},
     ).fit(data)
     model = build_model(
@@ -120,10 +119,20 @@ def test_pipeline(
     )
     model.fit(data)
     y_pred = model.transform(data)
-    m_ap = mean_average_precision(data, y_pred, model.label_encoder.l2i)
+    m_ap = mean_average_precision(
+        data,
+        y_pred,
+        model.label_encoder.l2i,
+        resolution=resolution,
+    )
     assert m_ap["mAP"].iloc[0] == pytest.approx(1.0)
 
-    aps = per_sample_metrics(data, y_pred, l2i=model.label_encoder.l2i)
+    aps = per_sample_metrics(
+        data,
+        y_pred,
+        l2i=model.label_encoder.l2i,
+        resolution=resolution,
+    )
     assert len(aps) == len(data)
 
     assert aps.iloc[0]["mAP"] == pytest.approx(1.0)
