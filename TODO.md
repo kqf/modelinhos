@@ -32,6 +32,14 @@ Things to do:
 - [x] Move to_preds to a model wrapper
 - [x] Add the BlazeNet inference (anchors parametrization)
 - [x] Implement the BlazeNet tests
+- [ ] Switch the mAP backend to geometric IoU (torchmetrics'
+      MeanAveragePrecision or an in-house AP over torchvision box_iou):
+      the mean_average_precision package uses the VOC inclusive-pixel
+      (+1) IoU convention, which is why evaluation currently needs a
+      `resolution` parameter and inflates IoU for small objects (~1/size
+      per dimension). After the switch, evaluate directly on relative
+      coordinates and drop `resolution` except for pixel-denominated
+      breakdowns (area buckets, sub-Npx diagnostics).
 - [ ] Make Detection behave like any classification model
 - [ ] Add the fcos inference
 - [ ] Sanitize the BlazeNet

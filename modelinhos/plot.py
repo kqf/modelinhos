@@ -81,9 +81,14 @@ def plot(
     sample: Sample,
     plot_label: LPLOT = plot_label_bottom_right,
 ) -> np.ndarray:
+    # Samples carry relative bboxes; the frame in hand supplies the
+    # pixel space (plot_label stays pixel-space).
+    h, w = image_bgr.shape[:2]
     for ann in sample.annotations:
-        x1, y1, x2, y2 = (int(v) for v in ann.bbox)
+        rx1, ry1, rx2, ry2 = ann.bbox
+        bbox = (rx1 * w, ry1 * h, rx2 * w, ry2 * h)
+        x1, y1, x2, y2 = (int(v) for v in bbox)
         cv2.rectangle(image_bgr, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        image_bgr = plot_label(image_bgr, ann.label, ann.bbox)
+        image_bgr = plot_label(image_bgr, ann.label, bbox)
 
     return image_bgr

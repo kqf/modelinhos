@@ -1,6 +1,8 @@
 """Train the pure-SSD flavor on the misc drone dataset: background vs a
 single collapsed "object" class (people, cars, buses, ...). All images
 are 480p, trained and deployed at 480x640 -- no resizing anywhere.
+Annotations must be in relative coordinates ([0, 1] fractions of the
+image size) -- read_samples rejects pixel-space boxes.
 
 Everything is stock building blocks wired together: skorch engine,
 EpochScoring computes validation mAP each epoch, Checkpoint keeps the
@@ -70,14 +72,15 @@ def main(
     print(f"train: {len(train)} samples, val: {len(val)} samples")
 
     lencoder = LabelEncoder(
-        resolution=resolution,
         l2i={"__background__": 0, "object": 1},
     )
 
     def val_map(net, X, y=None) -> float:
         y_pred = lencoder.inverse_transform(net.predict(X))
         y_true = lencoder.inverse_transform(X.samples)
-        result = mean_average_precision(y_true, y_pred, l2i=lencoder.l2i)
+        result = mean_average_precision(
+            y_true, y_pred, l2i=lencoder.l2i, resolution=resolution
+        )
         return float(result["mAP"].iloc[0])
 
     checkpoint = Checkpoint(
@@ -126,7 +129,9 @@ def main(
         detector.fit(train, val_samples=val)
 
     y_pred = detector.transform(val)
-    final = mean_average_precision(val, y_pred, l2i=lencoder.l2i)
+    final = mean_average_precision(
+        val, y_pred, l2i=lencoder.l2i, resolution=resolution
+    )
     print(f"final val mAP: {final['mAP'].iloc[0]:.4f}")
     print(f"best weights: {checkpoints / checkpoint.f_params}")
 

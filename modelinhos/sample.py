@@ -6,20 +6,24 @@ from typing import Any, Generic, TypeVar
 from dacite import Config, from_dict
 from dataclasses_json import config, dataclass_json
 
-AbsoluteXYXY = tuple[float, float, float, float]
+# Boxes live in relative coordinates (fractions of image size, [0, 1])
+# everywhere inside the library. Pixels exist only at the edges: ingest
+# converts to relative once, plotting and evaluation scale back by the
+# image / evaluation resolution they have in hand.
+RelativeXYXY = tuple[float, float, float, float]
 
 
 @dataclass_json
 @dataclass
 class Annotation:
-    bbox: AbsoluteXYXY
+    bbox: RelativeXYXY
     label: str
     score: float = float("nan")
 
 
 @dataclass(frozen=True)
 class TrainAnnotation:
-    bboxes: AbsoluteXYXY
+    bboxes: RelativeXYXY
     labels: tuple[int, ...]
     scores: tuple[float, ...]
 
@@ -54,6 +58,17 @@ def read_samples(
     with open(path) as f:
         df = json.load(f)
     samples = [to_sample(x) for x in df if x]
+    # Loud failure for pixel-space annotations: everything downstream
+    # assumes relative coordinates, and pixel boxes would be silently
+    # wrong (tiny) rather than broken.
+    for sample in samples:
+        for ann in sample.annotations:
+            if not all(-0.01 <= c <= 1.01 for c in ann.bbox):
+                raise ValueError(
+                    f"{sample.file_name}: bbox {ann.bbox} is not in "
+                    "relative coordinates -- annotations must be "
+                    "normalized to [0, 1] fractions of the image size"
+                )
     if relative:
         for sample in samples:
             sample.file_name = path.parent / sample.file_name

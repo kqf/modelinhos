@@ -9,29 +9,49 @@ from mean_average_precision import MetricBuilder
 from modelinhos.sample import Sample
 
 
-def _annotations_to_true(sample: Sample, l2i: dict[str, int]) -> np.ndarray:
+# The mean_average_precision backend computes VOC-style IoU with the
+# inclusive +1 pixel convention, so it needs pixel coordinates: fed
+# relative boxes directly it would report IoU ~ 1 for any overlapping
+# pair. Hence every entry point below scales the relative boxes by an
+# explicit evaluation resolution. The +1 also means the numbers depend
+# (weakly, ~1/object_size) on that resolution -- pin it to the deploy
+# resolution. Goes away once the backend computes geometric IoU (see
+# TODO.md).
+def _annotations_to_true(
+    sample: Sample,
+    l2i: dict[str, int],
+    resolution: tuple[int, int],
+) -> np.ndarray:
     if not sample.annotations:
         return np.empty((0, 7), dtype=np.float32)
 
+    H, W = resolution
     rows = []
     for ann in sample.annotations:
         xmin, ymin, xmax, ymax = ann.bbox
         class_id = l2i[ann.label]
-        rows.append([xmin, ymin, xmax, ymax, class_id, 0, 0])
+        rows.append([xmin * W, ymin * H, xmax * W, ymax * H, class_id, 0, 0])
 
     return np.array(rows, dtype=np.float32)
 
 
-def _annotations_to_pred(sample: Sample, l2i: dict[str, int]) -> np.ndarray:
+def _annotations_to_pred(
+    sample: Sample,
+    l2i: dict[str, int],
+    resolution: tuple[int, int],
+) -> np.ndarray:
     if not sample.annotations:
         return np.empty((0, 6), dtype=np.float32)
 
+    H, W = resolution
     rows = []
     for ann in sample.annotations:
         xmin, ymin, xmax, ymax = ann.bbox
         class_id = l2i[ann.label]
         confidence = 1.0 if np.isnan(ann.score) else ann.score
-        rows.append([xmin, ymin, xmax, ymax, class_id, confidence])
+        rows.append(
+            [xmin * W, ymin * H, xmax * W, ymax * H, class_id, confidence]
+        )
 
     return np.array(rows, dtype=np.float32)
 
@@ -164,12 +184,14 @@ class MetricCollector:
     def __init__(
         self,
         l2i: dict[str, int],
+        resolution: tuple[int, int],  # h, w -- pixel space the IoU runs in
         metric_fn=None,
         iou_thresholds: list[float] | None = None,
     ):
         num_classes = max(l2i.values()) + 1
 
         self.l2i = l2i
+        self.resolution = resolution
         self.iou_thresholds = iou_thresholds or [0.5]
 
         self.metric_fn = metric_fn or MetricBuilder.build_evaluation_metric(
@@ -193,8 +215,8 @@ class MetricCollector:
             )
 
         for true_sample, pred_sample in zip(y_true, y_pred):
-            true = _annotations_to_true(true_sample, self.l2i)
-            pred = _annotations_to_pred(pred_sample, self.l2i)
+            true = _annotations_to_true(true_sample, self.l2i, self.resolution)
+            pred = _annotations_to_pred(pred_sample, self.l2i, self.resolution)
 
             self.metric_fn.add(pred, true)
 
@@ -217,12 +239,14 @@ def mean_average_precision(
     y_true: list[Sample],
     y_pred: list[Sample],
     l2i: dict[str, int],
+    resolution: tuple[int, int],  # h, w
     iou_thresholds: list[float] | None = None,
     *args,
     **kwargs,
 ) -> pd.DataFrame:
     metric = MetricCollector(
         l2i=l2i,
+        resolution=resolution,
         iou_thresholds=iou_thresholds,
     )
     metric(y_true, y_pred)
@@ -233,6 +257,7 @@ def per_sample_metrics(
     y_true: list[Sample],
     y_pred: list[Sample],
     l2i: dict[str, int],
+    resolution: tuple[int, int],  # h, w
     iou_threshold: float = 0.5,
     threshold: float = 0.5,
     mpolicy: str = "greedy",
@@ -241,8 +266,8 @@ def per_sample_metrics(
     results = []
 
     for idx, (true_sample, pred_sample) in enumerate(zip(y_true, y_pred)):
-        true = _annotations_to_true(true_sample, l2i)
-        pred = _annotations_to_pred(pred_sample, l2i)
+        true = _annotations_to_true(true_sample, l2i, resolution)
+        pred = _annotations_to_pred(pred_sample, l2i, resolution)
 
         metric_fn = MetricBuilder.build_evaluation_metric(
             "map_2d", async_mode=False, num_classes=num_classes
