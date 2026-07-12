@@ -5,6 +5,7 @@ from typing import Any, Callable, Optional
 import numpy as np
 import torch
 
+from modelinhos.augment import Augmentation, identity, no_augment
 from modelinhos.containers import Collate, to_preds
 from modelinhos.data import SampleDataset
 from modelinhos.engine import Engine
@@ -38,16 +39,20 @@ class Detector:
         engine: Engine,
         image_encoder: Callable,
         label_encoder: Optional[SampleEncoder] = None,
+        augment: Augmentation = identity,
     ):
         self._engine = engine
         self.image_encoder = image_encoder
         self.label_encoder = label_encoder or DoNothingEncoder()
+        self.augment = augment
 
     def fit(
         self, samples: list[Sample], val_samples: Optional[list[Sample]] = None
     ) -> "Detector":
         encoded = self.label_encoder.fit_transform(samples)
-        dataset = SampleDataset(encoded, self.image_encoder)
+        # Augmentation is a train-only concern: the val dataset below and
+        # transform() build their SampleDatasets without it.
+        dataset = SampleDataset(encoded, self.image_encoder, self.augment)
 
         val_dataset = None
         if val_samples is not None:
@@ -80,6 +85,7 @@ class Baked:
     loss: DetectionLoss
     collate: Collate
     iencoder: Callable
+    augment: Augmentation
 
 
 @dataclass(frozen=True)
@@ -95,6 +101,9 @@ class DetectionRecipe:
     build_model: Callable  # (weights, resolution, n_classes) -> nn.Module
     anchors: Callable  # (resolution) -> priors tensor
     loss: Callable  # (priors, score_thresh) -> DetectionLoss
+    # (resolution) -> Augmentation, applied to the training dataset only
+    # (never validation or inference). Defaults to none.
+    augment: Callable = no_augment
     # BGR uint8 HWC ndarray -> normalized float CHW tensor. Must be a
     # built encoder, not the rgb_normalized_image_encoder factory itself.
     iencoder: Callable = field(default_factory=rgb_normalized_image_encoder)
@@ -126,6 +135,7 @@ class DetectionRecipe:
             loss=loss,
             collate=Collate(),
             iencoder=self.iencoder,
+            augment=self.augment(resolution),
         )
 
 
@@ -154,6 +164,7 @@ def build_detector(
         engine=engine(baked),
         image_encoder=baked.iencoder,
         label_encoder=lencoder,
+        augment=baked.augment,
     )
 
 
