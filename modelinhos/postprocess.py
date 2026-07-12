@@ -1,4 +1,3 @@
-import typing
 from collections.abc import Callable
 from dataclasses import dataclass, fields, replace
 from functools import partial
@@ -13,13 +12,6 @@ from modelinhos.preprocess.boxes import decode_boxes
 from modelinhos.sample import Sample, TrainAnnotation
 
 _ANNOTATION_HINTS = typing.get_type_hints(TrainAnnotation)
-
-
-def _field_spec(name: str) -> tuple[int, torch.dtype]:
-    args = typing.get_args(_ANNOTATION_HINTS[name])
-    dtype = torch.tensor([args[0]()]).dtype
-    return len(args), dtype
-
 
 @dataclass(frozen=True)
 class PerImage:
@@ -54,33 +46,59 @@ class Loss:
     labels: Subloss
 
 
-# TODO: Don't guess by field specs, shift guessing in collate function
 def anno2tensors(annotations: list[TrainAnnotation]) -> PerImage:
-    kwargs = {}
-    for f in fields(PerImage):
-        if values := [getattr(a, f.name) for a in annotations]:
-            kwargs[f.name] = torch.tensor(values)
-        else:
-            width, dtype = _field_spec(f.name)
-            kwargs[f.name] = torch.empty((0, width), dtype=dtype)
-    return PerImage(**kwargs)
-
-
-def collate_labels(
-    tensors_list: list[PerImage],
-    pad_value: float = -1.0,
-) -> PerBatch:
-    return PerBatch(
+    return PerImage(
         **{
-            f.name: rnn_utils.pad_sequence(
-                [getattr(t, f.name) for t in tensors_list],
-                batch_first=True,
-                padding_value=pad_value,
+            f.name: (
+                torch.tensor([getattr(a, f.name) for a in annotations])
+                if annotations
+                else torch.empty((0, 1))
             )
             for f in fields(PerImage)
         }
     )
 
+
+def ensure_correct_shapes(tensors: list[torch.Tensor]) -> list[torch.Tensor]:
+    specs = {(t.shape[1:], t.dtype) for t in tensors if t.numel() > 0}
+    if len(specs) > 1:
+        raise ValueError(f"Expected all andnd dtype, got {specs}")
+
+    if not specs:
+        return tensors
+
+    (width,), dtype = specs.pop()
+
+    # This is needed to reshape empty
+    return [t.reshape(-1, width).to(dtype) for t in tensors]
+
+
+def collate_labels(
+    tensors: list[PerImage],
+    pad_value: float = -1.0,
+) -> PerBatch:
+    if not tensors:
+        return PerBatch(
+            bboxes=torch.empty(0),
+            scores=torch.empty(0),
+            labels=torch.empty(0),
+        )
+
+    return PerBatch(
+        **{
+            f.name: rnn_utils.pad_sequence(
+                ensure_correct_shapes([getattr(t, f.name) for t in tensors]),
+                batch_first=True,
+                padding_value=pad_value,
+            )
+            for f in fields(tensors[0])
+        }
+    )
+
+class SampleDataset(torch.utils.data.Dataset):
+    def __init__(self, samples: list[Sample[TrainAnnotation]], transform):
+        self.samples = samples
+        self.transform = transform
 
 def un_collate(batched: PerBatch, pad_value: float = -1.0) -> list[PerImage]:
     mask = batched.labels[..., 0] != pad_value
@@ -117,6 +135,20 @@ def to_sample(unbatched: list[PerImage]) -> list[Sample[TrainAnnotation]]:
         )
     return samples
 
+@dataclass(frozen=True)
+class Collate:
+    pad_value: float = -1.0
+    i2b: Callable = collate_labels
+    unc: Callable = un_collate
+    nms: Callable = partial(nms_unbatch, iou_thresh=0.5)
+    to_samples: Callable = to_sample
+
+    def collate(
+        self,
+        collected: list[tuple[torch.Tensor, PerImage]],
+    ) -> tuple[torch.Tensor, PerBatch]:
+        images, labels = zip(*collected)
+        return torch.stack(images), self.i2b(labels)
 
 def nms_unbatch(
     batched: PerBatch,
@@ -135,6 +167,8 @@ def nms_unbatch(
         results.append(replace(b, **update))
     return results
 
+    def un_batch_nms(self, batch: PerBatch) -> list[Sample]:
+        return self.to_samples(self.nms(batch, pad_value=self.pad_value))
 
 def decode(predictions: PerBatchEncoded, loss: Loss) -> PerBatch:
     update = {}
