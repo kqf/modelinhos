@@ -91,8 +91,8 @@ class DetectionLoss(Generic[LossContainer], nn.Module):
 
     def forward(
         self,
-        y_pred: HasBoxesAndClasses[torch.Tensor],
         y_true: HasBoxesAndClasses[torch.Tensor],
+        y_pred: HasBoxesAndClasses[torch.Tensor],
     ) -> dict[str, torch.Tensor]:
         positives, negatives = self.match(
             y_pred,

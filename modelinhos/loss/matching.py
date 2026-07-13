@@ -7,9 +7,9 @@ C = TypeVar("C")
 
 
 class HasBoxesAndClasses(Protocol, Generic[C]):
-    bbox: C
-    label: C
-    score: C
+    bboxes: C
+    labels: C
+    scores: C
 
     @classmethod
     def is_dataclass(cls) -> bool: ...
@@ -50,12 +50,18 @@ def iou(box_a: torch.Tensor, box_b: torch.Tensor) -> torch.Tensor:
 
 
 def match_boxes(
-    boxes: torch.Tensor,  # [n_obj, 4]
-    priors: torch.Tensor,  # [n_anchors, 4]
+    boxes: torch.Tensor,  # [n_obj, 4] absolute pixel xyxy
+    priors: torch.Tensor,  # [n_anchors, 4] normalised cxcywh
     overlap_threshold: float,
+    resolution: tuple[int, int],  # (H, W)
 ) -> torch.Tensor:  # returns a tensor of shape [n_anchors, n_obj] ~
     n_anchors = priors.shape[0]
     n_obj = boxes.shape[0]
+
+    # boxes are absolute pixel coordinates, priors are normalised to
+    # [0, 1] — bring boxes onto the same scale before computing IoU.
+    H, W = resolution
+    boxes = boxes / boxes.new_tensor([W, H, W, H])
 
     # Compute IoU overlaps: [n_obj, n_anchors]
     overlaps = iou(boxes[:, None], convert_to_xyxy(priors))
@@ -121,8 +127,11 @@ def iterative_mathing(
     confidences: torch.Tensor,  # [batch_size, n_anchors, n_classes]
     negpos_ratio: int,
     overalp: float,
+    resolution: tuple[int, int],
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    positives = torch.stack([match_boxes(b, priors, overalp) for b in boxes])
+    positives = torch.stack(
+        [match_boxes(b, priors, overalp, resolution) for b in boxes]
+    )
     negatives = mine_negatives(classes, confidences, negpos_ratio, positives)
     return positives, negatives
 
@@ -133,12 +142,14 @@ def match(
     anchors: torch.Tensor,
     negpos_ratio: int,
     overalp: float,
+    resolution: tuple[int, int],
 ) -> tuple[torch.Tensor, torch.Tensor]:
     return iterative_mathing(
-        y_true.label,
-        y_true.bbox,
+        y_true.labels,
+        y_true.bboxes,
         anchors,
-        confidences=y_pred.label,
+        confidences=y_pred.labels,
         negpos_ratio=negpos_ratio,
         overalp=overalp,
+        resolution=resolution,
     )

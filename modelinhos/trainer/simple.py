@@ -76,24 +76,31 @@ class SimpleTrainer:
         for epoch in range(self.epochs):
             self.model.train()
             trainm = self.metrics_fn(self.lencoder.l2i)
-            validm = self.metrics_fn(self.lencoder.l2i)
+            epoch_loss, n_batches = 0.0, 0
             for images, targets in tqdm.tqdm(loader):
                 images = images.to(self.device)
                 preds = self.model(images)
                 loss = self.loss_fn(targets, preds)
+                loss = loss["loss"] if isinstance(loss, dict) else loss
 
                 self.optimizer.zero_grad()
                 if torch.is_tensor(loss):
                     loss.backward()
                     self.optimizer.step()
+                    epoch_loss += loss.item()
+                    n_batches += 1
 
                 self._score(trainm, targets, preds)
 
-            if val_dataset is not None:
-                self._validate(validm, val_dataset)
-
+            if n_batches:
+                print(f"Epoch {epoch}, train loss: {epoch_loss / n_batches}")
             print(f"Epoch {epoch}, train mAP: {trainm.value().iloc[0]['mAP']}")
-            print(f"Epoch {epoch}, train mAP: {validm.value().iloc[0]['mAP']}")
+
+            if val_dataset is None:
+                continue
+            validm = self.metrics_fn(self.lencoder.l2i)
+            self._validate(validm, val_dataset)
+            print(f"Epoch {epoch}, valid mAP: {validm.value().iloc[0]['mAP']}")
 
         return self
 
