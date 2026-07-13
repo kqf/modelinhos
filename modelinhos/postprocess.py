@@ -202,6 +202,10 @@ def collate_labels(
         }
     )
 
+class SampleDataset(torch.utils.data.Dataset):
+    def __init__(self, samples: list[Sample[TrainAnnotation]], transform):
+        self.samples = samples
+        self.transform = transform
 
 def un_collate(batched: PerBatch, pad_value: float = -1.0) -> list[PerImage]:
     mask = batched.labels[..., 0] != pad_value
@@ -238,6 +242,20 @@ def to_sample(unbatched: list[PerImage]) -> list[Sample[TrainAnnotation]]:
         )
     return samples
 
+@dataclass(frozen=True)
+class Collate:
+    pad_value: float = -1.0
+    i2b: Callable = collate_labels
+    unc: Callable = un_collate
+    nms: Callable = partial(nms_unbatch, iou_thresh=0.5)
+    to_samples: Callable = to_sample
+
+    def collate(
+        self,
+        collected: list[tuple[torch.Tensor, PerImage]],
+    ) -> tuple[torch.Tensor, PerBatch]:
+        images, labels = zip(*collected)
+        return torch.stack(images), self.i2b(labels)
 
 def nms_unbatch(
     batched: PerBatch,
@@ -256,6 +274,8 @@ def nms_unbatch(
         results.append(replace(b, **update))
     return results
 
+    def un_batch_nms(self, batch: PerBatch) -> list[Sample]:
+        return self.to_samples(self.nms(batch, pad_value=self.pad_value))
 
 def decode(predictions: PerBatchEncoded, loss: Loss) -> PerBatch:
     update = {}
