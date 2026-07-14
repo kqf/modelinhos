@@ -1,9 +1,11 @@
+from functools import partial
 from typing import Callable, Optional
 
 import torch
 import tqdm
 
 from modelinhos.evaluation import MetricCollector
+from modelinhos.postprocess import DetectionLoss, decode
 
 DLBuilder = Callable[
     [torch.utils.data.Dataset, Callable],
@@ -49,7 +51,6 @@ class SimpleTrainer:
         self.decode = decode
         self.collate = collate
         self.lencoder = label_encoder
-        self.loss_fn = loss_fn
         self.metrics_fn = metrics or MetricCollector
         self.train_dataloader_builder = train_dataloader_builder
         self.valid_dataloader_builder = valid_dataloader_builder
@@ -59,6 +60,10 @@ class SimpleTrainer:
             device or ("cuda" if torch.cuda.is_available() else "cpu")
         )
         self.model = model.to(self.device)
+        # loss_fn may register buffers (e.g. DetectionLoss.priors) that need
+        # to live on the same device as the model/data; plain callables
+        # (e.g. the `print` default) have no `.to()` to call.
+        self.loss_fn = loss_fn.to(self.device)
         self.optimizer = optimizer_builder(self.model.parameters(), lr)
 
     def _score(self, metric_fn, batch, preds):
@@ -79,6 +84,7 @@ class SimpleTrainer:
             epoch_loss, n_batches = 0.0, 0
             for images, batch in tqdm.tqdm(loader, desc=f"Epoch {epoch}"):
                 images = images.to(self.device)
+                batch = batch.to(self.device)
                 preds = self.model(images)
                 loss = self.loss_fn(batch, preds)
                 loss = loss["loss"] if isinstance(loss, dict) else loss
@@ -111,6 +117,7 @@ class SimpleTrainer:
         with torch.no_grad():
             for images, batch in tqdm.tqdm(loader, desc="Validation"):
                 images = images.to(self.device)
+                batch = batch.to(self.device)
                 preds = self.model(images)
                 self.loss_fn(batch, preds)
                 self._score(metrics_fn, batch, preds)
@@ -137,7 +144,8 @@ class SimpleTrainer:
 
 
 def build_trainer(
-    loss_fn: Callable = print,
+    loss_fn: DetectionLoss,
+    decode: Callable = decode,
     metrics: Optional[Callable] = None,
     optimizer_builder: Callable = default_optimizer_builder,
     lr: float = 1e-3,
@@ -146,10 +154,10 @@ def build_trainer(
     epochs: int = 1,
     device: Optional[str] = None,
 ) -> Callable[..., SimpleTrainer]:
-    def _build(model, decode, collate, label_encoder) -> SimpleTrainer:
+    def _build(model, collate, label_encoder) -> SimpleTrainer:
         return SimpleTrainer(
             model=model,
-            decode=decode,
+            decode=partial(decode, loss=loss_fn),
             collate=collate,
             label_encoder=label_encoder,
             loss_fn=loss_fn,

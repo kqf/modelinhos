@@ -11,7 +11,7 @@ import torchvision
 from torch import nn
 
 from modelinhos.loss.matching import match
-from modelinhos.loss.subloss import WeightedLoss
+from modelinhos.loss.subloss import Sublosses, WeightedLoss
 from modelinhos.preprocess.boxes import decode_boxes
 from modelinhos.sample import Sample, TrainAnnotation
 
@@ -133,24 +133,18 @@ class PerBatch:
     scores: torch.Tensor  # (B, K, 1)
     labels: torch.Tensor  # (B, K, 1)
 
+    def to(self, device) -> "PerBatch":
+        return replace(
+            self,
+            **{f.name: getattr(self, f.name).to(device) for f in fields(self)},
+        )
+
 
 @dataclass(frozen=True)
 class PerBatchEncoded:
     bboxes: torch.Tensor  # (B, K, 4)
     scores: torch.Tensor  # (B, K, 1)
     labels: torch.Tensor  # (B, K, 1)
-
-
-@dataclass(frozen=True)
-class Subloss:
-    decode: Callable
-
-
-@dataclass(frozen=True)
-class Loss:
-    bboxes: Subloss
-    scores: Subloss
-    labels: Subloss
 
 
 def anno2tensors(annotations: list[TrainAnnotation]) -> PerImage:
@@ -277,12 +271,12 @@ def nms_unbatch(
     def un_batch_nms(self, batch: PerBatch) -> list[Sample]:
         return self.to_samples(self.nms(batch, pad_value=self.pad_value))
 
-def decode(predictions: PerBatchEncoded, loss: Loss) -> PerBatch:
+def decode(predictions: PerBatchEncoded, loss: DetectionLoss) -> PerBatch:
     update = {}
     for f in fields(predictions):
-        subloss = getattr(loss, f.name)
+        subloss = getattr(loss.sublosses, f.name)
         predict = getattr(predictions, f.name)
-        update[f.name] = subloss.decode(predict)
+        update[f.name] = subloss.dec_pred(predict)
     return PerBatch(**update)
 
 
@@ -324,54 +318,37 @@ class Collate:
         return self.to_samples(self.nms(batch, pad_value=self.pad_value))
 
 
-def postprocess(
+# Builds the retina loss
+def build_ret_loss(
     priors: torch.Tensor,
     score_thresh: float,
-) -> Callable:
+) -> DetectionLoss:
     def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
         scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
         labels = labels.clone()
         labels[scores <= score_thresh] = int(pad_value)
         return labels.unsqueeze(-1)
 
-    return partial(
-        decode,
-        loss=Loss(
-            bboxes=Subloss(decode=partial(decode_boxes, priors=priors)),
-            scores=Subloss(
-                decode=lambda x: torch.sigmoid(x).max(dim=-1)[0].unsqueeze(-1)
-            ),
-            labels=Subloss(decode=decode_labels),
-        ),
-    )
-
-
-def ssd_postprocess(priors: torch.Tensor, score_thresh: float) -> Callable:
-    def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
-        probs = torch.softmax(raw_logits, dim=-1)
-        probs[..., 0] = 0.0  # exclude background class before taking max
-        scores, labels = probs.max(dim=-1)
-        labels = labels.clone()
-        labels[scores <= score_thresh] = int(pad_value)
-        return labels.unsqueeze(-1)
-
-    def decode_scores(raw_logits: torch.Tensor) -> torch.Tensor:
-        probs = torch.softmax(raw_logits, dim=-1)
-        probs[..., 0] = 0.0
-        return probs.max(dim=-1)[0].unsqueeze(-1)
-
-    return partial(
-        decode,
-        loss=Loss(
-            bboxes=Subloss(
-                decode=partial(
+    return DetectionLoss(
+        priors=priors,
+        sublosses=Sublosses(
+            bboxes=WeightedLoss(
+                loss=None,
+                dec_pred=partial(
                     decode_boxes,
                     priors=priors,
-                    weights=(10.0, 10.0, 5.0, 5.0),
-                )
+                ),
             ),
-            scores=Subloss(decode=decode_scores),
-            labels=Subloss(decode=decode_labels),
+            scores=WeightedLoss(
+                loss=None,
+                dec_pred=lambda x: torch.sigmoid(x)
+                .max(dim=-1)[0]
+                .unsqueeze(-1),
+            ),
+            labels=WeightedLoss(
+                loss=None,
+                dec_pred=decode_labels,
+            ),
         ),
     )
 

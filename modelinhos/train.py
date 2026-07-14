@@ -14,11 +14,14 @@ from modelinhos.evaluation import (
     visualize_fp_fn,
 )
 from modelinhos.plot import plot
-from modelinhos.postprocess import ssd_postprocess
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Sample, read_samples
 from modelinhos.ssd.inference import Detector, custom_model
-from modelinhos.ssd.lite import build_ssd_loss, build_ssdlite, ssd_normalize
+from modelinhos.ssd.lite import (
+    build_ssd_loss,
+    build_ssdlite,
+    ssd_normalize,
+)
 from modelinhos.trainer.simple import build_trainer
 
 memory = Memory(location=".cache", verbose=0)
@@ -41,12 +44,11 @@ def build_model(
             resolution=resolution,
             build_model=partial(build_ssdlite, n_classes=n_classes),
             weights=weights,
-            postprocess=ssd_postprocess,
             normalize=ssd_normalize,
         ),
         lencoder=lencoder,
-        trainer=build_trainer(
-            loss_fn=build_ssd_loss(priors),
+        build_trainer=build_trainer(
+            loss_fn=build_ssd_loss(priors, score_thresh=0.4),
             epochs=epochs,
         ),
     )

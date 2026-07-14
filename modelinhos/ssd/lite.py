@@ -15,7 +15,7 @@ from torchvision.models.detection.ssdlite import (
 from modelinhos.loss.matching import match
 from modelinhos.loss.subloss import Sublosses, WeightedLoss, sum_normalized
 from modelinhos.postprocess import DetectionLoss
-from modelinhos.preprocess.boxes import encode_boxes
+from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
 from modelinhos.preprocess.image import normalize
 from modelinhos.ssd.anchors import anchors
 from modelinhos.ssd.load import load_with_mismatch
@@ -156,30 +156,63 @@ def build_ssdlite(
 
 
 # weights for encoding/decoding box regression targets, same convention
-# as torchvision's SSD (see postprocess.ssd_postprocess)
-ssd_box_weights = (10.0, 10.0, 5.0, 5.0)
+# as torchvision's SSD; shared by ssd_postprocess (decode) and
+# build_ssd_loss (encode) below so the two stay in sync.
+SSD_BOX_WEIGHTS = (10.0, 10.0, 5.0, 5.0)
 
 
 def build_ssd_loss(
     priors: torch.Tensor,
+    score_thresh: float,
     negpos_ratio: int = 7,
     overlap: float = 0.35,
+    ssd_box_weights: tuple[float, float, float, float] = SSD_BOX_WEIGHTS,
 ) -> DetectionLoss:
+    def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
+        probs = torch.softmax(raw_logits, dim=-1)
+        probs[..., 0] = 0.0  # exclude background class before taking max
+        scores, labels = probs.max(dim=-1)
+        labels = labels.clone()
+        labels[scores <= score_thresh] = int(pad_value)
+        return labels.unsqueeze(-1)
+
+    def decode_scores(raw_logits: torch.Tensor) -> torch.Tensor:
+        probs = torch.softmax(raw_logits, dim=-1)
+        probs[..., 0] = 0.0
+
+        return probs.max(dim=-1)[0].unsqueeze(-1)
+
     sublosses = Sublosses(
         bboxes=WeightedLoss(
             loss=sum_normalized(partial(F.smooth_l1_loss, reduction="sum")),
-            enc_true=partial(encode_boxes, weights=ssd_box_weights),
+            enc_true=partial(
+                encode_boxes,
+                weights=ssd_box_weights,
+            ),
+            dec_pred=partial(
+                decode_boxes,
+                priors=priors,
+                weights=ssd_box_weights,
+            ),
         ),
         # scores are derived from the same logits as labels at decode
         # time, there is nothing to train here
-        scores=WeightedLoss(loss=None),
+        scores=WeightedLoss(
+            loss=None,
+            dec_pred=decode_scores,
+        ),
         labels=WeightedLoss(
             loss=sum_normalized(partial(F.cross_entropy, reduction="sum")),
             needs_negatives=True,
+            dec_pred=decode_labels,
         ),
     )
     return DetectionLoss(
         priors=priors,
         sublosses=sublosses,
-        match=partial(match, negpos_ratio=negpos_ratio, overalp=overlap),
+        match=partial(
+            match,
+            negpos_ratio=negpos_ratio,
+            overalp=overlap,
+        ),
     )

@@ -8,7 +8,6 @@ from modelinhos.postprocess import (
     Collate,
     PerBatchEncoded,
     SampleDataset,
-    postprocess,
     to_preds,
     torchvision_to_samples,
 )
@@ -22,14 +21,13 @@ class Detector:
     def __init__(
         self,
         build_model: Callable,
-        trainer: Callable = build_trainer(),
+        build_trainer: Callable = build_trainer,
         lencoder: SampleEncoder = None,
     ):
-        self.model, self.transforms, self.decode, self.collate = build_model()
+        self.model, self.transforms, self.collate = build_model()
         self.label_encoder = lencoder or DoNothingEncoder()
-        self._trainer = trainer(
+        self._trainer = build_trainer(
             self.model,
-            self.decode,
             self.collate,
             self.label_encoder,
         )
@@ -64,7 +62,6 @@ def custom_model(
     build_model,
     resolution,
     weights,
-    postprocess=postprocess,
     normalize=normalize,
     th=0.4,
 ):
@@ -82,10 +79,6 @@ def custom_model(
     return (
         DetectionModel(model),
         build_transform(weights, normalize),
-        postprocess(
-            priors=anchors,
-            score_thresh=th,
-        ),
         Collate(),
     )
 
