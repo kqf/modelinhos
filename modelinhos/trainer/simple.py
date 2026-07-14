@@ -77,11 +77,12 @@ class SimpleTrainer:
             self.model.train()
             trainm = self.metrics_fn(self.lencoder.l2i)
             epoch_loss, n_batches = 0.0, 0
-            for images, targets in tqdm.tqdm(loader):
+            for images, batch in tqdm.tqdm(loader, desc=f"Epoch {epoch}"):
                 images = images.to(self.device)
                 preds = self.model(images)
-                loss = self.loss_fn(targets, preds)
+                loss = self.loss_fn(batch, preds)
                 loss = loss["loss"] if isinstance(loss, dict) else loss
+                print(loss)
 
                 self.optimizer.zero_grad()
                 if torch.is_tensor(loss):
@@ -90,7 +91,7 @@ class SimpleTrainer:
                     epoch_loss += loss.item()
                     n_batches += 1
 
-                self._score(trainm, targets, preds)
+                self._score(trainm, batch, preds)
 
             if n_batches:
                 print(f"Epoch {epoch}, train loss: {epoch_loss / n_batches}")
@@ -108,18 +109,18 @@ class SimpleTrainer:
         loader = self.valid_dataloader_builder(dataset, self.collate.collate)
         self.model.eval()
         with torch.no_grad():
-            for images, targets in tqdm.tqdm(loader):
+            for images, batch in tqdm.tqdm(loader, desc="Validation"):
                 images = images.to(self.device)
                 preds = self.model(images)
-                self.loss_fn(targets, preds)
-                self._score(metrics_fn, targets, preds)
+                self.loss_fn(batch, preds)
+                self._score(metrics_fn, batch, preds)
 
     def predict(self, dataset) -> list:
         loader = self.valid_dataloader_builder(dataset, self.collate.collate)
         self.model.eval()
         results = []
         with torch.no_grad():
-            for images, _ in tqdm.tqdm(loader):
+            for images, _ in tqdm.tqdm(loader, desc="Prediction"):
                 images = images.to(self.device)
                 results.extend(
                     self.collate.un_batch_nms(self.decode(self.model(images)))

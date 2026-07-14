@@ -1,8 +1,9 @@
+import itertools
 import logging
 from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
+from typing import Optional, Protocol, runtime_checkable
 
-from modelinhos.sample import Annotation, Sample, TrainAnnotation
+from modelinhos.sample import AbsoluteXYXY, Annotation, Sample, TrainAnnotation
 
 # module logger
 logger = logging.getLogger(__name__)
@@ -24,6 +25,16 @@ class SampleEncoder(Protocol):
 class LabelEncoder:
     l2i: dict[str, int] = field(default_factory=dict)
     i2l: dict[int, str] = field(default_factory=dict)
+    # entries fit() must assign at these exact indices (e.g. a background
+    # pseudo-label pinned to 0), with the real classes from the data
+    # auto-numbered into whatever indices remain. Never appears on an
+    # actual Sample/Annotation — it's internal loss/decode bookkeeping.
+    l2i_forced: dict[str, int] = field(default_factory=dict)
+    # when set, transform()/inverse_transform() normalise bboxes to [0, 1]
+    # and back — the one place pixel space and model-internal normalised
+    # space meet. None keeps bboxes untouched (e.g. torchvision models,
+    # which already work in pixel space end to end).
+    resolution: Optional[tuple[int, int]] = None
 
     def __post_init__(self):
         if self.l2i and not self.i2l:
@@ -34,11 +45,26 @@ class LabelEncoder:
     def fit(self, samples: list[Sample[Annotation]]) -> "LabelEncoder":
         if self.l2i and self.i2l:
             return self
-        ul = sorted({ann.labels for s in samples for ann in s.annotations})
-        # index 0 is reserved for the SSD background class
-        self.l2i = {label: idx for idx, label in enumerate(ul, start=1)}
+        ul = sorted({ann.label for s in samples for ann in s.annotations})
+        taken = set(self.l2i_forced.values())
+        available = (idx for idx in itertools.count() if idx not in taken)
+        self.l2i = {**self.l2i_forced, **dict(zip(ul, available))}
         self.i2l = {idx: label for label, idx in self.l2i.items()}
         return self
+
+    def _normalize(self, bbox: AbsoluteXYXY) -> AbsoluteXYXY:
+        if self.resolution is None:
+            return bbox
+        H, W = self.resolution
+        x1, y1, x2, y2 = bbox
+        return (x1 / W, y1 / H, x2 / W, y2 / H)
+
+    def _denormalize(self, bbox: AbsoluteXYXY) -> AbsoluteXYXY:
+        if self.resolution is None:
+            return bbox
+        H, W = self.resolution
+        x1, y1, x2, y2 = bbox
+        return (x1 * W, y1 * H, x2 * W, y2 * H)
 
     def transform(
         self, samples: list[Sample[Annotation]]
@@ -48,9 +74,9 @@ class LabelEncoder:
                 file_name=sample.file_name,
                 annotations=[
                     TrainAnnotation(
-                        bboxes=ann.bboxes,
-                        scores=(ann.scores,),
-                        labels=(self.l2i[ann.labels],),
+                        bboxes=self._normalize(ann.bbox),
+                        scores=(ann.score,),
+                        labels=(self.l2i[ann.label],),
                     )
                     for ann in sample.annotations
                 ],
@@ -71,9 +97,9 @@ class LabelEncoder:
                 file_name=sample.file_name,
                 annotations=[
                     Annotation(
-                        bboxes=ann.bboxes,
-                        scores=ann.scores[0],
-                        labels=self.i2l[int(ann.labels[0])],
+                        bbox=self._denormalize(ann.bboxes),
+                        score=ann.scores[0],
+                        label=self.i2l[int(ann.labels[0])],
                     )
                     for ann in sample.annotations
                 ],

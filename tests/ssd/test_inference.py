@@ -66,12 +66,25 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
     return cv2.resize(pad(image, *resolution), resolution[::-1])
 
 
-def _run_detector(model, frame, headless: bool) -> Sample:
-    predictions = model.transform_single(frame)
-    # TODO: Remove this from tests
-    labels = model.w.meta["categories"]
-    le = LabelEncoder(l2i={label: i for i, label in enumerate(labels)})
-    predictions = le.inverse_transform(predictions)[0]
+def build_detector(
+    build_model,
+    weights,
+    resolution,
+    encode_resolution=None,
+) -> Detector:
+    labels = weights.meta["categories"]
+    lencoder = LabelEncoder(
+        l2i={label: i for i, label in enumerate(labels)},
+        resolution=encode_resolution,
+    )
+    return Detector(
+        partial(build_model, resolution=resolution, weights=weights),
+        lencoder=lencoder,
+    )
+
+
+def _run_detector(detector: Detector, frame, headless: bool) -> Sample:
+    predictions = detector.transform_single(frame)[0]
     annotated = plot(frame, predictions)
     # sourcery skip: no-conditionals-in-tests
     if not headless:
@@ -93,21 +106,20 @@ def assert_same_sample(preds, expect):
 
 
 @pytest.mark.parametrize(
-    "build_reference, build_custom, tv_expected, md_expected",
+    "build_reference, build_custom, weights, tv_expected, md_expected",
     [
         pytest.param(
             partial(
                 torchvision_model,
                 build_model=ssdlite320_mobilenet_v3_large,
-                weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             ),
             partial(
                 custom_model,
                 build_model=build_torchvision_ssdlite,
-                weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
                 postprocess=ssd_postprocess,
                 normalize=ssd_normalize,
             ),
+            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             (
                 Sample(
                     file_name=Path("fake-file.png"),
@@ -146,13 +158,12 @@ def assert_same_sample(preds, expect):
             partial(
                 torchvision_model,
                 build_model=retinanet_resnet50_fpn_v2,
-                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             ),
             partial(
                 custom_model,
                 build_model=build_torchvision_retinanet,
-                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             ),
+            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             Sample(
                 file_name=Path("fake-file.png"),
                 annotations=[
@@ -201,13 +212,14 @@ def test_weights_match(
     frame,
     build_reference,
     build_custom,
+    weights,
     tv_expected,
     md_expected,
     headless,
 ):
     shape = frame.shape[:2]
     tv_preds = _run_detector(
-        Detector(partial(build_reference, resolution=shape)),
+        build_detector(build_reference, weights, shape),
         frame,
         headless,
     )
@@ -215,7 +227,7 @@ def test_weights_match(
     assert_same_sample(tv_preds, tv_expected)
 
     md_preds = _run_detector(
-        Detector(partial(build_custom, resolution=shape)),
+        build_detector(build_custom, weights, shape, shape),
         frame,
         headless,
     )
@@ -224,33 +236,33 @@ def test_weights_match(
 
 @pytest.mark.skip
 @pytest.mark.parametrize(
-    "build_model",
+    "build_model, weights",
     [
         pytest.param(
             partial(
                 custom_model,
                 build_model=partial(build_ssdlite, n_classes=91),
-                weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
                 th=0.01,
             ),
+            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             id="ssdlite320_mobilenet_v3_large",
         ),
         pytest.param(
             partial(
                 custom_model,
                 build_model=partial(bulid_retinanet, n_classes=91),
-                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
                 th=0.05,
             ),
+            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             id="retinanet_resnet50_fpn_v2_91",
         ),
         pytest.param(
             partial(
                 custom_model,
                 build_model=partial(bulid_retinanet, n_classes=2),
-                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
                 th=0.01,
             ),
+            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             id="retinanet_resnet50_fpn_v2_2",
         ),
         pytest.param(
@@ -258,13 +270,13 @@ def test_weights_match(
                 custom_model,
                 # Don't multiply by two because it breaks tests.
                 build_model=partial(bulid_retinanet, n_classes=91 * 1),
-                weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
                 th=0.01,
             ),
+            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             id="retinanet_resnet50_fpn_v2_91_times_1",
         ),
     ],
 )
-def test_inference_works(frame, build_model, headless):
-    model = Detector(partial(build_model, resolution=frame.shape[:2]))
+def test_inference_works(frame, build_model, weights, headless):
+    model = build_detector(build_model, weights, frame.shape[:2])
     _run_detector(model, frame, headless)
