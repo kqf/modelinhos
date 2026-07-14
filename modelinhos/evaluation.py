@@ -15,8 +15,8 @@ def _annotations_to_true(sample: Sample, l2i: dict[str, int]) -> np.ndarray:
 
     rows = []
     for ann in sample.annotations:
-        xmin, ymin, xmax, ymax = ann.bbox
-        class_id = l2i[ann.label]
+        xmin, ymin, xmax, ymax = ann.bboxes
+        class_id = l2i[ann.labels]
         rows.append([xmin, ymin, xmax, ymax, class_id, 0, 0])
 
     return np.array(rows, dtype=np.float32)
@@ -28,9 +28,9 @@ def _annotations_to_pred(sample: Sample, l2i: dict[str, int]) -> np.ndarray:
 
     rows = []
     for ann in sample.annotations:
-        xmin, ymin, xmax, ymax = ann.bbox
-        class_id = l2i[ann.label]
-        confidence = 1.0 if np.isnan(ann.score) else ann.score
+        xmin, ymin, xmax, ymax = ann.bboxes
+        class_id = l2i[ann.labels]
+        confidence = 1.0 if np.isnan(ann.scores) else ann.scores
         rows.append([xmin, ymin, xmax, ymax, class_id, confidence])
 
     return np.array(rows, dtype=np.float32)
