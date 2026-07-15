@@ -70,6 +70,34 @@ Matching = Callable[
     Tuple[torch.Tensor, torch.Tensor],
 ]
 
+class DetectionLoss(Generic[LossContainer], nn.Module):
+    def __init__(
+        self,
+        priors: torch.Tensor,
+        sublosses: LossContainer,
+        match: Matching = partial(
+            match,
+            negpos_ratio=7,
+            overalp=0.35,
+        ),
+    ) -> None:
+        super().__init__()
+        if not is_dataclass(sublosses):
+            raise TypeError("sublosses must be a dataclass instance")
+        self.sublosses = sublosses
+        self.match = match
+        self.register_buffer("priors", priors)
+
+    def forward(
+        self,
+        y_true: HasBoxesAndClasses[torch.Tensor],
+        y_pred: HasBoxesAndClasses[torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
+        positives, negatives = self.match(
+            y_pred,
+            y_true,
+            self.priors,
+        )
 
 class DetectionLoss(Generic[LossContainer], nn.Module):
     def __init__(

@@ -1,13 +1,11 @@
 import time
 from contextlib import contextmanager
-from functools import partial
 from pathlib import Path
 
 import cv2
 import joblib
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
-    ssdlite320_mobilenet_v3_large,
 )
 
 from modelinhos.coco import load_samples
@@ -18,9 +16,9 @@ from modelinhos.evaluation import (
     visualize_pr,
 )
 from modelinhos.plot import plot
-from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Sample
-from modelinhos.ssd.inference import Detector, SampleEncoder, torchvision_model
+from modelinhos.ssd.inference import SampleEncoder
+from modelinhos.zoo import build_inference_only_ssd
 
 memory = joblib.Memory("./cachedir", verbose=0)
 
@@ -29,19 +27,7 @@ def build_model(
     resolution: tuple[int, int] = (300, 300),
     weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
 ):
-    le = LabelEncoder(
-        l2i={label: i for i, label in enumerate(weights.meta["categories"])}
-    )
-
-    return Detector(
-        build_model=partial(
-            torchvision_model,
-            build_model=ssdlite320_mobilenet_v3_large,
-            weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-            resolution=resolution,
-        ),
-        lencoder=le,
-    )
+    return build_inference_only_ssd(weights, resolution)
 
 
 @contextmanager
