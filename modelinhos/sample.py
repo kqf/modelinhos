@@ -12,9 +12,39 @@ AbsoluteXYXY = tuple[float, float, float, float]
 @dataclass_json
 @dataclass
 class Annotation:
-    bbox: AbsoluteXYXY
-    label: str
-    score: float = float("nan")
+    bboxes: AbsoluteXYXY
+    labels: str
+    scores: float = float("nan")
+
+
+@dataclass(frozen=True)
+class TrainAnnotation:
+    bboxes: AbsoluteXYXY
+    labels: tuple[int, ...]
+    scores: tuple[float, ...]
+
+
+AnnotationT = TypeVar("AnnotationT")
+
+
+@dataclass(frozen=True)
+class TrainAnnotation:
+    bboxes: AbsoluteXYXY
+    labels: tuple[int, ...]
+    scores: tuple[float, ...]
+
+
+AnnotationT = TypeVar("AnnotationT")
+
+
+@dataclass(frozen=True)
+class TrainAnnotation:
+    bboxes: AbsoluteXYXY
+    labels: tuple[int, ...]
+    scores: tuple[float, ...]
+
+
+AnnotationT = TypeVar("AnnotationT")
 
 
 @dataclass(frozen=True)
