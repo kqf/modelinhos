@@ -82,8 +82,8 @@ def plot(
     plot_label: LPLOT = plot_label_bottom_right,
 ) -> np.ndarray:
     for ann in sample.annotations:
-        x1, y1, x2, y2 = (int(v) for v in ann.bbox)
+        x1, y1, x2, y2 = (int(v) for v in ann.bboxes)
         cv2.rectangle(image_bgr, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        image_bgr = plot_label(image_bgr, ann.label, ann.bbox)
+        image_bgr = plot_label(image_bgr, ann.labels, ann.bboxes)
 
     return image_bgr
