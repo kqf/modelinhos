@@ -11,8 +11,7 @@ import torchvision
 from torch import nn
 
 from modelinhos.loss.matching import match
-from modelinhos.loss.subloss import Sublosses, WeightedLoss
-from modelinhos.preprocess.boxes import decode_boxes
+from modelinhos.loss.subloss import WeightedLoss
 from modelinhos.sample import Sample, TrainAnnotation
 
 C = TypeVar("C")
@@ -70,34 +69,6 @@ Matching = Callable[
     Tuple[torch.Tensor, torch.Tensor],
 ]
 
-class DetectionLoss(Generic[LossContainer], nn.Module):
-    def __init__(
-        self,
-        priors: torch.Tensor,
-        sublosses: LossContainer,
-        match: Matching = partial(
-            match,
-            negpos_ratio=7,
-            overalp=0.35,
-        ),
-    ) -> None:
-        super().__init__()
-        if not is_dataclass(sublosses):
-            raise TypeError("sublosses must be a dataclass instance")
-        self.sublosses = sublosses
-        self.match = match
-        self.register_buffer("priors", priors)
-
-    def forward(
-        self,
-        y_true: HasBoxesAndClasses[torch.Tensor],
-        y_pred: HasBoxesAndClasses[torch.Tensor],
-    ) -> dict[str, torch.Tensor]:
-        positives, negatives = self.match(
-            y_pred,
-            y_true,
-            self.priors,
-        )
 
 class DetectionLoss(Generic[LossContainer], nn.Module):
     def __init__(
@@ -224,10 +195,6 @@ def collate_labels(
         }
     )
 
-class SampleDataset(torch.utils.data.Dataset):
-    def __init__(self, samples: list[Sample[TrainAnnotation]], transform):
-        self.samples = samples
-        self.transform = transform
 
 def un_collate(batched: PerBatch, pad_value: float = -1.0) -> list[PerImage]:
     mask = batched.labels[..., 0] != pad_value
@@ -264,20 +231,6 @@ def to_sample(unbatched: list[PerImage]) -> list[Sample[TrainAnnotation]]:
         )
     return samples
 
-@dataclass(frozen=True)
-class Collate:
-    pad_value: float = -1.0
-    i2b: Callable = collate_labels
-    unc: Callable = un_collate
-    nms: Callable = partial(nms_unbatch, iou_thresh=0.5)
-    to_samples: Callable = to_sample
-
-    def collate(
-        self,
-        collected: list[tuple[torch.Tensor, PerImage]],
-    ) -> tuple[torch.Tensor, PerBatch]:
-        images, labels = zip(*collected)
-        return torch.stack(images), self.i2b(labels)
 
 def nms_unbatch(
     batched: PerBatch,
@@ -296,8 +249,6 @@ def nms_unbatch(
         results.append(replace(b, **update))
     return results
 
-    def un_batch_nms(self, batch: PerBatch) -> list[Sample]:
-        return self.to_samples(self.nms(batch, pad_value=self.pad_value))
 
 def decode(predictions: PerBatchEncoded, loss: DetectionLoss) -> PerBatch:
     update = {}
@@ -344,41 +295,6 @@ class Collate:
 
     def un_batch_nms(self, batch: PerBatch) -> list[Sample]:
         return self.to_samples(self.nms(batch, pad_value=self.pad_value))
-
-
-# Builds the retina loss
-def build_ret_loss(
-    priors: torch.Tensor,
-    score_thresh: float,
-) -> DetectionLoss:
-    def decode_labels(raw_logits: torch.Tensor, pad_value=-1) -> torch.Tensor:
-        scores, labels = torch.sigmoid(raw_logits).max(dim=-1)
-        labels = labels.clone()
-        labels[scores <= score_thresh] = int(pad_value)
-        return labels.unsqueeze(-1)
-
-    return DetectionLoss(
-        priors=priors,
-        sublosses=Sublosses(
-            bboxes=WeightedLoss(
-                loss=None,
-                dec_pred=partial(
-                    decode_boxes,
-                    priors=priors,
-                ),
-            ),
-            scores=WeightedLoss(
-                loss=None,
-                dec_pred=lambda x: torch.sigmoid(x)
-                .max(dim=-1)[0]
-                .unsqueeze(-1),
-            ),
-            labels=WeightedLoss(
-                loss=None,
-                dec_pred=decode_labels,
-            ),
-        ),
-    )
 
 
 def to_preds(preds: tuple[torch.Tensor, torch.Tensor]) -> PerBatchEncoded:

@@ -67,6 +67,16 @@ class TrainAnnotation:
 AnnotationT = TypeVar("AnnotationT")
 
 
+@dataclass(frozen=True)
+class TrainAnnotation:
+    bboxes: AbsoluteXYXY
+    labels: tuple[int, ...]
+    scores: tuple[float, ...]
+
+
+AnnotationT = TypeVar("AnnotationT")
+
+
 @dataclass_json
 @dataclass
 class Sample(Generic[AnnotationT]):

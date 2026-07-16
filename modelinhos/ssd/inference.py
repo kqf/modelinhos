@@ -4,11 +4,10 @@ from typing import Any, Callable, Optional
 import numpy as np
 import torch
 
-from modelinhos.postprocess import (
+from modelinhos.detection import (
     Collate,
     PerBatchEncoded,
     SampleDataset,
-    build_ret_loss,
     decode,
     to_preds,
     torchvision_to_samples,
@@ -78,14 +77,17 @@ class Detector:
 @dataclass
 class DetectionConfig:
     """Everything needed to build a trainable Detector for one of our own
-    (non-torchvision-native) architectures. loss is built exactly once and
-    used for both decode and backprop -- see .build()."""
+    (non-torchvision-native) architectures. Anchors only matter for the
+    loss (matching/encode/decode) -- build_model builds the model alone.
+    loss is built exactly once and used for both decode and backprop --
+    see .build()."""
 
-    build_model: Callable  # (weights, resolution) -> (model, anchors)
+    build_model: Callable  # (weights, resolution) -> model
+    anchors: Callable  # (resolution) -> anchors tensor
     resolution: tuple[int, int]
     weights: Any
     lencoder: SampleEncoder
-    loss: Callable = build_ret_loss  # (priors, score_thresh) -> DetectionLoss
+    loss: Callable  # (priors, score_thresh) -> DetectionLoss
     normalize: Callable = normalize
     th: float = 0.4
     epochs: int = 1
@@ -97,10 +99,11 @@ class DetectionConfig:
     device: Optional[str] = None
 
     def build(self) -> Detector:
-        model, anchors = self.build_model(
+        model = self.build_model(
             weights=self.weights, resolution=self.resolution
         )
-        loss_fn = self.loss(priors=anchors, score_thresh=self.th)
+        priors = self.anchors(self.resolution)
+        loss_fn = self.loss(priors=priors, score_thresh=self.th)
         trainer = SimpleTrainer(
             model=DetectionModel(model),
             decode=partial(decode, loss=loss_fn),
