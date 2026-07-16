@@ -10,12 +10,13 @@ from torchvision.models.detection.retinanet import (
 )
 from torchvision.models.resnet import ResNet50_Weights, resnet50
 
-from modelinhos.detection import DetectionLoss
+from modelinhos.detector import Architecture
+from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match
 from modelinhos.loss.subloss import Sublosses, WeightedLoss, sum_normalized
+from modelinhos.models.anchors import anchors, tvison_anchors
+from modelinhos.models.load import load_with_mismatch_from_weights
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
-from modelinhos.ssd.anchors import anchors, tvison_anchors
-from modelinhos.ssd.load import load_with_mismatch_from_weights
 
 
 class RetinaNetPureHead(torch.nn.Module):
@@ -202,3 +203,19 @@ def build_trainable_retina_loss(
         sublosses=sublosses,
         match=partial(match, negpos_ratio=negpos_ratio, overalp=overlap),
     )
+
+
+# Trainable configuration (softmax + background convention).
+RETINANET = Architecture(
+    build_model=bulid_retinanet,
+    anchors=retina_anchors,
+    loss=build_trainable_retina_loss,
+)
+
+# Faithful-to-torchvision configuration with the decode-only sigmoid loss,
+# for comparing our inference against the reference implementation.
+TORCHVISION_RETINANET = Architecture(
+    build_model=build_torchvision_retinanet,
+    anchors=torchvision_retina_anchors,
+    loss=build_ret_loss,
+)

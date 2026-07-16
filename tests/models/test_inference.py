@@ -10,11 +10,11 @@ from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
 )
 
+from modelinhos.detector import Detector
+from modelinhos.models.retinanet import RETINANET
+from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.plot import plot
 from modelinhos.sample import Annotation, Sample
-from modelinhos.ssd.inference import Detector
-from modelinhos.ssd.retinanet import bulid_retinanet, retina_anchors
-from modelinhos.ssd.ssdlite import build_ssdlite, ssdlite_anchors
 from modelinhos.zoo import (
     build_inference_only_custom_retina,
     build_inference_only_custom_ssd,
@@ -72,9 +72,9 @@ def assert_same_sample(preds, expect):
     assert len(preds.annotations) == len(expect.annotations)
 
     for tv, md in zip(preds.annotations, expect.annotations):
-        assert tv.labels == md.labels
-        assert tv.scores == pytest.approx(md.scores, 1e-4)
-        for x1, x2 in zip(tv.bboxes, md.bboxes):
+        assert tv.label == md.label
+        assert tv.score == pytest.approx(md.score, 1e-4)
+        for x1, x2 in zip(tv.bbox, md.bbox):
             assert x1 == pytest.approx(x2, abs=0.01)
 
 
@@ -90,14 +90,14 @@ def assert_same_sample(preds, expect):
                     file_name=Path("fake-file.png"),
                     annotations=[
                         Annotation(
-                            bboxes=(
+                            bbox=(
                                 481.7032165527344,
                                 225.93629455566406,
                                 597.848388671875,
                                 589.3338623046875,
                             ),
-                            labels="person",
-                            scores=0.8167938590049744,
+                            label="person",
+                            score=0.8167938590049744,
                         )
                     ],
                 )
@@ -106,14 +106,14 @@ def assert_same_sample(preds, expect):
                 file_name=Path("fake-file.png"),
                 annotations=[
                     Annotation(
-                        bboxes=(
+                        bbox=(
                             357.0254,
                             -50.3667,
                             712.4014,
                             814.3435,
                         ),
-                        labels="person",
-                        scores=0.9986,
+                        label="person",
+                        score=0.9986,
                     )
                 ],
             ),
@@ -127,24 +127,24 @@ def assert_same_sample(preds, expect):
                 file_name=Path("fake-file.png"),
                 annotations=[
                     Annotation(
-                        bboxes=(
+                        bbox=(
                             488.3135681152344,
                             227.34669494628906,
                             597.8914184570312,
                             575.18212890625,
                         ),
-                        labels="person",
-                        scores=0.9937841892242432,
+                        label="person",
+                        score=0.9937841892242432,
                     ),
                     Annotation(
-                        bboxes=(
+                        bbox=(
                             531.1905517578125,
                             289.6827392578125,
                             542.9974365234375,
                             329.750732421875,
                         ),
-                        labels="tie",
-                        scores=0.6264503002166748,
+                        label="tie",
+                        score=0.6264503002166748,
                     ),
                 ],
             ),
@@ -152,14 +152,14 @@ def assert_same_sample(preds, expect):
                 file_name=Path("fake-file.png"),
                 annotations=[
                     Annotation(
-                        bboxes=(
+                        bbox=(
                             491.05938720703125,
                             230.8584747314453,
                             593.6303100585938,
                             572.8419189453125,
                         ),
-                        labels="person",
-                        scores=0.9877095222473145,
+                        label="person",
+                        score=0.9877095222473145,
                     )
                 ],
             ),
@@ -195,12 +195,11 @@ def test_weights_match(
 
 @pytest.mark.skip
 @pytest.mark.parametrize(
-    "build_fn, build_model, build_anchors, n_classes, th, weights",
+    "build_fn, arch, n_classes, th, weights",
     [
         pytest.param(
             build_inference_only_custom_ssd,
-            build_ssdlite,
-            ssdlite_anchors,
+            SSDLITE,
             91,
             0.01,
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
@@ -208,8 +207,7 @@ def test_weights_match(
         ),
         pytest.param(
             build_inference_only_custom_retina,
-            bulid_retinanet,
-            retina_anchors,
+            RETINANET,
             91,
             0.05,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
@@ -217,8 +215,7 @@ def test_weights_match(
         ),
         pytest.param(
             build_inference_only_custom_retina,
-            bulid_retinanet,
-            retina_anchors,
+            RETINANET,
             2,
             0.01,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
@@ -226,8 +223,7 @@ def test_weights_match(
         ),
         pytest.param(
             build_inference_only_custom_retina,
-            bulid_retinanet,
-            retina_anchors,
+            RETINANET,
             # Don't multiply by two because it breaks tests.
             91 * 1,
             0.01,
@@ -239,8 +235,7 @@ def test_weights_match(
 def test_inference_works(
     frame,
     build_fn,
-    build_model,
-    build_anchors,
+    arch,
     n_classes,
     th,
     weights,
@@ -249,8 +244,7 @@ def test_inference_works(
     model = build_fn(
         weights,
         frame.shape[:2],
-        build_model=build_model,
-        anchors=build_anchors,
+        arch=arch,
         n_classes=n_classes,
         th=th,
     )

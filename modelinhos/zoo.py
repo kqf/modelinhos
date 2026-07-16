@@ -1,37 +1,30 @@
-"""Detector builders. `Detector`/`TorchvisionDetector` should only ever be
-instantiated here — every script/test should build one through one of
-these named functions."""
+"""Named detector presets. Every script/test should build its Detector
+through one of these functions -- the raw assembly lives in
+modelinhos.detector, the per-family Architecture presets next to their
+model definitions in modelinhos.models."""
 
+from dataclasses import replace
 from typing import Optional
 
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
     ssdlite320_mobilenet_v3_large,
 )
-from torchvision.models.detection.retinanet import retinanet_resnet50_fpn_v2
+from torchvision.models.detection.retinanet import (
+    RetinaNet_ResNet50_FPN_V2_Weights,
+    retinanet_resnet50_fpn_v2,
+)
 
-from modelinhos.preprocess.lables import LabelEncoder
-from modelinhos.ssd.inference import (
-    DetectionConfig,
+from modelinhos.detector import (
+    Architecture,
     Detector,
     TorchvisionDetector,
+    build_detector,
 )
-from modelinhos.ssd.retinanet import (
-    build_ret_loss,
-    build_torchvision_retinanet,
-    build_trainable_retina_loss,
-    bulid_retinanet,
-    retina_anchors,
-    torchvision_retina_anchors,
-)
-from modelinhos.ssd.ssdlite import (
-    build_ssd_loss,
-    build_ssdlite,
-    build_torchvision_ssdlite,
-    ssd_normalize,
-    ssdlite_anchors,
-    torchvision_ssdlite_anchors,
-)
+from modelinhos.models.retinanet import RETINANET, TORCHVISION_RETINANET
+from modelinhos.models.ssdlite import SSDLITE, TORCHVISION_SSDLITE
+from modelinhos.preprocess.lables import LabelEncoder
+from modelinhos.trainer.simple import TrainConfig
 
 
 def _torchvision_label_encoder(
@@ -77,55 +70,42 @@ def build_inference_only_retina(
 def build_inference_only_custom_ssd(
     weights,
     resolution: tuple[int, int],
-    build_model=build_torchvision_ssdlite,
-    anchors=torchvision_ssdlite_anchors,
+    arch: Architecture = TORCHVISION_SSDLITE,
     n_classes: int = 91,
     th: float = 0.4,
     lencoder: Optional[LabelEncoder] = None,
 ) -> Detector:
-    """Our SSD reimplementation, loaded with (possibly mismatched) pretrained
-    weights, inference only. build_model/anchors must be a matching pair
-    (see ssd/ssdlite.py)."""
-    return DetectionConfig(
-        build_model=lambda weights, resolution: build_model(
-            weights=weights, resolution=resolution, n_classes=n_classes
-        ),
-        anchors=anchors,
-        resolution=resolution,
-        weights=weights,
+    """Our SSD reimplementation, loaded with (possibly mismatched)
+    pretrained weights, inference only."""
+    return build_detector(
+        replace(arch, weights=weights),
         lencoder=lencoder
         or _torchvision_label_encoder(weights, resolution=resolution),
-        loss=build_ssd_loss,
-        normalize=ssd_normalize,
+        resolution=resolution,
         th=th,
-    ).build()
+        n_classes=n_classes,
+    )
 
 
 def build_inference_only_custom_retina(
     weights,
     resolution: tuple[int, int],
-    build_model=build_torchvision_retinanet,
-    anchors=torchvision_retina_anchors,
+    arch: Architecture = TORCHVISION_RETINANET,
     n_classes: int = 91,
     th: float = 0.4,
     lencoder: Optional[LabelEncoder] = None,
 ) -> Detector:
     """Our RetinaNet reimplementation, loaded with (possibly mismatched)
     pretrained weights, inference only (decode-only loss, matching how the
-    real pretrained weights were trained). build_model/anchors must be a
-    matching pair (see ssd/retinanet.py)."""
-    return DetectionConfig(
-        build_model=lambda weights, resolution: build_model(
-            weights=weights, resolution=resolution, n_classes=n_classes
-        ),
-        anchors=anchors,
-        resolution=resolution,
-        weights=weights,
+    real pretrained weights were trained)."""
+    return build_detector(
+        replace(arch, weights=weights),
         lencoder=lencoder
         or _torchvision_label_encoder(weights, resolution=resolution),
-        loss=build_ret_loss,
+        resolution=resolution,
         th=th,
-    ).build()
+        n_classes=n_classes,
+    )
 
 
 def build_trainable_ssd(
@@ -137,49 +117,31 @@ def build_trainable_ssd(
     """SSD detector configured for training: lencoder.l2i must already be
     fit (it decides the classification head size and, conventionally,
     reserves index 0 for background via l2i_forced)."""
-    n_classes = len(lencoder.l2i)
-    return DetectionConfig(
-        build_model=lambda weights, resolution: build_ssdlite(
-            weights=weights,
-            resolution=resolution,
-            n_classes=n_classes,
-        ),
-        anchors=ssdlite_anchors,
-        resolution=resolution,
-        weights=weights,
+    return build_detector(
+        replace(SSDLITE, weights=weights),
         lencoder=lencoder,
-        loss=build_ssd_loss,
-        normalize=ssd_normalize,
-        th=0.4,
-        epochs=epochs,
-    ).build()
+        resolution=resolution,
+        train=TrainConfig(epochs=epochs),
+    )
 
 
 def build_trainable_retina(
     resolution: tuple[int, int],
     lencoder: LabelEncoder,
     epochs: int = 10,
-    weights=None,
+    weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
 ) -> Detector:
     """RetinaNet detector configured for training: lencoder.l2i must
     already be fit (it decides the classification head size and,
-    conventionally, reserves index 0 for background via l2i_forced). Uses
-    build_trainable_retina_loss, not build_ret_loss -- the latter is
-    decode-only. Defaults to no pretrained weights, since the pretrained
-    checkpoint was trained under a different (sigmoid) convention than
-    build_trainable_retina_loss's softmax one."""
-    n_classes = len(lencoder.l2i)
-    return DetectionConfig(
-        build_model=lambda weights, resolution: bulid_retinanet(
-            weights=weights,
-            resolution=resolution,
-            n_classes=n_classes,
-        ),
-        anchors=retina_anchors,
-        resolution=resolution,
-        weights=weights,
+    conventionally, reserves index 0 for background via l2i_forced). The
+    pretrained checkpoint was trained under a different (sigmoid)
+    convention than build_trainable_retina_loss's softmax one, but gradient
+    descent adapts the head to whatever loss you fine-tune with regardless
+    of its starting point, so it's still a fine (likely better than random)
+    warm start -- pass weights=None to skip it."""
+    return build_detector(
+        replace(RETINANET, weights=weights),
         lencoder=lencoder,
-        loss=build_trainable_retina_loss,
-        th=0.4,
-        epochs=epochs,
-    ).build()
+        resolution=resolution,
+        train=TrainConfig(epochs=epochs),
+    )

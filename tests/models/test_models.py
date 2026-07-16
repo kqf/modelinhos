@@ -9,13 +9,13 @@ from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
 )
 
-from modelinhos.ssd.retinanet import (
+from modelinhos.models.retinanet import (
     build_torchvision_retinanet,
     bulid_retinanet,
     retina_anchors,
     torchvision_retina_anchors,
 )
-from modelinhos.ssd.ssdlite import (
+from modelinhos.models.ssdlite import (
     build_torchvision_ssdlite,
     torchvision_ssdlite_anchors,
 )

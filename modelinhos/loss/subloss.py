@@ -4,6 +4,8 @@ from typing import Callable, Optional, Union
 
 import torch
 
+from modelinhos.tasks.standard import StandardDetection
+
 LossFunctionyType = Union[
     torch.nn.Module,
     Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
@@ -50,11 +52,10 @@ def sum_normalized(loss_function: LossFunctionyType) -> LossFunctionyType:
     return f
 
 
-@dataclass
-class Sublosses:
-    bboxes: WeightedLoss
-    scores: WeightedLoss
-    labels: WeightedLoss
+@dataclass(frozen=True)
+class Sublosses(StandardDetection[WeightedLoss]):
+    """Per-field losses of the standard detection task: for each of
+    bboxes/scores/labels, the loss plus its encode/decode codecs."""
 
 
 def retina_confidence_loss(

@@ -1,18 +1,7 @@
-from typing import Generic, Protocol, TypeVar
-
 import torch
 import torch.nn.functional as F
 
-C = TypeVar("C")
-
-
-class HasBoxesAndClasses(Protocol, Generic[C]):
-    bboxes: C
-    labels: C
-    scores: C
-
-    @classmethod
-    def is_dataclass(cls) -> bool: ...
+from modelinhos.tasks.standard import StandardDetection
 
 
 def convert_to_xyxy(boxes: torch.Tensor) -> torch.Tensor:
@@ -128,8 +117,8 @@ def iterative_mathing(
 
 
 def match(
-    y_pred: HasBoxesAndClasses[torch.Tensor],
-    y_true: HasBoxesAndClasses[torch.Tensor],
+    y_pred: StandardDetection[torch.Tensor],
+    y_true: StandardDetection[torch.Tensor],
     anchors: torch.Tensor,
     negpos_ratio: int,
     overalp: float,

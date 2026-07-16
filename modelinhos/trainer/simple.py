@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Callable, Optional
 
 import torch
@@ -30,6 +31,20 @@ def default_optimizer_builder(
     return torch.optim.Adam(params, lr=lr)
 
 
+@dataclass(frozen=True)
+class TrainConfig:
+    """Architecture-independent optimization knobs -- everything about how
+    to run the optimization, nothing about what is being optimized."""
+
+    epochs: int = 1
+    lr: float = 1e-3
+    optimizer_builder: Callable = default_optimizer_builder
+    metrics: Optional[Callable] = None
+    train_dataloader_builder: DLBuilder = default_dataloader_builder
+    valid_dataloader_builder: DLBuilder = default_dataloader_builder
+    device: Optional[str] = None
+
+
 class SimpleTrainer:
     def __init__(
         self,
@@ -38,24 +53,18 @@ class SimpleTrainer:
         collate,
         label_encoder,
         loss_fn: Callable = print,
-        metrics: Optional[Callable] = None,
-        optimizer_builder: Callable = default_optimizer_builder,
-        lr: float = 1e-3,
-        train_dataloader_builder: DLBuilder = default_dataloader_builder,
-        valid_dataloader_builder: DLBuilder = default_dataloader_builder,
-        epochs: int = 1,
-        device: Optional[str] = None,
+        config: TrainConfig = TrainConfig(),
     ):
         self.decode = decode
         self.collate = collate
         self.lencoder = label_encoder
-        self.metrics_fn = metrics or MetricCollector
-        self.train_dataloader_builder = train_dataloader_builder
-        self.valid_dataloader_builder = valid_dataloader_builder
-        self.epochs = epochs
+        self.metrics_fn = config.metrics or MetricCollector
+        self.train_dataloader_builder = config.train_dataloader_builder
+        self.valid_dataloader_builder = config.valid_dataloader_builder
+        self.epochs = config.epochs
 
         self.device = torch.device(
-            device or ("cuda" if torch.cuda.is_available() else "cpu")
+            config.device or ("cuda" if torch.cuda.is_available() else "cpu")
         )
         self.model = model.to(self.device)
         # loss_fn may register buffers (e.g. DetectionLoss.priors) that need
@@ -66,7 +75,9 @@ class SimpleTrainer:
             if isinstance(loss_fn, torch.nn.Module)
             else loss_fn
         )
-        self.optimizer = optimizer_builder(self.model.parameters(), lr)
+        self.optimizer = config.optimizer_builder(
+            self.model.parameters(), config.lr
+        )
 
     def _score(self, metric_fn, batch, preds):
         true = self.lencoder.inverse_transform(

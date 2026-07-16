@@ -1,29 +1,25 @@
+from dataclasses import dataclass
 from functools import partial
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 import numpy as np
 import torch
 
-from modelinhos.detection import (
-    Collate,
-    PerBatchEncoded,
-    SampleDataset,
-    decode,
-    to_preds,
-    torchvision_to_samples,
-)
+from modelinhos.containers import Collate, to_preds
+from modelinhos.data import SampleDataset
+from modelinhos.loss.loss import DetectionLoss
 from modelinhos.preprocess.image import build_transform, normalize
 from modelinhos.preprocess.lables import DoNothingEncoder, SampleEncoder
-from modelinhos.sample import Sample
-from modelinhos.trainer.simple import (
-    DLBuilder,
-    SimpleTrainer,
-    default_dataloader_builder,
-    default_optimizer_builder,
-)
+from modelinhos.sample import Sample, TrainAnnotation
+from modelinhos.tasks.standard import PerBatchEncoded
+from modelinhos.trainer.simple import SimpleTrainer, TrainConfig
 
 
 class DetectionModel(torch.nn.Module):
+    """Adapts a (boxes, classes) two-headed model to the pipeline's
+    PerBatchEncoded container."""
+
     def __init__(self, model: torch.nn.Module):
         super().__init__()
         self.model = model
@@ -35,8 +31,8 @@ class DetectionModel(torch.nn.Module):
 class Detector:
     """Thin wrapper around an already-built trainer: converts between
     Sample objects and whatever the trainer's dataset/decode expect.
-    Built exclusively by DetectionConfig.build()/TorchvisionDetector — do
-    not construct directly elsewhere."""
+    Built exclusively by build_detector()/TorchvisionDetector -- do not
+    construct directly elsewhere."""
 
     def __init__(
         self,
@@ -74,55 +70,79 @@ class Detector:
         return self.label_encoder.inverse_transform(preds)
 
 
-@dataclass
-class DetectionConfig:
-    """Everything needed to build a trainable Detector for one of our own
-    (non-torchvision-native) architectures. Anchors only matter for the
-    loss (matching/encode/decode) -- build_model builds the model alone.
-    loss is built exactly once and used for both decode and backprop --
-    see .build()."""
+@dataclass(frozen=True)
+class Architecture:
+    """What defines a model family: how to build the network, its anchors,
+    and the loss builder (the loss owns the encode/decode codec). Presets
+    live next to their model definitions in modelinhos/models/."""
 
-    build_model: Callable  # (weights, resolution) -> model
-    anchors: Callable  # (resolution) -> anchors tensor
-    resolution: tuple[int, int]
-    weights: Any
-    lencoder: SampleEncoder
+    build_model: Callable  # (weights, resolution, n_classes) -> nn.Module
+    anchors: Callable  # (resolution) -> priors tensor
     loss: Callable  # (priors, score_thresh) -> DetectionLoss
     normalize: Callable = normalize
-    th: float = 0.4
-    epochs: int = 1
-    lr: float = 1e-3
-    optimizer_builder: Callable = default_optimizer_builder
-    metrics: Optional[Callable] = None
-    train_dataloader_builder: DLBuilder = default_dataloader_builder
-    valid_dataloader_builder: DLBuilder = default_dataloader_builder
-    device: Optional[str] = None
+    weights: Any = None
 
-    def build(self) -> Detector:
-        model = self.build_model(
-            weights=self.weights, resolution=self.resolution
+
+def build_detector(
+    arch: Architecture,
+    lencoder: SampleEncoder,
+    resolution: tuple[int, int],
+    train: TrainConfig = TrainConfig(),
+    th: float = 0.4,
+    n_classes: Optional[int] = None,
+) -> Detector:
+    """Assemble a Detector from an architecture, a label encoder and the
+    training knobs. Model and priors are built independently (anchors only
+    matter to the loss), and the DetectionLoss instance is created exactly
+    once -- it serves both backprop and decoding."""
+    n_classes = n_classes or len(lencoder.l2i)
+    model = arch.build_model(
+        weights=arch.weights,
+        resolution=resolution,
+        n_classes=n_classes,
+    )
+    priors = arch.anchors(resolution)
+    loss_fn: DetectionLoss = arch.loss(priors=priors, score_thresh=th)
+    trainer = SimpleTrainer(
+        model=DetectionModel(model),
+        decode=loss_fn.decode,
+        collate=Collate(),
+        label_encoder=lencoder,
+        loss_fn=loss_fn,
+        config=train,
+    )
+    return Detector(
+        trainer=trainer,
+        transforms=build_transform(arch.weights, arch.normalize),
+        label_encoder=lencoder,
+    )
+
+
+def torchvision_to_samples(
+    predictions,
+    priors,
+    resolution,
+    score_thresh,
+) -> list[Sample[TrainAnnotation]]:
+    return [
+        Sample(
+            file_name=Path("fake-file.png"),
+            annotations=[
+                TrainAnnotation(
+                    bboxes=tuple(b.tolist()),  # type: ignore
+                    labels=(ll.item(),),
+                    scores=(s.item(),),
+                )
+                for b, s, ll in zip(
+                    pred["boxes"].numpy(),
+                    pred["scores"].numpy(),
+                    pred["labels"].numpy(),
+                )
+                if s > score_thresh
+            ],
         )
-        priors = self.anchors(self.resolution)
-        loss_fn = self.loss(priors=priors, score_thresh=self.th)
-        trainer = SimpleTrainer(
-            model=DetectionModel(model),
-            decode=partial(decode, loss=loss_fn),
-            collate=Collate(),
-            label_encoder=self.lencoder,
-            loss_fn=loss_fn,
-            metrics=self.metrics,
-            optimizer_builder=self.optimizer_builder,
-            lr=self.lr,
-            train_dataloader_builder=self.train_dataloader_builder,
-            valid_dataloader_builder=self.valid_dataloader_builder,
-            epochs=self.epochs,
-            device=self.device,
-        )
-        return Detector(
-            trainer=trainer,
-            transforms=build_transform(self.weights, self.normalize),
-            label_encoder=self.lencoder,
-        )
+        for pred in predictions
+    ]
 
 
 class TorchvisionDetector(Detector):

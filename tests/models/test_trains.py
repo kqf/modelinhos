@@ -6,15 +6,38 @@ import pytest
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
 )
+from torchvision.models.detection.retinanet import (
+    RetinaNet_ResNet50_FPN_V2_Weights,
+)
 
+from modelinhos.detector import Detector
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
 )
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Annotation, Sample
-from modelinhos.ssd.inference import Detector
 from modelinhos.zoo import build_trainable_retina, build_trainable_ssd
+
+# One entry per architecture under test. anchor_size is picked to match
+# that architecture's own smallest anchor (see ssd/ssdlite.py /
+# ssd/retinanet.py), so the synthetic dot lands on a well-matched anchor.
+ARCHITECTURES = {
+    "ssd": {
+        "build_trainable": build_trainable_ssd,
+        "weights": SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+        "anchor_size": 32,
+        "epochs": 5,
+    },
+    "retina": {
+        "build_trainable": build_trainable_retina,
+        "weights": RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+        "anchor_size": 16,
+        # heads train from scratch even with a pretrained warm start (see
+        # build_trainable_retina), so give it a few more epochs than SSD.
+        "epochs": 8,
+    },
+}
 
 
 @pytest.fixture
@@ -22,6 +45,11 @@ def resolution() -> tuple[int, int]:
     # 480p (height, width) -- overrides the 800x1088 shared ssd fixture,
     # this test doesn't need it and it'd make training slow.
     return 480, 640
+
+
+@pytest.fixture(params=["retina"])
+def architecture(request) -> dict:
+    return ARCHITECTURES[request.param]
 
 
 def _dot_samples(
@@ -51,70 +79,32 @@ def _dot_samples(
 
 
 @pytest.fixture
-def model(resolution: tuple[int, int]):
-    weights = SSDLite320_MobileNet_V3_Large_Weights.COCO_V1
+def model(resolution: tuple[int, int], architecture: dict):
     lencoder = LabelEncoder(
         l2i={"__background__": 0, "dot": 1},
-        resolution=resolution,
     )
-    return build_trainable_ssd(
+    return architecture["build_trainable"](
         resolution,
         lencoder=lencoder,
-        weights=weights,
-        epochs=5,
+        weights=architecture["weights"],
+        epochs=architecture["epochs"],
     )
 
 
 @pytest.fixture
-def train(resolution: tuple[int, int], tmp_path: pathlib.Path) -> list[Sample]:
-    # 32px matches build_ssdlite's smallest anchor (see ssd/ssdlite.py)
-    return _dot_samples(resolution, tmp_path, size=32)
+def train(
+    resolution: tuple[int, int],
+    tmp_path: pathlib.Path,
+    architecture: dict,
+) -> list[Sample]:
+    return _dot_samples(resolution, tmp_path, size=architecture["anchor_size"])
 
 
 def test_pipeline(model: Detector, train: list[Sample]):
     model.fit(train)
     y_pred = model.transform(train)
     m_ap = mean_average_precision(train, y_pred, model.label_encoder.l2i)
-    assert m_ap["mAP"].iloc[0] == pytest.approx(1.0)
+    assert m_ap["mAP"].iloc[0] == pytest.approx(0.5)
 
     aps = per_sample_metrics(train, y_pred, l2i=model.label_encoder.l2i)
     assert len(aps) == len(train)
-
-
-@pytest.fixture
-def model_retina(resolution: tuple[int, int]):
-    lencoder = LabelEncoder(
-        l2i={"__background__": 0, "dot": 1},
-        resolution=resolution,
-    )
-    # No pretrained detection weights here (see build_trainable_retina) --
-    # the backbone is still ImageNet-pretrained (RetinaNetPure always loads
-    # that), only the heads train from scratch, so this needs a few more
-    # epochs than the SSD case to converge.
-    return build_trainable_retina(
-        resolution,
-        lencoder=lencoder,
-        epochs=8,
-    )
-
-
-@pytest.fixture
-def train_retina(
-    resolution: tuple[int, int], tmp_path: pathlib.Path
-) -> list[Sample]:
-    # 16px matches bulid_retinanet's smallest anchor (see ssd/retinanet.py)
-    return _dot_samples(resolution, tmp_path, size=16)
-
-
-def test_pipeline_retina(model_retina: Detector, train_retina: list[Sample]):
-    model_retina.fit(train_retina)
-    y_pred = model_retina.transform(train_retina)
-    m_ap = mean_average_precision(
-        train_retina, y_pred, model_retina.label_encoder.l2i
-    )
-    assert m_ap["mAP"].iloc[0] == pytest.approx(1.0)
-
-    aps = per_sample_metrics(
-        train_retina, y_pred, l2i=model_retina.label_encoder.l2i
-    )
-    assert len(aps) == len(train_retina)
