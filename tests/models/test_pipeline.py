@@ -47,5 +47,7 @@ def test_pipeline(model: Detector, dataset: pathlib.Path):
 
     aps = per_sample_metrics(valid, y_pred, l2i=model.label_encoder.l2i)
     assert len(aps) == len(valid)
-    assert aps.iloc[0]["mAP"] == pytest.approx(0.028571429)
+    # person found (AP 1.0), tie missed (AP 0.0), averaged over the two
+    # classes present in the GT -- classes without GT don't dilute the mean
+    assert aps.iloc[0]["mAP"] == pytest.approx(0.5)
     visualize_fp_fn(aps, i2l=model.label_encoder.i2l)

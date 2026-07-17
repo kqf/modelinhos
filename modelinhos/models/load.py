@@ -9,11 +9,15 @@ def load_with_mismatch(model, pretrained_state_dict):
         ns = model_param.shape
         expanded = pretrained_param
         for dim in range(len(ns)):
-            if pretrained_param.shape[dim] < ns[dim]:
-                repeats = ns[dim] // pretrained_param.shape[dim]
+            # Work on `expanded` throughout: narrowing from the original
+            # would discard expansions already applied to earlier dims.
+            # Ceil the repeat count so non-divisible targets overshoot;
+            # the narrow below trims to the exact size.
+            if expanded.shape[dim] < ns[dim]:
+                repeats = -(-ns[dim] // expanded.shape[dim])
                 expanded = expanded.repeat_interleave(repeats, dim=dim)
-            if pretrained_param.shape[dim] > ns[dim]:
-                expanded = torch.narrow(pretrained_param, dim, 0, ns[dim])
+            if expanded.shape[dim] > ns[dim]:
+                expanded = torch.narrow(expanded, dim, 0, ns[dim])
         return expanded
 
     model_state_dict = model.state_dict()

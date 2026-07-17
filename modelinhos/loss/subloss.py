@@ -52,6 +52,24 @@ def sum_normalized(loss_function: LossFunctionyType) -> LossFunctionyType:
     return f
 
 
+def positive_normalized(loss_function: LossFunctionyType) -> LossFunctionyType:
+    """Sum-reduced loss divided by the number of positive targets
+    (target > 0, background being 0). This is the SSD convention for the
+    confidence loss: it is computed over positives plus mined negatives,
+    but normalized by the positive count only -- dividing by the full
+    count would underweight it ~(1 + negpos_ratio)x against the box loss,
+    which is normalized by the same positive count."""
+
+    @functools.wraps(loss_function)
+    def f(pred: torch.Tensor, true: torch.Tensor) -> torch.Tensor:
+        loss = loss_function(pred, true)
+        if pred.shape[0] == 0:
+            return torch.nan_to_num(loss, 0)
+        return loss / (true > 0).sum().clamp(min=1)
+
+    return f
+
+
 @dataclass(frozen=True)
 class Sublosses(StandardDetection[WeightedLoss]):
     """Per-field losses of the standard detection task: for each of

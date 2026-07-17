@@ -15,7 +15,12 @@ from torchvision.models.detection.ssdlite import (
 from modelinhos.detector import Architecture
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match
-from modelinhos.loss.subloss import Sublosses, WeightedLoss, sum_normalized
+from modelinhos.loss.subloss import (
+    Sublosses,
+    WeightedLoss,
+    positive_normalized,
+    sum_normalized,
+)
 from modelinhos.models.anchors import anchors
 from modelinhos.models.load import load_with_mismatch
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
@@ -59,10 +64,13 @@ class SSDPure(torch.nn.Module):
             6,
             norm_layer,
         )
+        # Only build head branches for the feature maps forward() actually
+        # feeds ([:extra]) -- otherwise the unused branches sit as dead
+        # parameters in the optimizer and checkpoints.
         out_channels = det_utils.retrieve_out_channels(
             self.backbone,
             resolution,
-        )
+        )[:extra]
         num_anchors = [num_anchors for _ in out_channels]
         self.head = SSDPureHead(
             out_channels=out_channels,
@@ -222,7 +230,9 @@ def build_ssd_loss(
             dec_pred=decode_scores,
         ),
         labels=WeightedLoss(
-            loss=sum_normalized(partial(F.cross_entropy, reduction="sum")),
+            loss=positive_normalized(
+                partial(F.cross_entropy, reduction="sum")
+            ),
             needs_negatives=True,
             dec_pred=decode_labels,
         ),

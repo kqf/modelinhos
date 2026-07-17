@@ -46,6 +46,14 @@ def match_boxes(
     n_anchors = priors.shape[0]
     n_obj = boxes.shape[0]
 
+    # Images without annotations produce empty (and, before collate has
+    # seen a non-empty sample, mis-shaped (0, 1)) box tensors -- there is
+    # nothing to match either way, so bail out before the IoU broadcast.
+    if n_obj == 0:
+        return torch.zeros(
+            (n_anchors, 0), dtype=torch.bool, device=boxes.device
+        )
+
     # Compute IoU overlaps: [n_obj, n_anchors]
     overlaps = iou(boxes[:, None], convert_to_xyxy(priors))
 
@@ -66,11 +74,13 @@ def match_boxes(
     if valid_gt_idx.sum() == 0:
         return matching_table
 
-    # Force match: assign each valid GT to its best matching prior
+    # Force match: assign each valid GT to its best matching prior. Only
+    # valid GTs may claim an anchor -- invalid ones (best IoU < 0.2, e.g.
+    # padding boxes, whose IoU is 0 everywhere and whose argmax therefore
+    # lands on anchor 0) must not redirect anchors already force-matched
+    # to real GTs.
     best_truth_overlap.index_fill_(0, best_prior_idx[valid_gt_idx], 2)
-    best_truth_idx[best_prior_idx] = torch.arange(
-        best_prior_idx.shape[0], device=best_prior_idx.device
-    )
+    best_truth_idx[best_prior_idx[valid_gt_idx]] = torch.where(valid_gt_idx)[0]
 
     # Mark anchors as positive if IoU exceeds threshold
     valid_anchors = best_truth_overlap >= overlap_threshold
@@ -89,7 +99,9 @@ def mine_negatives(
     labels = torch.zeros_like(pred[:, :, 0], dtype=label.dtype)
     # TODO: Check why?
     labels = labels.long()
-    labels[pos_batch, pos_anchor] = label[pos_batch, pos_obj].squeeze().long()
+    labels[pos_batch, pos_anchor] = (
+        label[pos_batch, pos_obj].squeeze(-1).long()
+    )
     loss = F.cross_entropy(
         pred.view(-1, pred.shape[-1]),
         labels.view(-1),

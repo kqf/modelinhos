@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import torch
 
-from modelinhos.blazenet import BlazeNet
+from modelinhos.blaze.blazenet import BlazeNet
 
 EXPECTED = np.array(
     [

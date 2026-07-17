@@ -95,7 +95,13 @@ def build_detector(
     training knobs. Model and priors are built independently (anchors only
     matter to the loss), and the DetectionLoss instance is created exactly
     once -- it serves both backprop and decoding."""
-    n_classes = n_classes or len(lencoder.l2i)
+    if n_classes is None:
+        n_classes = len(lencoder.l2i)
+    if not n_classes:
+        raise ValueError(
+            "n_classes resolved to 0 -- pass n_classes explicitly or fit "
+            "the label encoder before building the detector"
+        )
     model = arch.build_model(
         weights=arch.weights,
         resolution=resolution,
@@ -134,9 +140,9 @@ def torchvision_to_samples(
                     scores=(s.item(),),
                 )
                 for b, s, ll in zip(
-                    pred["boxes"].numpy(),
-                    pred["scores"].numpy(),
-                    pred["labels"].numpy(),
+                    pred["boxes"].cpu().numpy(),
+                    pred["scores"].cpu().numpy(),
+                    pred["labels"].cpu().numpy(),
                 )
                 if s > score_thresh
             ],
