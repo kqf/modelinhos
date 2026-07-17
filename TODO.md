@@ -44,3 +44,29 @@ Things to do:
 - [ ] Add the fcos inference
 - [ ] Sanitize the BlazeNet
 - [ ] Make the BlazeNet a part of a group
+- [ ] Finish trainings/study-ssd-misc.py -- needs modelinhos.inspect
+      (rule: if the answer changes when you swap the model, it goes to
+      inspect; data-only stays in analysis)
+    - [ ] summarize(model, resolution, n_classes): wrap torchinfo + a
+          FLOP counter; own code only for latency, measured on the
+          current machine (never predicted for the target device)
+    - [ ] matchability(samples, recipe, resolution): fact -- run the
+          recipe's own priors + match_boxes (loss/matching.py) over
+          every GT box, per-box matched-anchor counts
+    - [ ] anchor_advice(matched, geometry): verdict -- recall ceilings
+          per class / size bucket, the serviceable size range implied
+          by the steps (~2x finest to ~4x coarsest at the model
+          resolution), the share of data outside it (only resolution
+          fixes that: steps come from the backbone, sizes from data),
+          suggested per-level sizes from the in-range box scales
+    - [ ] class_feasibility(counts, matched): verdict -- owns the task
+          label space (l2i), checks train covers it, judges sample
+          count x matchability jointly
+    - [ ] materialize(train, augmentation, draws, seed): sample the
+          augmentation into a virtual split (draws ~ epochs), rerun
+          the same fact functions on it
+    - [ ] Real sanitize step: drop sub-floor boxes, collapse labels to
+          the single "object" class, write sanitized jsons -- the
+          script's step 2 is currently a pass-through of linted.good
+    - [ ] Wire visualize_labels / visualize_bboxes into the script
+          (train vs test, at the model resolution)
