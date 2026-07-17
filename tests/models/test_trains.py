@@ -27,7 +27,7 @@ ARCHITECTURES = {
         "build_trainable": build_trainable_ssd,
         "weights": SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
         "anchor_size": 32,
-        "epochs": 5,
+        "epochs": 2,
     },
     "retina": {
         "build_trainable": build_trainable_retina,
@@ -35,7 +35,7 @@ ARCHITECTURES = {
         "anchor_size": 16,
         # heads train from scratch even with a pretrained warm start (see
         # build_trainable_retina), so give it a few more epochs than SSD.
-        "epochs": 8,
+        "epochs": 3,
     },
 }
 
