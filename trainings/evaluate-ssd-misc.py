@@ -53,7 +53,7 @@ def infer(
 
 
 def main():
-    annotations = Path("datasets/coco/annotations.json")
+    annotations = Path("data/coco/annotations.json")
     samples = load_samples(annotations)
     for i, sample in enumerate(samples):
         if i > 10:

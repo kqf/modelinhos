@@ -94,7 +94,10 @@ P1 -- deployable and measurable:
       - [ ] Clean the code -> simplify
 
 - [ ] DO the first trainings on COCO dataset:
+- [ ] Download the coco dataset but unpack it to data/ location
   - [ ] Train the COCO dataset with warmups probably on grayscale no normalization:
+  - [ ] Validatoin map
+  - [ ] Extend add the precision recall @p=0.5,
   - [ ] LR scheduler
   - [ ] Add augmentaitons
   - [ ] Early stopping
