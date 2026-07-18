@@ -57,7 +57,8 @@ dependencies = [
     "requests",
     "matplotlib",
     "dadinhos",
-    "joblib"
+    "joblib",
+    "torchinfo"
 ]
 readme = { file = "README.rst", content-type = "text/x-rst" }
 

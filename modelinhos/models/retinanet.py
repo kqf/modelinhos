@@ -100,7 +100,7 @@ def torchvision_retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
     )
 
 
-def bulid_retinanet(n_classes, resolution: tuple[int, int], weights):
+def bulid_retinanet(n_classes, resolution: tuple[int, int], weights=None):
     model = RetinaNetPure(n_classes)
     if weights is not None:
         load_with_mismatch_from_weights(model, weights=weights, progress=False)
