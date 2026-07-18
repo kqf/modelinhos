@@ -18,12 +18,10 @@ from modelinhos.sample import (
 
 logger = logging.getLogger(__name__)
 
-COCO_FILES = {
-    "val2017.zip": "http://images.cocodataset.org/zips/val2017.zip",
-    "annotations_trainval2017.zip": (
-        "http://images.cocodataset.org/annotations/annotations_trainval2017.zip"
-    ),
-}
+COCO_IMAGES_URL = "http://images.cocodataset.org/zips/{split}.zip"
+COCO_ANNOTATIONS_URL = (
+    "http://images.cocodataset.org/annotations/annotations_trainval2017.zip"
+)
 
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
@@ -87,43 +85,47 @@ def _extract_archive(archive_path: Path, extract_to: Path) -> None:
         archive.extractall(extract_to)
 
 
-def download_validation(root: Path) -> Path:
-    """Download and prepare the COCO val2017 split under *root*.
+def download_split(root: Path, split: str) -> Path:
+    """Download and prepare a COCO 2017 *split* under *root*.
 
     The two COCO archives unpack with a flat layout::
 
-        val2017.zip                  →  <root>/val2017/<images>
+        <split>.zip                  →  <root>/<split>/<images>
         annotations_trainval2017.zip →  <root>/annotations/<json files>
 
     After extraction we relocate the image folder so the final structure is::
 
         <root>/
           images/
-            val2017/          ← images end up here
+            <split>/          ← images end up here
           annotations/
-            instances_val2017.json
+            instances_<split>.json
 
-    Returns ``(images_dir, annotations_path)``.
+    Returns the annotations path.
     """
-    images = root / "images" / "val2017"
-    annotations = root / "annotations" / "instances_val2017.json"
+    images = root / "images" / split
+    annotations = root / "annotations" / f"instances_{split}.json"
 
     if images.exists() and annotations.exists():
-        logger.info("COCO val2017 already present at %s, skipping ", root)
+        logger.info("COCO %s already present at %s, skipping ", split, root)
         return annotations
 
     root.mkdir(parents=True, exist_ok=True)
 
-    for archive_name, url in COCO_FILES.items():
+    archives = {
+        f"{split}.zip": COCO_IMAGES_URL.format(split=split),
+        "annotations_trainval2017.zip": COCO_ANNOTATIONS_URL,
+    }
+    for archive_name, url in archives.items():
         archive_path = root / archive_name
         if not archive_path.exists():
             logger.info("Downloading %s", archive_name)
             _download_file(url, archive_path)
         _extract_archive(archive_path, root)
 
-    # val2017.zip unpacks to <root>/val2017/; move it under images/ to match
+    # <split>.zip unpacks to <root>/<split>/; move it under images/ to match
     # the expected layout described in the docstring above.
-    extracted = root / "val2017"
+    extracted = root / split
     if extracted.exists():
         images.parent.mkdir(parents=True, exist_ok=True)
         extracted.rename(images)
@@ -142,7 +144,7 @@ def _bbox_xywh_to_xyxy(
     return x / width, y / height, (x + w) / width, (y + h) / height
 
 
-def to_samples(annotations_path: Path) -> list[Sample]:
+def to_samples(annotations_path: Path, split: str) -> list[Sample]:
     coco: CocoDataset = CocoDataset.from_json(annotations_path.read_text())  # type: ignore
 
     category_name = {cat.id: cat.name for cat in coco.categories}
@@ -154,7 +156,7 @@ def to_samples(annotations_path: Path) -> list[Sample]:
 
     return [
         Sample(
-            file_name=Path(f"images/val2017/{image.file_name}"),
+            file_name=Path(f"images/{split}/{image.file_name}"),
             annotations=[
                 Annotation(
                     bbox=_bbox_xywh_to_xyxy(
@@ -169,14 +171,14 @@ def to_samples(annotations_path: Path) -> list[Sample]:
     ]
 
 
-def download(output: Path) -> Path:
-    annotations = download_validation(output.parent)
-    samples = to_samples(annotations)
+def download(output: Path, split: str = "val2017") -> Path:
+    annotations = download_split(output.parent, split)
+    samples = to_samples(annotations, split)
     save_samples(samples, output)
     return output
 
 
-def load_samples(annotations: Path) -> list[Sample]:
+def load_samples(annotations: Path, split: str = "val2017") -> list[Sample]:
     if not annotations.exists():
-        download(annotations)
+        download(annotations, split)
     return read_samples(annotations)
