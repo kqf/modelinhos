@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 import numpy as np
 import torch
@@ -10,6 +10,7 @@ from modelinhos.containers import Collate, to_preds
 from modelinhos.data import SampleDataset
 from modelinhos.engine import Engine
 from modelinhos.loss.loss import DetectionLoss
+from modelinhos.models.load import Weights, from_scratch
 from modelinhos.preprocess.image import rgb_normalized_image_encoder
 from modelinhos.preprocess.lables import DoNothingEncoder, SampleEncoder
 from modelinhos.sample import Annotation, Sample
@@ -102,8 +103,9 @@ class DetectionRecipe:
     (resolution) arrive at bake() time. Presets live next to their model
     definitions in modelinhos/models/."""
 
-    # (weights, resolution, n_classes) -> nn.Module; weights is None or
-    # a loader from modelinhos.models.load (warm_start/restore)
+    # (resolution, n_classes) -> nn.Module, freshly initialized; weight
+    # loading is not its concern -- bake() applies the Weights loader to
+    # its result
     build_model: Callable
     anchors: Callable  # (resolution) -> priors tensor
     # (priors, score_thresh) -> DetectionLoss: the returned loss carries
@@ -125,17 +127,18 @@ class DetectionRecipe:
         self,
         n_classes: int,
         resolution: tuple[int, int],
-        weights: Any = None,
+        weights: Weights = from_scratch,
         th: float = 0.4,
     ) -> Baked:
         """Tie the pieces together for one label space and geometry.
         Model and priors are built independently (anchors only matter to
         the loss), and the DetectionLoss instance is created exactly
         once -- it serves both backprop and decoding."""
-        model = self.build_model(
-            weights=weights,
-            resolution=resolution,
-            n_classes=n_classes,
+        model = weights(
+            self.build_model(
+                resolution=resolution,
+                n_classes=n_classes,
+            )
         )
         priors = self.anchors(resolution)
         loss: DetectionLoss = self.loss(priors=priors, score_thresh=th)
@@ -157,7 +160,7 @@ def build_detector(
     resolution: tuple[int, int],
     engine: EngineBuilder,
     th: float = 0.4,
-    weights: Any = None,
+    weights: Weights = from_scratch,
 ) -> Detector:
     """Compose the three independent choices -- architecture (recipe),
     label space (lencoder) and training backend (engine) -- into a

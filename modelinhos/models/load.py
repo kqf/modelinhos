@@ -4,9 +4,16 @@ from typing import Callable
 import torch
 from torch.nn.modules.utils import consume_prefix_in_state_dict_if_present
 
-# What every build_model accepts as `weights`: None to start from
-# scratch, or a loader built by warm_start/restore below.
+# What bake()/build_detector accept as `weights`: a loader applied to
+# the freshly built model -- from_scratch (the default), or one built
+# by warm_start/restore below. Never None: passing weights around as an
+# always-callable keeps every build_model free of loading concerns.
 Weights = Callable[[torch.nn.Module], torch.nn.Module]
+
+
+def from_scratch(model: torch.nn.Module) -> torch.nn.Module:
+    """The identity loader: keep the freshly initialized parameters."""
+    return model
 
 
 def load_with_mismatch(model, pretrained_state_dict):

@@ -55,8 +55,8 @@ def build_ssd(
     default) is mismatch-tolerant, so any head size warm-starts from the
     checkpoint -- with coco_label_encoder the defaults reproduce the
     torchvision pretrained detector exactly; restore(path) loads a
-    trained checkpoint strictly for evaluation/export; None starts from
-    scratch. Pass arch=SSDLITE for the trimmed custom flavor and any
+    trained checkpoint strictly for evaluation/export; from_scratch
+    skips loading. Pass arch=SSDLITE for the trimmed custom flavor and any
     engine (skorch_engine, lightning_engine, ...) to swap the training
     backend."""
     return build_detector(
@@ -81,14 +81,14 @@ def build_retina(
 ) -> Detector:
     """Our RetinaNet reimplementation. Same contract as build_ssd:
     lencoder must be fit (it sizes the head), weights is a
-    warm_start/restore loader (None for scratch), and with
+    warm_start/restore loader (from_scratch to skip loading), and with
     coco_label_encoder the defaults
     reproduce the torchvision pretrained detector exactly. The loss
     (build_ret_loss) is the sigmoid focal loss the pretrained checkpoint
     was itself trained under, so the warm start is convention-exact: the
     head starts quiet (prior-probability biases) instead of firing
     everywhere. Pass arch=RETINANET for the trimmed custom flavor,
-    weights=None to start from scratch."""
+    weights=from_scratch to skip loading."""
     return build_detector(
         arch=arch,
         weights=weights,
