@@ -36,3 +36,31 @@ def rgb_normalized_image_encoder(normalize=normalize):
             T.Lambda(normalize),
         ]
     )
+
+
+def grayscale_image_encoder(resolution: tuple[int, int]):
+    """Grayscale without normalization: raw (0, 255) intensities go
+    straight into the network, whose first BatchNorm learns the input
+    statistics itself. Gray is replicated to 3 channels so RGB backbones
+    (and their pretrained weights) fit unchanged. Also resizes to
+    `resolution` (height, width) -- boxes are relative everywhere, so
+    only pixels move and datasets of mixed image sizes (COCO) batch
+    cleanly."""
+    H, W = resolution
+    return T.Compose(
+        [
+            T.Lambda(lambda frame: cv2.resize(frame, (W, H))),
+            T.Lambda(
+                lambda frame: cv2.cvtColor(
+                    frame,
+                    cv2.COLOR_BGR2GRAY,
+                )
+            ),
+            T.Lambda(
+                lambda frame: torch.from_numpy(frame)
+                .float()
+                .unsqueeze(0)
+                .repeat(3, 1, 1)
+            ),
+        ]
+    )
