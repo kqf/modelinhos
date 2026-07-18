@@ -248,6 +248,39 @@ def build_ssd_loss(
     )
 
 
+# Why the step counts below are what they are -- BatchNorm EMA math:
+#
+# Training mAP is scored in train() mode (per-batch BN statistics), but
+# transform()/predict() run in eval() mode, which normalizes with the BN
+# running_mean/running_var buffers instead. Those buffers are NOT trained
+# by the optimizer; they only drift toward the data statistics via an EMA,
+# once per train-mode forward pass:
+#
+#     running = (1 - momentum) * running + momentum * batch_stat ~
+#
+# With the model's momentum = 0.03 and this dataset (identical images, so
+# batch_stat is a constant), the leftover fraction of the stale initial
+# stats (COCO backbone / mean-0-var-1 fresh head) after N training steps
+# is exactly 0.97^N:
+#
+#     N =  32 -> 38% stale  (mAP 1.0 in train mode, ~0.34 scores in eval,
+#                            below the 0.4 threshold -> test fails)
+#     N =  64 -> 14% stale  (barely passes, no margin)
+#     N = 128 ->  2% stale  (train mode ~= eval mode, safe)
+#
+# So the test must run ~100+ optimizer steps, where
+# N = epochs * n_samples / batch_size. Two non-obvious consequences:
+#
+#   * Raising batch_size HURTS: EMA updates happen per forward pass, not
+#     per sample, so bigger batches mean fewer updates -- and with
+#     identical images the batch stats don't improve either. Keep it at 1.
+#   * The learning rate is irrelevant here: loss converges in ~1 epoch;
+#     the EMA is the only bottleneck, and it ignores the optimizer.
+#
+# Resolution is kept small (the 32 px dot matches the smallest SSD anchor
+# at any image size) so the extra steps stay cheap in CI. If you lower
+# epochs or n_samples, redo the 0.97^N arithmetijjk first.
+
 # Trainable configuration: retina-style anchors, mismatch-tolerant weight
 # loading -- what modelinhos trains from scratch / fine-tunes.
 SSDLITE = Architecture(

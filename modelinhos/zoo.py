@@ -110,7 +110,7 @@ def build_inference_only_custom_retina(
 
 def build_trainable_ssd(
     resolution: tuple[int, int],
-    lencoder: LabelEncoder,
+    lencoder: Optional[LabelEncoder] = None,
     epochs: int = 10,
     weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
 ) -> Detector:
@@ -119,7 +119,11 @@ def build_trainable_ssd(
     reserves index 0 for background via l2i_forced)."""
     return build_detector(
         replace(SSDLITE, weights=weights),
-        lencoder=lencoder,
+        lencoder=lencoder
+        or LabelEncoder(
+            l2i={"__background__": 0, "dot": 1},
+            resolution=resolution,
+        ),
         resolution=resolution,
         train=TrainConfig(epochs=epochs),
     )
@@ -127,7 +131,7 @@ def build_trainable_ssd(
 
 def build_trainable_retina(
     resolution: tuple[int, int],
-    lencoder: LabelEncoder,
+    lencoder: Optional[LabelEncoder] = None,
     epochs: int = 10,
     weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
 ) -> Detector:
@@ -141,7 +145,11 @@ def build_trainable_retina(
     warm start -- pass weights=None to skip it."""
     return build_detector(
         replace(RETINANET, weights=weights),
-        lencoder=lencoder,
+        lencoder=lencoder
+        or LabelEncoder(
+            l2i={"__background__": 0, "dot": 1},
+            resolution=resolution,
+        ),
         resolution=resolution,
         train=TrainConfig(epochs=epochs),
     )
