@@ -93,7 +93,7 @@ def blaze_anchors(
 
 def blaze_back_anchors(resolution: tuple[int, int]) -> torch.Tensor:
     """Anchors for the back-camera model: same layout, but the first conv
-    downsamples by 4, so both maps sit one octave deeper."""
+    downsamples by 4, so both feature maps sit at double the stride."""
     return blaze_anchors(resolution, steps=(16, 32))
 
 

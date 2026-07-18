@@ -88,9 +88,15 @@ def main(
         for name, s in splits.items()
     )
 
-    # 7. Verdicts read facts, never samples.
-    # Solvability: ceilings on ALL splits
-    print(anchor_advice(matched, SSDLITE, resolution).to_string())
+    # 7. Verdicts read facts, never samples -- and they are as
+    # split-blind as the facts: run per split and stack, the split
+    # column stays ours. Solvability: ceilings on ALL splits.
+    print(
+        pd.concat(
+            anchor_advice(part, SSDLITE, resolution).assign(split=name)
+            for name, part in matched.groupby("split")
+        ).to_string()
+    )
     # TODO: Implement me later: class_feasibility on counts x matched.
 
 
