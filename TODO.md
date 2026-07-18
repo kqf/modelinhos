@@ -72,15 +72,55 @@ Things to do:
           hardwired to COCO now: the evaluation set randomly split
           into train/test (no train download), TORCHVISION_SSDLITE
           at its native 320x320, the checkpoint's own label space
-- [ ] Load the checkpoints -> blocks everything
-- [ ] Perhaps add SSDCUSTOM recipe that has exactly the same anchro structure as RETINANET (uses retina_anchors)
+P0 -- the train -> evaluate -> deploy loop is broken in the middle:
+
+- [ ] Load the checkpoints -> blocks everything. Concretely: `weights`
+      only accepts objects with `.get_state_dict()` (torchvision
+      WeightsEnum), so the params.pt that train-ssd-misc.py's Checkpoint
+      writes cannot be fed back into build_ssd for evaluation or export.
+      Needs a `local_weights(path)` adapter over load_with_mismatch --
+      minding the key namespace: engines save the wrapped DetectionModel
+      state dict (`model.`-prefixed keys) while build_model produces the
+      raw model.
+- [x] Fix packaging: `[tool.setuptools] packages = ["modelinhos"]`
+      ships only the top-level package -- engine/, models/, loss/, ...
+      are missing from a `pip install`. Switch to the find directive.
+
+P1 -- deployable and measurable:
+
+- [ ] Export to ONNX uniformly for all the recipes (only blaze/to_onnx
+      exists today; depends on checkpoint loading)
 - [ ] DO the first trainings on COCO dataset:
   - [ ] Train the COCO dataset with warmups probably on grayscale no normalization:
   - [ ] LR scheduler
   - [ ] Add augmentaitons
   - [ ] Early stopping
-- [ ] Export to ONNX uniformly for all the recipes
+
+P2 -- hygiene before there are external users (renames get expensive later):
+
+- [ ] Move modelinhos/train.py out of the library -- it is a script
+      (cv2.imshow, joblib cache, __main__) predating trainings/, and it
+      drags the dadinhos import into the package
+- [ ] Rename preprocess/lables.py -> labels.py (public import path with
+      a typo, already spread through README and every script)
+- [ ] Update the readme: How to from start to production. The Usage
+      example is already stale: LabelEncoder takes no `resolution`
+      kwarg, and boxes are relative everywhere -- fix while at it.
 - [ ] Sanitize the BlazeNet
-- [ ] Make the BlazeNet a part of a group
-- [ ] Update the readme: How to from start to production
+- [ ] Make the BlazeNet a part of a group: models/blazenet.py has the
+      weights enum but no DetectionRecipe; blaze/ still carries its own
+      infer/postprocessing path outside the Recipe/Detector flow
+
+Someday:
+
+- [ ] Perhaps add SSDCUSTOM recipe that has exactly the same anchro structure as RETINANET (uses retina_anchors)
 - [ ] Add the fcos inference
+
+Decided against (deliberate, don't re-propose):
+
+- No detector cards / config persistence next to weights: every
+  training is tied to a commit hash, the script at that commit IS the
+  config.
+- No geometric-IoU mAP switch: too expensive, keeping the
+  mean_average_precision VOC-style (+1) backend and its `resolution`
+  parameter.
