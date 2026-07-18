@@ -102,7 +102,9 @@ class DetectionRecipe:
     (resolution) arrive at bake() time. Presets live next to their model
     definitions in modelinhos/models/."""
 
-    build_model: Callable  # (weights, resolution, n_classes) -> nn.Module
+    # (weights, resolution, n_classes) -> nn.Module; weights is None or
+    # a loader from modelinhos.models.load (warm_start/restore)
+    build_model: Callable
     anchors: Callable  # (resolution) -> priors tensor
     # (priors, score_thresh) -> DetectionLoss: the returned loss carries
     # the bound matcher, which analysis (modelinhos.infos) reuses -- the
