@@ -97,7 +97,13 @@ def main(
             for name, part in matched.groupby("split")
         ).to_string()
     )
-    # TODO: Implement me later: class_feasibility on counts x matched.
+    # Class feasibility is a read, not a function: counts x matched in
+    # the advice table above. The one thing no table can show is a task
+    # class with zero boxes anywhere -- absent classes have no row:
+    print(
+        "task classes without data:",
+        set(lencoder.l2i) - {"__background__"} - set(matched.label),
+    )
 
 
 if __name__ == "__main__":

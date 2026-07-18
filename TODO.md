@@ -59,9 +59,10 @@ Things to do:
           resolution), the share of data outside it (only resolution
           fixes that: steps come from the backbone, sizes from data),
           suggested per-level sizes from the in-range box scales
-    - [ ] class_feasibility(counts, matched): verdict -- owns the task
-          label space (l2i), checks train covers it, judges sample
-          count x matchability jointly
+    - [x] class_feasibility: dropped -- counts x matched in the
+          anchor_advice table already is the joint judgement; the task
+          label-space coverage check is a one-line set difference in
+          the script (absent classes have no row to appear in)
     - [ ] materialize(train, augmentation, draws, seed): sample the
           augmentation into a virtual split (draws ~ epochs), rerun
           the same fact functions on it
