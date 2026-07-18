@@ -40,7 +40,7 @@ Things to do:
       per dimension). After the switch, evaluate directly on relative
       coordinates and drop `resolution` except for pixel-denominated
       breakdowns (area buckets, sub-Npx diagnostics).
-- [ ] Make Detection behave like any classification model
+- [x] Make Detection behave like any classification model
 - [ ] Add the fcos inference
 - [ ] Sanitize the BlazeNet
 - [ ] Make the BlazeNet a part of a group

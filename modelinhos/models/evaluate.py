@@ -12,7 +12,9 @@ from modelinhos.coco import load_samples
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
+    per_size_metrics,
     visualize_fp_fn,
+    visualize_map_size,
     visualize_pr,
 )
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
@@ -80,6 +82,17 @@ def main():
             l2i=le.l2i,
             resolution=resolution,
         )
+
+    with timer("Per size calculation"):
+        per_size = per_size_metrics(
+            samples,
+            y_pred,
+            l2i=le.l2i,
+            resolution=resolution,
+            bins=[0, 16, 32, 64, 128, 320, 640],
+        )
+    print(per_size.groupby(["size_lo", "size_hi"])["mAP"].first())
+    visualize_map_size(per_size)
 
     visualize_fp_fn(per_sample, i2l=le.i2l, class_agnostic=True)
 
