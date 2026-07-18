@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from functools import partial
 
 import torch
@@ -48,8 +49,67 @@ class SSDPureHead(torch.nn.Module):
         return boxes, classes
 
 
+def mobilenet_c3c4c5_extractor(backbone, norm_layer):
+    """MobileNetV3-Large extractor tapping strides 8, 16, 32 (C3/C4/C5),
+    for use with retina_anchors (steps=[8, 16, 32]).
+
+    torchvision's own _mobilenet_extractor only ever exposes the last two
+    native stages (16, 32) plus appended extra downsampling blocks (64,
+    128, ...) -- it can't reach anything shallower than stride 16. To get
+    a stride-8 map we split the backbone at *two* stride-changing blocks
+    instead of one, reusing the same expansion/depthwise trick torchvision
+    uses for its single split: each stride-2 InvertedResidual block's own
+    block[0] is a stride-1 1x1 expansion, so slicing there taps the
+    feature map *before* that block's downsampling, and resuming from
+    block[1:] continues seamlessly. For mobilenet_v3_large (reduced_tail),
+    these land at blocks 7 (8->16) and 13 (16->32).
+    """
+    backbone = backbone.features
+    stage_indices = (
+        [0]
+        + [i for i, b in enumerate(backbone) if getattr(b, "_is_cn", False)]
+        + [len(backbone) - 1]
+    )
+    c3_pos, c4_pos = stage_indices[-3], stage_indices[-2]
+    if backbone[c3_pos].use_res_connect or backbone[c4_pos].use_res_connect:
+        raise ValueError("split blocks must not use a residual connection")
+
+    class MobileNetC3C4C5(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.features = torch.nn.Sequential(
+                torch.nn.Sequential(
+                    *backbone[:c3_pos], backbone[c3_pos].block[0]
+                ),  # -> stride 8
+                torch.nn.Sequential(
+                    backbone[c3_pos].block[1:],
+                    *backbone[c3_pos + 1 : c4_pos],
+                    backbone[c4_pos].block[0],
+                ),  # -> stride 16
+                torch.nn.Sequential(
+                    backbone[c4_pos].block[1:], *backbone[c4_pos + 1 :]
+                ),  # -> stride 32
+            )
+
+        def forward(self, x):
+            out = []
+            for block in self.features:
+                x = block(x)
+                out.append(x)
+            return OrderedDict((str(i), v) for i, v in enumerate(out))
+
+    return MobileNetC3C4C5()
+
+
 class SSDPure(torch.nn.Module):
-    def __init__(self, resolution, n_classes, num_anchors=2, extra=-3):
+    def __init__(
+        self,
+        resolution,
+        n_classes,
+        num_anchors=2,
+        extra=-3,
+        backbone_extractor=None,
+    ):
         super().__init__()
         self.n_classes = n_classes
         norm_layer = partial(torch.nn.BatchNorm2d, eps=0.001, momentum=0.03)
@@ -59,18 +119,15 @@ class SSDPure(torch.nn.Module):
             norm_layer=norm_layer,
             reduced_tail=True,
         )
-        self.backbone = _mobilenet_extractor(
-            backbone,
-            6,
-            norm_layer,
+        backbone_extractor = backbone_extractor or (
+            lambda b, n: _mobilenet_extractor(b, 6, n)
         )
-        # Only build head branches for the feature maps forward() actually
-        # feeds ([:extra]) -- otherwise the unused branches sit as dead
-        # parameters in the optimizer and checkpoints.
+        self.backbone = backbone_extractor(backbone, norm_layer)
         out_channels = det_utils.retrieve_out_channels(
             self.backbone,
             resolution,
         )[:extra]
+
         num_anchors = [num_anchors for _ in out_channels]
         self.head = SSDPureHead(
             out_channels=out_channels,
@@ -283,6 +340,40 @@ ssd_normalize = partial(
     normalize,
     image_mean=(0.5, 0.5, 0.5),
     image_std=(0.5, 0.5, 0.5),
+)
+
+
+def retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
+    """Anchors matching build_retinanet -- a pure function of resolution."""
+    return anchors(
+        resolution,
+        sizes=[[16, 32], [64, 128], [256, 512]],
+        steps=[8, 16, 32],
+        clip=False,
+    )
+
+
+def build_retina_ssdlite(
+    resolution: tuple[int, int],
+    n_classes: int = 92,
+    weights=None,
+):
+    model = SSDPure(
+        resolution,
+        n_classes=n_classes,
+        extra=None,  # all 3 taps are native and used, nothing to drop
+        backbone_extractor=mobilenet_c3c4c5_extractor,
+    )
+    if weights is not None:
+        model = weights(model)
+    return model
+
+
+SSDLARGE = DetectionRecipe(
+    build_model=build_retina_ssdlite,
+    anchors=retina_anchors,
+    loss=build_ssd_loss,
+    iencoder=rgb_normalized_image_encoder(ssd_normalize),
 )
 
 

@@ -89,7 +89,10 @@ P0 -- the train -> evaluate -> deploy loop is broken in the middle:
 
 P1 -- deployable and measurable:
 
-- [ ] Perhaps add SSDCUSTOM recipe that has exactly the same anchro structure as RETINANET (uses retina_anchors)
+- [x] Perhaps add SSDCUSTOM recipe that has exactly the same anchro structure as RETINANET (uses retina_anchors)
+      - [ ] Verify correctness
+      - [ ] Clean the code -> simplify
+
 - [ ] DO the first trainings on COCO dataset:
   - [ ] Train the COCO dataset with warmups probably on grayscale no normalization:
   - [ ] LR scheduler
