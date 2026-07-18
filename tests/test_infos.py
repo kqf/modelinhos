@@ -23,5 +23,5 @@ def test_summarize(recipe, resolution=(640, 480), n_classes=4):
             n_classes=n_classes,
             warmup=1,
             repeats=3,
-        )
+        ).to_string()
     )
