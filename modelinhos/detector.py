@@ -100,7 +100,10 @@ class DetectionRecipe:
 
     build_model: Callable  # (weights, resolution, n_classes) -> nn.Module
     anchors: Callable  # (resolution) -> priors tensor
-    loss: Callable  # (priors, score_thresh) -> DetectionLoss
+    # (priors, score_thresh) -> DetectionLoss: the returned loss carries
+    # the bound matcher, which analysis (modelinhos.infos) reuses -- the
+    # recipe is the single owner of the matching configuration.
+    loss: Callable[..., DetectionLoss]
     # (resolution) -> Augmentation, applied to the training dataset only
     # (never validation or inference). Defaults to none.
     augment: Callable = no_augment
