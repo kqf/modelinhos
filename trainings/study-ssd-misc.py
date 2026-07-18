@@ -1,7 +1,6 @@
 import random
 from pathlib import Path
 
-import cv2
 import pandas as pd
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
@@ -22,20 +21,7 @@ from modelinhos.infos import (
     summarize,  # params / FLOPs / measured latency, data-independent
 )
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
-from modelinhos.sample import Sample, save_samples
 from modelinhos.zoo import coco_label_encoder
-
-
-def normalize(data: list[Sample]) -> list[Sample]:
-    def process(sample: Sample) -> Sample:
-        image = cv2.imread(str(sample.file_name))
-        h, w, _ = image.shape
-        for ann in sample.annotations:
-            x1, y1, x2, y2 = ann.bbox
-            ann.bbox = (x1 / w, y1 / h, x2 / w, y2 / h)
-        return sample
-
-    return list(map(process, data))
 
 
 def main(
@@ -54,8 +40,7 @@ def main(
     # 1. One dataset, nothing downloaded beyond the evaluation set: a
     # shuffled holdout stands in for train/test -- enough to run every
     # fact and verdict against a real distribution.
-    samples = normalize(load_samples(annotations))
-    save_samples(samples, annotations)
+    samples = load_samples(annotations)
     random.Random(seed).shuffle(samples)
     edge = int(len(samples) * holdout)
     parts = {"train": samples[edge:], "test": samples[:edge]}
