@@ -52,7 +52,11 @@ class Detector:
         encoded = self.label_encoder.fit_transform(samples)
         # Augmentation is a train-only concern: the val dataset below and
         # transform() build their SampleDatasets without it.
-        dataset = SampleDataset(encoded, self.image_encoder, self.augment)
+        dataset = SampleDataset(
+            encoded,
+            self.image_encoder,
+            augment=self.augment,
+        )
 
         val_dataset = None
         if val_samples is not None:

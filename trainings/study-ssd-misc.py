@@ -9,6 +9,8 @@ from modelinhos.analysis.distributions import (
 )
 from modelinhos.analysis.lint import lint
 from modelinhos.infos import (
+    anchor_advice,  # verdict: matchability df -> ceilings + knob advice
+    matchability,  # fact: matcher simulation, per-box matched-anchors
     summarize,  # params / FLOPs / measured latency, data-independent
 )
 from modelinhos.models.ssdlite import SSDLITE
@@ -78,13 +80,18 @@ def main(
     # From here on nothing distinguishes it from a real split.
     # TODO: Implement me later: augmented = materialize(...), the max
     # tries should reflect roughly the number of epochs
-    # 5. TODO: Implement me later: matched = concat of matchability per
-    # split -- facts are the same functions on every split, split is
-    # just a column.
+    # 5. Facts: same functions on every split, split is just a column.
+    # The task lencoder only knows "object" -- this needs step 2 to be a
+    # real sanitize (collapse labels) before it stops raising KeyError.
+    matched = pd.concat(
+        matchability(s, SSDLITE, resolution, lencoder).assign(split=name)
+        for name, s in splits.items()
+    )
 
-    # 7. TODO: Implement me later: verdicts read facts, never samples:
-    # anchor_advice on matched (solvability: ceilings on ALL splits)
-    # and class_feasibility on counts x matched.
+    # 7. Verdicts read facts, never samples.
+    # Solvability: ceilings on ALL splits
+    print(anchor_advice(matched, SSDLITE, resolution).to_string())
+    # TODO: Implement me later: class_feasibility on counts x matched.
 
 
 if __name__ == "__main__":
