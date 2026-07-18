@@ -56,7 +56,7 @@ def main(
     annotations=Path("data/coco/annotations.json"),
     # Nominal evaluation resolution: COCO images vary in size, so this
     # only sets the pixel grid the VOC-style (+1) IoU is computed on.
-    resolution=(640, 640),
+    resolution=(480, 640),
 ):
     samples = load_samples(annotations)
     for i, sample in enumerate(samples):
