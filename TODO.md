@@ -115,9 +115,12 @@ P2 -- hygiene before there are external users (renames get expensive later):
       example is already stale: LabelEncoder takes no `resolution`
       kwarg, and boxes are relative everywhere -- fix while at it.
 - [ ] Sanitize the BlazeNet
-- [ ] Make the BlazeNet a part of a group: models/blazenet.py has the
-      weights enum but no DetectionRecipe; blaze/ still carries its own
-      infer/postprocessing path outside the Recipe/Detector flow
+- [x] Make the BlazeNet a part of a group: BLAZEFACE recipe (vanilla
+      front model, MediaPipe box codec) with the original blaze/
+      inference path demoted to recipe.reference for parity tests, plus
+      a RETINANET blaze flavor (BlazePure: stride-32 stage + generic
+      heads on retina_anchors, no reference -- no upstream exists) and
+      build_blaze/blaze_label_encoder in the zoo
 - [ ] Make the pipeline generic
 
 Someday:
