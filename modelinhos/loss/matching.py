@@ -88,6 +88,87 @@ def match_boxes(
     return matching_table
 
 
+def atss_boxes(
+    boxes: torch.Tensor,  # [n_obj, 4] normalised xyxy
+    priors: torch.Tensor,  # [n_anchors, 4] normalised cxcywh
+    topk: int,
+    level_sizes: list[int] | None = None,
+) -> torch.Tensor:  # returns a tensor of shape [n_anchors, n_obj] ~
+    """Adaptive Training Sample Selection (arxiv.org/abs/1912.02424).
+
+    For every GT box: take the topk anchors whose centres are closest to
+    the GT centre on each pyramid level, use mean(IoU) + std(IoU) of
+    those candidates as a per-GT threshold, and keep the candidates above
+    it whose centre lies inside the GT box. An anchor claimed by several
+    GTs goes to the one it overlaps most. Padding boxes ([-1] * 4 after
+    collate) are degenerate, so the centre-inside test discards them.
+
+    level_sizes is the number of anchors per feature map, in the order
+    they were generated (see level_sizes() in models/anchors.py); None
+    treats the whole anchor set as a single level.
+    """
+    n_anchors = priors.shape[0]
+    n_obj = boxes.shape[0]
+
+    # Same guard as match_boxes: nothing to match on annotation-less
+    # (possibly mis-shaped (0, 1)) box tensors.
+    if n_obj == 0:
+        return torch.zeros(
+            (n_anchors, 0), dtype=torch.bool, device=boxes.device
+        )
+
+    sizes = list(level_sizes) if level_sizes is not None else [n_anchors]
+    if sum(sizes) != n_anchors:
+        raise ValueError(
+            f"level_sizes {sizes} must sum to the anchor count {n_anchors}"
+        )
+
+    # [n_anchors, n_obj] ~
+    overlaps = iou(boxes[:, None], convert_to_xyxy(priors)).t()
+    gt_centers = (boxes[:, :2] + boxes[:, 2:]) / 2
+    distances = torch.cdist(priors[:, :2], gt_centers)
+
+    # Per pyramid level, the topk anchors closest to each GT centre:
+    # [n_candidates, n_obj] flat anchor indices
+    candidates = []
+    start = 0
+    for size in sizes:
+        _, idx = distances[start : start + size].topk(
+            min(topk, size), dim=0, largest=False
+        )
+        candidates.append(idx + start)
+        start += size
+    candidates = torch.cat(candidates, dim=0)
+
+    # The adaptive part: each GT gets its own IoU threshold from the
+    # statistics of its candidates (std is NaN for a single candidate)
+    cious = overlaps.gather(0, candidates)
+    threshold = cious.mean(dim=0) + cious.std(dim=0).nan_to_num(0.0)
+    positive = cious >= threshold.unsqueeze(0)
+
+    cx = priors[candidates, 0]
+    cy = priors[candidates, 1]
+    positive &= (
+        (cx > boxes[:, 0])
+        & (cy > boxes[:, 1])
+        & (cx < boxes[:, 2])
+        & (cy < boxes[:, 3])
+    )
+
+    matching_table = torch.zeros(
+        (n_anchors, n_obj), dtype=torch.bool, device=boxes.device
+    )
+    cand_idx, obj_idx = torch.where(positive)
+    matching_table[candidates[cand_idx, obj_idx], obj_idx] = True
+
+    # Resolve anchors claimed by several GTs in favour of the highest IoU
+    claimed = matching_table.any(dim=1)
+    best_obj = overlaps.masked_fill(~matching_table, -1).argmax(dim=1)
+    resolved = torch.zeros_like(matching_table)
+    resolved[claimed, best_obj[claimed]] = True
+    return resolved
+
+
 def mine_negatives(
     label: torch.Tensor,
     pred: torch.Tensor,
@@ -143,3 +224,30 @@ def match(
         negpos_ratio=negpos_ratio,
         overalp=overalp,
     )
+
+
+def atss_match(
+    y_pred: StandardDetection[torch.Tensor],
+    y_true: StandardDetection[torch.Tensor],
+    anchors: torch.Tensor,
+    negpos_ratio: int,
+    topk: int = 9,
+    level_sizes: list[int] | None = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Drop-in replacement for match(): once the knobs are partial'd
+    away it has the same (y_pred, y_true, anchors) tail, e.g.
+
+        DetectionLoss(match=partial(atss_match, negpos_ratio=7))
+
+    Unlike match() there is no IoU threshold to tune -- ATSS derives one
+    per GT from its candidate statistics."""
+    positives = torch.stack(
+        [atss_boxes(b, anchors, topk, level_sizes) for b in y_true.bboxes]
+    )
+    negatives = mine_negatives(
+        y_true.labels,
+        y_pred.labels,
+        negpos_ratio,
+        positives,
+    )
+    return positives, negatives
