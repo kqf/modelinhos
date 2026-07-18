@@ -3,7 +3,11 @@ from pathlib import Path
 import pytest
 from matplotlib import pyplot as plt
 
-from modelinhos.evaluation import per_size_metrics, visualize_map_size
+from modelinhos.evaluation import (
+    per_sample_metrics,
+    per_size_metrics,
+    visualize_map_size,
+)
 from modelinhos.sample import Annotation, Sample
 
 
@@ -34,6 +38,50 @@ def y_pred() -> list[Sample]:
             ],
         )
     ]
+
+
+def test_per_sample_metrics_counts_at_threshold():
+    y_true = [
+        Sample(
+            file_name=Path("frame.jpg"),
+            annotations=[
+                Annotation(bbox=(0.1, 0.1, 0.5, 0.5), label="person"),
+            ],
+        )
+    ]
+    # A confident miss plus a sub-threshold hit: at threshold 0.5 the
+    # hit does not count, so the image has one FP and one FN. Counting
+    # the last point of the PR curve instead would report a clean image.
+    y_pred = [
+        Sample(
+            file_name=Path("frame.jpg"),
+            annotations=[
+                Annotation(
+                    bbox=(0.6, 0.6, 0.9, 0.9),
+                    label="person",
+                    score=0.9,
+                ),
+                Annotation(
+                    bbox=(0.1, 0.1, 0.5, 0.5),
+                    label="person",
+                    score=0.3,
+                ),
+            ],
+        )
+    ]
+
+    df = per_sample_metrics(
+        y_true,
+        y_pred,
+        l2i={"person": 0},
+        resolution=(100, 100),
+        threshold=0.5,
+    )
+
+    row = df.iloc[0]
+    assert row["tp"] == 0
+    assert row["fp"] == 1
+    assert row["fn"] == 1
 
 
 def test_per_size_metrics(y_true, y_pred):

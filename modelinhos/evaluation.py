@@ -102,8 +102,12 @@ def _per_class_fp_fn(
     for _, class_id, metrics in _iter_class_results(value):
         n_pred = int((filt[:, 4] == class_id).sum()) if len(filt) else 0
         n_true = int((true[:, 4] == class_id).sum()) if len(true) else 0
+        # The recall curve is cumulative over predictions sorted by
+        # descending confidence, one point per prediction, so the
+        # n_pred-th point is the operating point at `threshold` -- the
+        # last point would also count matches below the threshold.
         recall = np.array(metrics["recall"])
-        tp = round(float(recall[-1]) * n_true) if len(recall) else 0
+        tp = round(float(recall[n_pred - 1]) * n_true) if n_pred else 0
         per_class[class_id] = {
             "tp": tp,
             "fp": max(n_pred - tp, 0),
@@ -124,13 +128,16 @@ def _attach_thresholds(results: dict, confidences: dict) -> dict:
     sconfidences = {c: sorted(s, reverse=True) for c, s in confidences.items()}
     for _, class_id, metrics in _iter_class_results(results):
         confs = sconfidences.get(class_id, [])
-        n_curve = len(metrics["recall"])
-
-        if not confs:
-            metrics["thresholds"] = [0.0] * n_curve
-            continue
-        sentinel = [confs[0] + 1e-6] if len(confs) + 1 == n_curve else []
-        metrics["thresholds"] = (sentinel + confs + [0.0] * n_curve)[:n_curve]
+        # The backend emits exactly one curve point per prediction
+        # (difficult/crowd are always 0 here, so nothing gets ignored);
+        # a length mismatch means the curve and the collected
+        # confidences no longer describe the same predictions.
+        if len(confs) != len(metrics["recall"]):
+            raise ValueError(
+                f"class {class_id}: {len(confs)} confidences for a "
+                f"{len(metrics['recall'])}-point PR curve"
+            )
+        metrics["thresholds"] = confs
 
     return results
 
@@ -247,10 +254,9 @@ class MetricCollector:
             for row in pred:
                 self.confidences[int(row[4])].append(float(row[5]))
 
-    def value(self, *args, **kwargs) -> pd.DataFrame:
+    def value(self, **kwargs) -> pd.DataFrame:
         results = self.metric_fn.value(
             iou_thresholds=self.iou_thresholds,
-            *args,
             **kwargs,
         )
         results = _attach_thresholds(results, self.confidences)
@@ -264,7 +270,6 @@ def mean_average_precision(
     l2i: dict[str, int],
     resolution: tuple[int, int],  # h, w
     iou_thresholds: list[float] | None = None,
-    *args,
     **kwargs,
 ) -> pd.DataFrame:
     metric = MetricCollector(
@@ -273,7 +278,7 @@ def mean_average_precision(
         iou_thresholds=iou_thresholds,
     )
     metric(y_true, y_pred)
-    return metric.value(*args, **kwargs)
+    return metric.value(**kwargs)
 
 
 def per_sample_metrics(
@@ -347,7 +352,9 @@ def per_size_metrics(
         metric_fn = MetricBuilder.build_evaluation_metric(
             "map_2d", async_mode=False, num_classes=num_classes
         )
-        bin_trues, bin_preds = [], []
+        # Seeds keep np.concatenate happy when there are no samples.
+        bin_trues = [np.empty((0, 7), dtype=np.float32)]
+        bin_preds = [np.empty((0, 6), dtype=np.float32)]
         for true, pred in zip(trues, preds):
             bin_true = true[(_box_sizes(true) >= lo) & (_box_sizes(true) < hi)]
             bin_pred = pred[(_box_sizes(pred) >= lo) & (_box_sizes(pred) < hi)]
@@ -455,13 +462,19 @@ def visualize_fp_fn(
     class_agnostic: bool = False,
 ):
     if class_agnostic:
-        per_sample = per_sample.assign(class_id="all classes")
+        # Rows are per (image, class): collapse to per image, or an
+        # image with errors in two classes would show up as two bars.
+        per_sample = (
+            per_sample.groupby("sample_idx", as_index=False)[["fp", "fn"]]
+            .sum()
+            .assign(class_id="all classes")
+        )
 
     for class_id, group in per_sample.groupby("class_id"):
         label = i2l.get(class_id, str(class_id))
         fps = group["fp"].to_numpy()
         fns = group["fn"].to_numpy()
-        indices = np.arange(len(group))
+        indices = group["sample_idx"].to_numpy()
         max_count = max(fps.max(initial=0), fns.max(initial=0)) + 1
         bins = np.arange(0, max_count + 1) - 0.5
 
