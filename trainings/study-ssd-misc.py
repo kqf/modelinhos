@@ -8,6 +8,7 @@ from modelinhos.analysis.distributions import (
     labels,  # fact: per-class counts and shares
 )
 from modelinhos.analysis.lint import lint
+from modelinhos.augment.infos import materialize
 from modelinhos.infos import (
     anchor_advice,  # verdict: matchability df -> ceilings + knob advice
     matchability,  # fact: matcher simulation, per-box matched-anchors
@@ -77,9 +78,14 @@ def main(
     )
 
     # 4. The virtual split: the augmentation sampled into concrete data.
-    # From here on nothing distinguishes it from a real split.
-    # TODO: Implement me later: augmented = materialize(...), the max
-    # tries should reflect roughly the number of epochs
+    # From here on nothing distinguishes it from a real split -- it goes
+    # through the same facts and checks; draws roughly plays the number
+    # of epochs.
+    splits["augmented"] = materialize(
+        splits["train"],
+        SSDLITE.augment(resolution),
+        draws=8,
+    )
     # 5. Facts: same functions on every split, split is just a column.
     # The task lencoder only knows "object" -- this needs step 2 to be a
     # real sanitize (collapse labels) before it stops raising KeyError.
