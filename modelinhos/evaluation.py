@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 from typing import Iterator
 
@@ -5,8 +6,19 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from mean_average_precision import MetricBuilder
+from tqdm import tqdm
 
 from modelinhos.sample import Sample
+
+# The backend concatenates empty match tables on every add(), which
+# pandas has deprecated -- one FutureWarning per call floods the
+# output. Scoped to warnings issued from inside the package, so our
+# own pandas deprecations stay visible.
+warnings.filterwarnings(
+    "ignore",
+    category=FutureWarning,
+    module=r"mean_average_precision\.",
+)
 
 
 # The mean_average_precision backend computes VOC-style IoU with the
@@ -138,9 +150,7 @@ def _mean_ap_over_gt_classes(
         if isinstance(class_results, dict)
         for cid in gt_class_ids
     ]
-    if not aps:
-        return float("nan")
-    return float(np.mean(aps))
+    return float(np.mean(aps)) if aps else float("nan")
 
 
 def _map_results_to_df(results: dict, map_score: float) -> pd.DataFrame:
@@ -278,7 +288,12 @@ def per_sample_metrics(
     num_classes = max(l2i.values()) + 1
     results = []
 
-    for idx, (true_sample, pred_sample) in enumerate(zip(y_true, y_pred)):
+    pairs = tqdm(
+        zip(y_true, y_pred),
+        total=len(y_true),
+        desc="Per-sample metrics",
+    )
+    for idx, (true_sample, pred_sample) in enumerate(pairs):
         true = _annotations_to_true(true_sample, l2i, resolution)
         pred = _annotations_to_pred(pred_sample, l2i, resolution)
 
@@ -323,7 +338,12 @@ def per_size_metrics(
     preds = [_annotations_to_pred(s, l2i, resolution) for s in y_pred]
 
     results = []
-    for lo, hi in zip(bins[:-1], bins[1:]):
+    edges = tqdm(
+        zip(bins[:-1], bins[1:]),
+        total=len(bins) - 1,
+        desc="Per-size metrics",
+    )
+    for lo, hi in edges:
         metric_fn = MetricBuilder.build_evaluation_metric(
             "map_2d", async_mode=False, num_classes=num_classes
         )
