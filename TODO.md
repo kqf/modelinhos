@@ -11,7 +11,7 @@ Things to do:
 - [x] Adapt the mAP calculation
 - [x] Add per-sample map calculation.
 - [x] Download the COCO evaluation dataset
-- [ ] Add a tool to select the thresholds
+- [x] Add a tool to select the thresholds
     - [x] Add FP / FN calculation @ threshold for each image to detect the failures
     - [x] Plot PR curve -- looking at these plots select the threshold
     - [x] Add FP / FN calculation per image @ threshold -- already evaluation
@@ -41,9 +41,6 @@ Things to do:
       coordinates and drop `resolution` except for pixel-denominated
       breakdowns (area buckets, sub-Npx diagnostics).
 - [x] Make Detection behave like any classification model
-- [ ] Add the fcos inference
-- [ ] Sanitize the BlazeNet
-- [ ] Make the BlazeNet a part of a group
 - [x] Finish trainings/study-ssd-misc.py -- needs modelinhos.infos
       (rule: if the answer changes when you swap the model, it goes to
       infos; data-only stays in analysis)
@@ -75,3 +72,15 @@ Things to do:
           hardwired to COCO now: the evaluation set randomly split
           into train/test (no train download), TORCHVISION_SSDLITE
           at its native 320x320, the checkpoint's own label space
+- [ ] Load the checkpoints -> blocks everything
+- [ ] Perhaps add SSDCUSTOM recipe that has exactly the same anchro structure as RETINANET (uses retina_anchors)
+- [ ] DO the first trainings on COCO dataset:
+  - [ ] Train the COCO dataset with warmups probably on grayscale no normalization:
+  - [ ] LR scheduler
+  - [ ] Add augmentaitons
+  - [ ] Early stopping
+- [ ] Export to ONNX uniformly for all the recipes
+- [ ] Sanitize the BlazeNet
+- [ ] Make the BlazeNet a part of a group
+- [ ] Update the readme: How to from start to production
+- [ ] Add the fcos inference
