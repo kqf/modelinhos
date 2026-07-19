@@ -16,7 +16,10 @@ from pathlib import Path
 
 import torch
 
-from modelinhos.models.blazenet import BLAZEFACE, RETINANET as BLAZE_RETINANET
+from modelinhos.models.blazenet import (
+    BLAZEFACE_F,
+    RETINANET_F as BLAZE_RETINANET,
+)
 from modelinhos.models.retinanet import RETINANET, TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import SSDLARGE, SSDLITE, TORCHVISION_SSDLITE
 
@@ -27,7 +30,7 @@ VGA, HD, FHD = (480, 640), (736, 1280), (1088, 1920)
 # label space (91 with background).
 CONFIGS = {
     "blazeface": (
-        BLAZEFACE,
+        BLAZEFACE_F,
         2,
         [
             (128, 128),

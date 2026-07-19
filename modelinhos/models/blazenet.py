@@ -2,6 +2,7 @@ from functools import partial
 from itertools import product
 from math import ceil
 from pathlib import Path
+from typing import Callable
 
 import cv2
 import numpy as np
@@ -301,7 +302,7 @@ class BlazeNet_Weights(WeightsEnum):
             **_COMMON_META,
             "resolution": (128, 128),
             "anchors_url": f"{_BLAZE_REPO}/anchors.npy",
-            "back_model": False,
+            "model": BlazeNetFront,
         },
     )
     BACK_V1 = Weights(
@@ -311,7 +312,7 @@ class BlazeNet_Weights(WeightsEnum):
             **_COMMON_META,
             "resolution": (256, 256),
             "anchors_url": f"{_BLAZE_REPO}/anchorsback.npy",
-            "back_model": True,
+            "model": BlazeNetBack,
         },
     )
     DEFAULT = FRONT_V1
@@ -340,7 +341,7 @@ def blaze_anchors(
     steps: tuple[int, ...] = (8, 16),
     anchors_per_cell: tuple[int, ...] = (2, 6),
 ) -> torch.Tensor:
-    """Anchors matching build_blazenet -- a pure function of resolution.
+    """Anchors matching BlazeNetFront -- a pure function of resolution.
 
     Restores MediaPipe's SsdAnchorsCalculator config for BlazeFace
     (mediapipe/graphs/face_detection/face_detection_mobile_gpu.pbtxt):
@@ -377,34 +378,29 @@ blaze_normalize = partial(
 )
 
 
-def build_blazenet(
-    resolution: tuple[int, int] = (128, 128),
-    n_classes: int = 2,
-    weights: BlazeNet_Weights | None = None,
-    back_model: bool = False,
-):
-    """Vanilla BlazeFace: fixed single-class heads, loaded strictly so a
-    checkpoint/architecture mismatch fails loudly. forward() returns
-    (boxes, classes) with boxes carrying 16 coords per anchor (bbox +
-    6 keypoints), unlike the 4-coord SSD/Retina heads. The head always
-    emits one sigmoid face channel; in the pipeline convention (index 0
-    reserved for background) that is n_classes=2 with an implicit
-    background, so both 1 (raw) and 2 (background + face) are accepted."""
-    if n_classes not in (1, 2):
-        raise ValueError(
-            "vanilla BlazeNet is single-class (face); rebuild the "
-            "classifier/regressor convs before asking for more classes"
-        )
-    if weights is not None:
-        back_model = weights.meta["back_model"]
-    if back_model:
-        model: BlazeNet = BlazeNetBack()
-    else:
-        model = BlazeNetFront()
-    if weights is not None:
-        model.load_state_dict(weights.get_state_dict(progress=True))
-    model.eval()
-    return model
+def build_blazeface(flavor: Callable[[], BlazeNet]):
+    """Recipe build_model for a vanilla fixed-head flavor: weights are
+    applied by bake() by convention and resolution belongs to the
+    anchors, so building is the constructor plus the label-space guard.
+    forward() returns (boxes, classes) with boxes carrying 16 coords
+    per anchor (bbox + 6 keypoints), unlike the 4-coord SSD/Retina
+    heads. The head always emits one sigmoid face channel; in the
+    pipeline convention (index 0 reserved for background) that is
+    n_classes=2 with an implicit background, so both 1 (raw) and 2
+    (background + face) are accepted."""
+
+    def build(
+        resolution: tuple[int, int],
+        n_classes: int = 2,
+    ) -> BlazeNet:
+        if n_classes not in (1, 2):
+            raise ValueError(
+                "vanilla BlazeNet is single-class (face); rebuild the "
+                "classifier/regressor convs before asking for more classes"
+            )
+        return flavor()
+
+    return build
 
 
 def decode_blaze_points(
@@ -751,7 +747,8 @@ def blaze_reference(
     torchvision_reference: BGR frames in, relative boxes out. The rows
     predict_on_image returns are (ymin, xmin, ymax, xmax, 6 keypoints,
     score); only the box and score survive the Sample conversion."""
-    model = build_blazenet(weights=weights)
+    model: BlazeNet = weights.meta["model"]()
+    model.load_state_dict(weights.get_state_dict(progress=True))
     model.anchors = load_repo_anchors(weights)
     label = weights.meta["categories"][0]
     results: list[Sample[Annotation]] = []
@@ -783,57 +780,96 @@ def blaze_reference(
     return results
 
 
-class BlazePure(torch.nn.Module):
-    """The front BlazeFace backbone extended with a stride-32 stage
-    (FinalBlazeBlock) and SSD-style generic heads, sized for
+class BlazePure(nn.Module):
+    """A BlazeFace backbone with SSD-style generic heads, sized for
     retina_anchors: steps 8/16/32, 2 anchors per cell, 4 box coords, no
-    keypoints. The BlazeNet stages keep their original names
-    (backbone1/backbone2), so warm_start(BlazeNet_Weights.FRONT_V1)
-    picks up the backbone and leaves the fresh heads alone. The stride-2
-    residual blocks need even feature maps, so H and W must be divisible
-    by 16."""
+    keypoints. The flavors below provide stages() -- the three head
+    maps -- reusing the donor BlazeNet's modules under their original
+    names, so warm_start with the matching checkpoint picks up the
+    backbone and leaves the fresh heads alone. The stride-2 residual
+    blocks need even feature maps, so H and W must be divisible by
+    16."""
+
+    channels: tuple[int, int, int]
 
     def __init__(self, n_classes: int, num_anchors: int = 2):
         super().__init__()
         self.n_classes = n_classes
-        base = BlazeNetFront()
-        self.backbone1 = base.backbone1  # stride 8, 88 channels
-        self.backbone2 = base.backbone2  # stride 16, 96 channels
-        self.backbone3 = FinalBlazeBlock(96)  # stride 32
-        channels = (88, 96, 96)
-        self.classifiers = torch.nn.ModuleList(
-            torch.nn.Conv2d(c, num_anchors * n_classes, 1) for c in channels
+        self.classifiers = nn.ModuleList(
+            nn.Conv2d(c, num_anchors * n_classes, 1) for c in self.channels
         )
-        self.regressors = torch.nn.ModuleList(
-            torch.nn.Conv2d(c, num_anchors * 4, 1) for c in channels
+        self.regressors = nn.ModuleList(
+            nn.Conv2d(c, num_anchors * 4, 1) for c in self.channels
         )
+
+    def stages(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """The three head maps at strides 8/16/32."""
+        raise NotImplementedError
 
     def forward(self, images):
         # Same manual first-conv padding as BlazeNet (TFLite convention).
         x = F.pad(images.float(), (1, 2, 1, 2), "constant", 0)
-        c3 = self.backbone1(x)
-        c4 = self.backbone2(c3)
-        c5 = self.backbone3(c4)
-
+        maps = self.stages(x)
         boxes = torch.cat(
-            [
-                _flatten_head(r(f), 4)
-                for r, f in zip(self.regressors, (c3, c4, c5))
-            ],
+            [_flatten_head(r(f), 4) for r, f in zip(self.regressors, maps)],
             dim=1,
         )
         classes = torch.cat(
             [
                 _flatten_head(c(f), self.n_classes)
-                for c, f in zip(self.classifiers, (c3, c4, c5))
+                for c, f in zip(self.classifiers, maps)
             ],
             dim=1,
         )
         return boxes, classes
 
 
+class BlazePureFront(BlazePure):
+    """The front backbone extended with a fresh stride-32 stage;
+    warm_start(BlazeNet_Weights.FRONT_V1) covers backbone1/backbone2,
+    backbone3 trains from scratch."""
+
+    channels = (88, 96, 96)
+
+    def __init__(self, n_classes: int, num_anchors: int = 2):
+        super().__init__(n_classes, num_anchors)
+        base = BlazeNetFront()
+        self.backbone1 = base.backbone1  # stride 8, 88 channels
+        self.backbone2 = base.backbone2  # stride 16, 96 channels
+        self.backbone3 = FinalBlazeBlock(96)  # stride 32
+
+    def stages(self, x):
+        c3 = self.backbone1(x)
+        c4 = self.backbone2(c3)
+        return c3, c4, self.backbone3(c4)
+
+
+class BlazePureBack(BlazePure):
+    """The back backbone tapped at its stride-8 boundary plus its own
+    final stride-32 block; backbone and final keep their checkpoint
+    names, so warm_start(BlazeNet_Weights.BACK_V1) covers everything
+    but the heads."""
+
+    channels = (48, 96, 96)
+
+    def __init__(self, n_classes: int, num_anchors: int = 2):
+        super().__init__(n_classes, num_anchors)
+        base = BlazeNetBack()
+        self.backbone = base.backbone
+        self.final = base.final
+
+    def stages(self, x):
+        # backbone[24] is the last stride-8 block (48 channels); the
+        # tail from backbone[25] descends to stride 16 at 96 channels.
+        c3 = self.backbone[:25](x)
+        c4 = self.backbone[25:](c3)
+        return c3, c4, self.final(c4)
+
+
 def retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
-    """Anchors matching build_retina_blazenet -- a pure function of
+    """Anchors matching the BlazePure flavors -- a pure function of
     resolution, the same grid as models.retinanet/models.ssdlite."""
     return anchors(
         resolution,
@@ -843,32 +879,56 @@ def retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
     )
 
 
-def build_retina_blazenet(
-    resolution: tuple[int, int],
-    n_classes: int = 92,
-):
-    return BlazePure(n_classes=n_classes)
+def build_blaze_retina(flavor: type[BlazePure]):
+    """Recipe build_model for a BlazePure flavor: the generic heads are
+    sized from n_classes, resolution belongs to the anchors, weights
+    are applied by bake() by convention."""
+
+    def build(
+        resolution: tuple[int, int],
+        n_classes: int = 92,
+    ) -> BlazePure:
+        return flavor(n_classes=n_classes)
+
+    return build
 
 
-# The standard front-camera BlazeFace wired through the Recipe/Detector
-# flow: MediaPipe anchors and box codec, blaze normalization, sigmoid
-# face channel. reference is the original BlazeFace-PyTorch inference
-# path, so parity tests can compare the two end to end (the NMS differs:
+# The vanilla BlazeFace flavors wired through the Recipe/Detector flow:
+# MediaPipe anchors and box codec, blaze normalization, sigmoid face
+# channel. reference is the original BlazeFace-PyTorch inference path,
+# so parity tests can compare the two end to end (the NMS differs:
 # weighted blending there, hard NMS here).
-BLAZEFACE = DetectionRecipe(
-    build_model=build_blazenet,
+BLAZEFACE_F = DetectionRecipe(
+    build_model=build_blazeface(BlazeNetFront),
     anchors=blaze_anchors,
     loss=build_blaze_loss,
     iencoder=rgb_normalized_image_encoder(blaze_normalize),
     reference=blaze_reference,
 )
 
-# Trainable blaze flavor on the shared retina anchor grid -- the same
+# The back-camera flavor: double the strides, and the box offsets are
+# denominated in its 256-pixel input side.
+BLAZEFACE_B = DetectionRecipe(
+    build_model=build_blazeface(BlazeNetBack),
+    anchors=blaze_back_anchors,
+    loss=partial(build_blaze_loss, scale=256.0),
+    iencoder=rgb_normalized_image_encoder(blaze_normalize),
+    reference=blaze_reference,
+)
+
+# Trainable blaze flavors on the shared retina anchor grid -- the same
 # scheme as models.retinanet.RETINANET and models.ssdlite.SSDLARGE, so
 # backbone effects can be compared at fixed anchors. No torchvision
-# upstream exists for it, hence no reference.
-RETINANET = DetectionRecipe(
-    build_model=build_retina_blazenet,
+# upstream exists for them, hence no reference.
+RETINANET_F = DetectionRecipe(
+    build_model=build_blaze_retina(BlazePureFront),
+    anchors=retina_anchors,
+    loss=build_ssd_loss,
+    iencoder=rgb_normalized_image_encoder(blaze_normalize),
+)
+
+RETINANET_B = DetectionRecipe(
+    build_model=build_blaze_retina(BlazePureBack),
     anchors=retina_anchors,
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(blaze_normalize),

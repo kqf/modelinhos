@@ -21,7 +21,7 @@ from modelinhos.detector import (
     build_detector,
 )
 from modelinhos.engine.simple import simple_engine
-from modelinhos.models.blazenet import BLAZEFACE, BlazeNet_Weights
+from modelinhos.models.blazenet import BLAZEFACE_F, BlazeNet_Weights
 from modelinhos.models.load import Weights, warm_start
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
@@ -117,7 +117,7 @@ def build_retina(
 def build_blaze(
     resolution: tuple[int, int],
     lencoder: LabelEncoder,
-    arch: DetectionRecipe = BLAZEFACE,
+    arch: DetectionRecipe = BLAZEFACE_F,
     weights: Weights = warm_start(BlazeNet_Weights.FRONT_V1),
     engine: EngineBuilder = simple_engine(max_epochs=10),
     th: float = 0.4,
@@ -125,9 +125,11 @@ def build_blaze(
     """Our BlazeFace wiring. Same contract as build_ssd: lencoder must
     be fit (it sizes the head; with blaze_label_encoder the defaults
     reproduce the pretrained face detector at its native 128x128), and
-    weights is a warm_start/restore loader. Pass arch=RETINANET (the
-    models.blazenet flavor) for the retina-anchored trainable extension,
-    weights=from_scratch to skip loading."""
+    weights is a warm_start/restore loader. Front and back cameras are
+    separate recipes (BLAZEFACE_F/BLAZEFACE_B, likewise RETINANET_F/
+    RETINANET_B for the retina-anchored trainable extensions); pass the
+    matching arch and weights together, weights=from_scratch to skip
+    loading."""
     return build_detector(
         arch=arch,
         weights=weights,

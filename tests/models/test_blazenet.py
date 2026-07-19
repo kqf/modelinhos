@@ -4,13 +4,16 @@ import pytest
 import torch
 
 from modelinhos.models.blazenet import (
-    BLAZEFACE,
-    RETINANET,
+    BLAZEFACE_F,
+    RETINANET_B,
+    RETINANET_F,
     BlazeNet_Weights,
+    BlazeNetBack,
+    BlazeNetFront,
+    BlazePureBack,
+    BlazePureFront,
     blaze_anchors,
     blaze_back_anchors,
-    build_blazenet,
-    build_retina_blazenet,
     download_blaze_asset,
     load_repo_anchors,
     predict_on_image,
@@ -65,15 +68,15 @@ def test_anchors_match_repo(weights, build_anchors):
 
 
 @pytest.mark.parametrize(
-    "back_model, build_anchors, resolution",
+    "flavor, build_anchors, resolution",
     [
-        (False, blaze_anchors, (128, 128)),
-        (False, blaze_anchors, (480, 640)),
-        (True, blaze_back_anchors, (256, 256)),
+        (BlazeNetFront, blaze_anchors, (128, 128)),
+        (BlazeNetFront, blaze_anchors, (480, 640)),
+        (BlazeNetBack, blaze_back_anchors, (256, 256)),
     ],
 )
-def test_one_prediction_per_anchor(back_model, build_anchors, resolution):
-    model = build_blazenet(back_model=back_model)
+def test_one_prediction_per_anchor(flavor, build_anchors, resolution):
+    model = flavor()
     priors = build_anchors(resolution)
     boxes, classes = model(torch.rand(1, 3, *resolution))
     assert boxes.shape == (1, priors.shape[0], 16)
@@ -88,7 +91,7 @@ def face() -> np.ndarray:
 
 def test_vanilla_blazenet_matches_repo(face):
     weights = BlazeNet_Weights.FRONT_V1
-    model = build_blazenet(weights=weights)
+    model = restore(weights)(BlazeNetFront())
     model.anchors = blaze_anchors(weights.meta["resolution"])
     predictions = predict_on_image(
         model,
@@ -111,8 +114,8 @@ def frame() -> np.ndarray:
 
 def test_blazeface_recipe_matches_reference(frame):
     weights = BlazeNet_Weights.FRONT_V1
-    assert BLAZEFACE.reference is not None
-    reference = BLAZEFACE.reference(weights, [frame], th=0.75)[0]
+    assert BLAZEFACE_F.reference is not None
+    reference = BLAZEFACE_F.reference(weights, [frame], th=0.75)[0]
 
     detector = build_blaze(
         resolution=weights.meta["resolution"],
@@ -133,18 +136,20 @@ def test_blazeface_recipe_matches_reference(frame):
         assert ours == pytest.approx(theirs, abs=0.01)
 
 
+@pytest.mark.parametrize("flavor", [BlazePureFront, BlazePureBack])
 @pytest.mark.parametrize("resolution", [(128, 128), (128, 160)])
-def test_blaze_pure_one_prediction_per_anchor(resolution):
-    model = build_retina_blazenet(resolution, n_classes=3)
+def test_blaze_pure_one_prediction_per_anchor(flavor, resolution):
+    model = flavor(n_classes=3)
     priors = retina_anchors(resolution)
     boxes, classes = model(torch.rand(1, 3, *resolution))
     assert boxes.shape == (1, priors.shape[0], 4)
     assert classes.shape == (1, priors.shape[0], 3)
 
 
-def test_blaze_retinanet_recipe_decodes():
+@pytest.mark.parametrize("recipe", [RETINANET_F, RETINANET_B])
+def test_blaze_retinanet_recipe_decodes(recipe):
     resolution = (128, 160)
-    baked = RETINANET.bake(n_classes=3, resolution=resolution)
+    baked = recipe.bake(n_classes=3, resolution=resolution)
     preds = baked.model(torch.rand(2, 3, *resolution))
     decoded = baked.loss.decode(preds)
     n_anchors = retina_anchors(resolution).shape[0]
