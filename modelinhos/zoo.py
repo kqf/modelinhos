@@ -138,11 +138,11 @@ def build_trainable_retina(
     """RetinaNet detector configured for training: lencoder.l2i must
     already be fit (it decides the classification head size and,
     conventionally, reserves index 0 for background via l2i_forced). The
-    pretrained checkpoint was trained under a different (sigmoid)
-    convention than build_trainable_retina_loss's softmax one, but gradient
-    descent adapts the head to whatever loss you fine-tune with regardless
-    of its starting point, so it's still a fine (likely better than random)
-    warm start -- pass weights=None to skip it."""
+    loss (build_ret_loss) is the sigmoid focal loss the pretrained
+    checkpoint was itself trained under, so the warm start is
+    convention-exact: the head starts quiet (prior-probability biases)
+    instead of firing everywhere. Pass weights=None to train from
+    scratch."""
     return build_detector(
         replace(RETINANET, weights=weights),
         lencoder=lencoder
