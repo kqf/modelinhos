@@ -62,9 +62,8 @@ def overlap_similarity(box, other_boxes):
 
 
 def _weighted_non_max_suppression(
-    model: BlazeNet,
     detections,
-    min_suppression_threshold: int,
+    min_suppression_threshold: float,
 ):
     """The alternative NMS method as mentioned in the BlazeFace paper:
 
@@ -160,7 +159,7 @@ def predict_on_batch(
     model: BlazeNet,
     x,
     back_model,
-    min_suppression_threshold: int,
+    min_suppression_threshold: float,
     min_score_thresh: float,
 ):
     """Makes a prediction on a batch of images.
@@ -207,14 +206,16 @@ def predict_on_batch(
         min_score_thresh,
     )
 
+    output = []
     for i in range(len(detections)):
         faces = _weighted_non_max_suppression(
-            model,
             detections[i],
             min_suppression_threshold=min_suppression_threshold,
         )
-    faces = torch.stack(faces) if len(faces) > 0 else torch.zeros((0, 17))
-    return [faces]
+        output.append(
+            torch.stack(faces) if len(faces) > 0 else torch.zeros((0, 17))
+        )
+    return output
 
 
 def _tensors_to_detections(
@@ -272,7 +273,7 @@ def predict_on_image(
     model: BlazeNet,
     image,
     back_model,
-    min_suppression_threshold: int,
+    min_suppression_threshold: float,
     min_score_thresh: float,
 ):
     """Makes a prediction on a single image.

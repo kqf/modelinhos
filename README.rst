@@ -59,14 +59,18 @@ pieces agree.
 Usage
 -----
 
+Boxes are relative ([0, 1] xyxy) everywhere in the library and labels
+are strings; ``LabelEncoder`` is purely the label <-> index mapping
+(index 0 is reserved for background), so it needs no resolution:
+
 .. code-block:: python
 
     from modelinhos.engine.simple import simple_engine
     from modelinhos.models.ssdlite import SSDLITE
-    from modelinhos.preprocess.lables import LabelEncoder
+    from modelinhos.preprocess.labels import LabelEncoder
     from modelinhos.zoo import build_ssd
 
-    lencoder = LabelEncoder(resolution=(480, 640)).fit(samples)
+    lencoder = LabelEncoder().fit(samples)
     detector = build_ssd(
         (480, 640),
         lencoder=lencoder,
@@ -100,3 +104,43 @@ full control over loader construction).
 ``tests/models/test_trains.py`` runs this exact pipeline for every
 model family crossed with every engine -- it is the reference example
 of how the library is meant to be used.
+
+From start to production
+------------------------
+
+The scripts under ``trainings/`` and ``inference/`` walk the whole
+loop; each one is flat and self-contained, and every training is tied
+to a commit hash -- the script at that commit is the config.
+
+1. **Data.** Datasets are json files of ``Sample`` objects (relative
+   xyxy boxes, string labels) read with
+   ``modelinhos.sample.read_samples``; ``modelinhos.coco.load_samples``
+   downloads and converts a COCO split into that format on first use
+   (``data/coco/annotations.json``).
+
+2. **Study the data / recipe fit** before spending GPU time:
+   ``trainings/study-ssd-misc.py`` wires ``modelinhos.analysis``
+   (lint, box/label distributions, split divergence) and
+   ``modelinhos.infos`` (model summary, matchability -- the recipe's
+   own anchors and matcher run over every ground-truth box -- and the
+   anchor advice derived from it) into one report, including the
+   recall ceiling the anchor layout imposes.
+
+3. **Train.** ``trainings/train-coco.py`` is the template: pick a
+   recipe preset, ``warm_start(...)`` from a torchvision checkpoint or
+   a previous run, add augmentations by ``replace()``-ing the recipe's
+   ``augment``, and let the engine's own callbacks do the rest
+   (validation mAP with precision/recall @0.5, OneCycleLR warmup,
+   early stopping, checkpointing, MLflow logging).
+
+4. **Evaluate and pick thresholds.**
+   ``modelinhos.evaluation.mean_average_precision`` returns the full
+   PR tables; ``trainings/evaluate-ssd-misc.py`` shows the flow --
+   plot the PR curves, choose the operating threshold, then inspect
+   per-image FP/FN at that threshold to find the failures.
+
+5. **Export.** ``restore(checkpoint)`` is the strict loader for
+   evaluation and export (any key or shape drift raises -- the
+   checkpoint IS the model); ``inference/export.py`` exports every
+   recipe to static-shape ONNX, benchmarked by the C++ runner in
+   ``inference/infer.cpp``.
