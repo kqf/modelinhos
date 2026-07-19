@@ -3,7 +3,6 @@ import numpy as np
 import pytest
 import torch
 
-from modelinhos.blaze.postprocessing import predict_on_image
 from modelinhos.models.blazenet import (
     BLAZEFACE,
     RETINANET,
@@ -14,6 +13,7 @@ from modelinhos.models.blazenet import (
     build_retina_blazenet,
     download_blaze_asset,
     load_repo_anchors,
+    predict_on_image,
     retina_anchors,
 )
 from modelinhos.models.load import restore
