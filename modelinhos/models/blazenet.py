@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models._api import Weights, WeightsEnum
+from torchvision.ops import box_iou
 from torchvision.transforms._presets import ObjectDetection
 
 from modelinhos.detector import DetectionRecipe
@@ -500,63 +501,6 @@ def build_blaze_loss(
     )
 
 
-def intersect(box_a, box_b):
-    """We resize both tensors to [A,B,2] without new malloc:
-    [A,2] -> [A,1,2] -> [A,B,2]
-    [B,2] -> [1,B,2] -> [A,B,2]
-    Then we compute the area of intersect between box_a and box_b.
-    Args:
-      box_a: (tensor) bounding boxes, Shape: [A,4].
-      box_b: (tensor) bounding boxes, Shape: [B,4].
-    Return:
-      (tensor) intersection area, Shape: [A,B].
-    """
-    A = box_a.size(0)
-    B = box_b.size(0)
-    max_xy = torch.min(
-        box_a[:, 2:].unsqueeze(1).expand(A, B, 2),
-        box_b[:, 2:].unsqueeze(0).expand(A, B, 2),
-    )
-    min_xy = torch.max(
-        box_a[:, :2].unsqueeze(1).expand(A, B, 2),
-        box_b[:, :2].unsqueeze(0).expand(A, B, 2),
-    )
-    inter = torch.clamp((max_xy - min_xy), min=0)
-    return inter[:, :, 0] * inter[:, :, 1]
-
-
-def jaccard(box_a, box_b):
-    """Compute the jaccard overlap of two sets of boxes.  The jaccard overlap
-    is simply the intersection over union of two boxes.  Here we operate on
-    ground truth boxes and default boxes.
-    E.g.:
-        A ∩ B / A ∪ B = A ∩ B / (area(A) + area(B) - A ∩ B)
-    Args:
-        box_a: (tensor) Ground truth bounding boxes, Shape: [num_objects,4]
-        box_b: (tensor) Prior boxes from priorbox layers, Shape: [num_priors,4]
-    Return:
-        jaccard overlap: (tensor) Shape: [box_a.size(0), box_b.size(0)]
-    """
-    inter = intersect(box_a, box_b)
-    area_a = (
-        ((box_a[:, 2] - box_a[:, 0]) * (box_a[:, 3] - box_a[:, 1]))
-        .unsqueeze(1)
-        .expand_as(inter)
-    )  # [A,B]
-    area_b = (
-        ((box_b[:, 2] - box_b[:, 0]) * (box_b[:, 3] - box_b[:, 1]))
-        .unsqueeze(0)
-        .expand_as(inter)
-    )  # [A,B]
-    union = area_a + area_b - inter
-    return inter / union  # [A,B]
-
-
-def overlap_similarity(box, other_boxes):
-    """Computes the IOU between a bounding box and set of other boxes."""
-    return jaccard(box.unsqueeze(0), other_boxes).squeeze(0)
-
-
 def _weighted_non_max_suppression(
     detections,
     min_suppression_threshold: float,
@@ -592,10 +536,11 @@ def _weighted_non_max_suppression(
 
         # Compute the overlap between the first box and the other
         # remaining boxes. (Note that the other_boxes also include
-        # the first_box.)
+        # the first_box.) Boxes are y-first here, but IoU is invariant
+        # under swapping the axes of both arguments alike.
         first_box = detection[:4]
         other_boxes = detections[remaining, :4]
-        ious = overlap_similarity(first_box, other_boxes)
+        ious = box_iou(first_box.unsqueeze(0), other_boxes).squeeze(0)
 
         # If two detections don't overlap enough, they are considered
         # to be from different faces.
@@ -622,19 +567,20 @@ def _weighted_non_max_suppression(
 def _decode_boxes(model: BlazeNet, raw, anchors):
     """Converts the predictions into actual coordinates using
     the anchor boxes. Processes the entire batch at once.
+
+    The box part is the shared codec (decode_blaze_boxes -- the model's
+    x/y/w/h scales are always one and the same number), stored in the
+    upstream's y-first order; only the 6 keypoints are decoded here.
     """
     boxes = torch.zeros_like(raw)
 
-    x_center = raw[..., 0] / model.x_scale * anchors[:, 2] + anchors[:, 0]
-    y_center = raw[..., 1] / model.y_scale * anchors[:, 3] + anchors[:, 1]
-
-    w = raw[..., 2] / model.w_scale * anchors[:, 2]
-    h = raw[..., 3] / model.h_scale * anchors[:, 3]
-
-    boxes[..., 0] = y_center - h / 2.0  # ymin
-    boxes[..., 1] = x_center - w / 2.0  # xmin
-    boxes[..., 2] = y_center + h / 2.0  # ymax
-    boxes[..., 3] = x_center + w / 2.0  # xmax
+    x1, y1, x2, y2 = decode_blaze_boxes(
+        raw, priors=anchors, scale=model.x_scale
+    ).unbind(-1)
+    boxes[..., 0] = y1  # ymin
+    boxes[..., 1] = x1  # xmin
+    boxes[..., 2] = y2  # ymax
+    boxes[..., 3] = x2  # xmax
 
     for k in range(6):
         offset = 4 + k * 2
