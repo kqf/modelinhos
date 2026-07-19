@@ -1,3 +1,5 @@
+#include <sys/resource.h>
+
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -66,9 +68,19 @@ int main(int argc, char** argv) {
     for (double m : ms) var += (m - mean) * (m - mean);
     double std = std::sqrt(var / (iters - 1));
 
+    // Peak RSS of the whole process: ru_maxrss is bytes on macOS,
+    // kilobytes on Linux.
+    rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
+#ifdef __APPLE__
+    double ram = usage.ru_maxrss / 1024.0 / 1024.0;
+#else
+    double ram = usage.ru_maxrss / 1024.0;
+#endif
+
     std::cout << std::fixed << std::setprecision(2) << path << "  " << mode
               << "  w=" << w << " h=" << h << "  mean=" << mean
               << " ms  std=" << std << " ms  fps=" << 1000.0 / mean
-              << std::endl;
+              << "  ram=" << ram << " MB" << std::endl;
     return 0;
 }
