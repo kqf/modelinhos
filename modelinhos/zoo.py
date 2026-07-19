@@ -25,7 +25,7 @@ from modelinhos.models.blazenet import BLAZEFACE, BlazeNet_Weights
 from modelinhos.models.load import Weights, warm_start
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
-from modelinhos.preprocess.lables import LabelEncoder
+from modelinhos.preprocess.labels import LabelEncoder
 
 
 def coco_label_encoder(weights) -> LabelEncoder:

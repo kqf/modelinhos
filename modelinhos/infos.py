@@ -15,7 +15,7 @@ from torch.utils.flop_counter import FlopCounterMode
 from modelinhos.containers import Collate
 from modelinhos.data import SampleDataset
 from modelinhos.detector import DetectionRecipe
-from modelinhos.preprocess.lables import SampleEncoder
+from modelinhos.preprocess.labels import SampleEncoder
 from modelinhos.sample import Annotation, Sample
 from modelinhos.tasks.standard import PerBatchEncoded
 

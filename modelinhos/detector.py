@@ -12,7 +12,7 @@ from modelinhos.engine import Engine
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.models.load import Weights, from_scratch
 from modelinhos.preprocess.image import rgb_normalized_image_encoder
-from modelinhos.preprocess.lables import DoNothingEncoder, SampleEncoder
+from modelinhos.preprocess.labels import DoNothingEncoder, SampleEncoder
 from modelinhos.sample import Annotation, Sample
 from modelinhos.tasks.standard import PerBatchEncoded
 

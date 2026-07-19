@@ -16,7 +16,7 @@ from modelinhos.infos import (
     summarize,  # params / FLOPs / measured latency, data-independent
 )
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
-from modelinhos.preprocess.lables import LabelEncoder
+from modelinhos.preprocess.labels import LabelEncoder
 
 
 def main(

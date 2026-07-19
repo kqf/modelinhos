@@ -4,7 +4,7 @@ from typing import Callable
 
 import cv2
 
-from modelinhos.preprocess.lables import SampleEncoder
+from modelinhos.preprocess.labels import SampleEncoder
 from modelinhos.sample import Annotation, Sample
 
 
