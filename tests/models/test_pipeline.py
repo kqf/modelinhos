@@ -22,7 +22,13 @@ def model(resolution: tuple[int, int]):
     return build_inference_only_ssd(
         weights,
         resolution,
-        lencoder=LabelEncoder(l2i={"person": 1, "tie": 34}),
+        # no zero class on purpose: LabelEncoder warns and adds
+        # l2i_background itself. resolution=(1, 1) keeps bboxes in pixel
+        # space -- torchvision-native models work in pixels end to end.
+        lencoder=LabelEncoder(
+            resolution=(1, 1),
+            l2i={"person": 1, "tie": 34},
+        ),
     )
 
 

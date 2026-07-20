@@ -21,10 +21,7 @@ def infer(
     resolution: tuple[int, int],
     samples: list[Sample],
 ) -> tuple[list[Sample], LabelEncoder]:
-    lencoder = LabelEncoder(
-        resolution=resolution,
-        l2i_forced={"__background__": 0},
-    ).fit(samples)
+    lencoder = LabelEncoder(resolution=resolution).fit(samples)
     model = build_trainable_ssd(resolution, lencoder=lencoder)
     model.fit(samples)
     return model.transform(samples), lencoder
