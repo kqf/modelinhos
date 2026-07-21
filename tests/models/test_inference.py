@@ -11,8 +11,6 @@ from torchvision.models.detection.retinanet import (
 )
 
 from modelinhos.detector import Detector
-from modelinhos.models.retinanet import RETINANET
-from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.plot import plot
 from modelinhos.sample import Annotation, Sample
 from modelinhos.zoo import (
@@ -191,61 +189,3 @@ def test_weights_match(
         headless,
     )
     assert_same_sample(md_preds, md_expected)
-
-
-@pytest.mark.skip
-@pytest.mark.parametrize(
-    "build_fn, arch, n_classes, th, weights",
-    [
-        pytest.param(
-            build_inference_only_custom_ssd,
-            SSDLITE,
-            91,
-            0.01,
-            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-            id="ssdlite320_mobilenet_v3_large",
-        ),
-        pytest.param(
-            build_inference_only_custom_retina,
-            RETINANET,
-            91,
-            0.05,
-            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-            id="retinanet_resnet50_fpn_v2_91",
-        ),
-        pytest.param(
-            build_inference_only_custom_retina,
-            RETINANET,
-            2,
-            0.01,
-            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-            id="retinanet_resnet50_fpn_v2_2",
-        ),
-        pytest.param(
-            build_inference_only_custom_retina,
-            RETINANET,
-            # Don't multiply by two because it breaks tests.
-            91 * 1,
-            0.01,
-            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-            id="retinanet_resnet50_fpn_v2_91_times_1",
-        ),
-    ],
-)
-def test_inference_works(
-    frame,
-    build_fn,
-    arch,
-    n_classes,
-    th,
-    weights,
-    headless,
-):
-    model = build_fn(
-        weights,
-        frame.shape[:2],
-        arch=arch,
-        n_classes=n_classes,
-        th=th,
-    )
-    _run_detector(model, frame, headless)

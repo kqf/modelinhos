@@ -1,8 +1,15 @@
 import math
+from dataclasses import dataclass
 from itertools import product
 from math import ceil
 
 import torch
+
+
+@dataclass
+class AnchorConfig:
+    sizes: list[tuple[int, int]]
+    steps: list[int]
 
 
 def anchors(
