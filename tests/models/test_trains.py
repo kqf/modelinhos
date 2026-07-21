@@ -13,9 +13,10 @@ from torchvision.models.detection import (
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
+    visualize_fp_fn,
 )
 from modelinhos.preprocess.lables import LabelEncoder
-from modelinhos.sample import Annotation, Sample
+from modelinhos.sample import Annotation, Sample, read_samples, save_samples
 from modelinhos.zoo import build_trainable_retina, build_trainable_ssd
 
 
@@ -51,6 +52,12 @@ def data(
     return [Sample(file_name=file_name, annotations=[annotation])] * 32
 
 
+@pytest.fixture
+def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
+    # TODO: Save data to that file
+    return save_samples(data, tmp_path / "data" / "annotations.json")
+
+
 @pytest.mark.parametrize(
     "build_model",
     [
@@ -69,12 +76,17 @@ def data(
 def test_pipeline(
     build_model: Callable,
     resolution: tuple[int, int],
-    data: list[Sample],
+    dataset: pathlib.Path,
 ):
+    data = read_samples(dataset)
+
     # Learn l2i from the data itself (the full from-scratch path). The
     # encoder must be fit BEFORE building: the classification head is
     # sized from len(l2i) at construction time.
-    lencoder = LabelEncoder(resolution=resolution).fit(data)
+    lencoder = LabelEncoder(
+        resolution=resolution,
+        l2i={"__background__": 0, "dot": 1},
+    ).fit(data)
     model = build_model(resolution=resolution, lencoder=lencoder)
     model.fit(data)
     y_pred = model.transform(data)
@@ -83,3 +95,6 @@ def test_pipeline(
 
     aps = per_sample_metrics(data, y_pred, l2i=model.label_encoder.l2i)
     assert len(aps) == len(data)
+
+    assert aps.iloc[0]["mAP"] == pytest.approx(1.0)
+    visualize_fp_fn(aps, i2l=model.label_encoder.i2l)
