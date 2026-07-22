@@ -1,10 +1,10 @@
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 from dacite import Config, from_dict
-from dataclasses_json import dataclass_json
+from dataclasses_json import config, dataclass_json
 
 AbsoluteXYXY = tuple[float, float, float, float]
 
@@ -30,7 +30,7 @@ AnnotationT = TypeVar("AnnotationT")
 @dataclass_json
 @dataclass
 class Sample(Generic[AnnotationT]):
-    file_name: Path
+    file_name: Path = field(metadata=config(encoder=str))
     annotations: list[AnnotationT]
 
 
