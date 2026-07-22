@@ -18,7 +18,7 @@ from modelinhos.evaluation import (
 from modelinhos.plot import plot
 from modelinhos.preprocess.lables import SampleEncoder
 from modelinhos.sample import Sample
-from modelinhos.zoo import build_inference_only_ssd
+from modelinhos.zoo import build_reference_ssd
 
 memory = joblib.Memory("./cachedir", verbose=0)
 
@@ -27,7 +27,7 @@ def build_model(
     resolution: tuple[int, int] = (300, 300),
     weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
 ):
-    return build_inference_only_ssd(weights, resolution)
+    return build_reference_ssd(weights, resolution)
 
 
 @contextmanager

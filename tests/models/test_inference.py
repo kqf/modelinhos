@@ -16,8 +16,8 @@ from modelinhos.sample import Annotation, Sample
 from modelinhos.zoo import (
     build_inference_only_custom_retina,
     build_inference_only_custom_ssd,
-    build_inference_only_retina,
-    build_inference_only_ssd,
+    build_reference_retina,
+    build_reference_ssd,
 )
 
 
@@ -80,7 +80,7 @@ def assert_same_sample(preds, expect):
     "build_reference, build_custom, weights, tv_expected, md_expected",
     [
         pytest.param(
-            build_inference_only_ssd,
+            build_reference_ssd,
             build_inference_only_custom_ssd,
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             (
@@ -118,7 +118,7 @@ def assert_same_sample(preds, expect):
             id="ssdlite320_mobilenet_v3_large",
         ),
         pytest.param(
-            build_inference_only_retina,
+            build_reference_retina,
             build_inference_only_custom_retina,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             Sample(
