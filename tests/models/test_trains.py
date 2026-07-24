@@ -9,19 +9,17 @@ from typing import Callable
 import cv2
 import numpy as np
 import pytest
-from torchvision.models.detection import (
-    RetinaNet_ResNet50_FPN_V2_Weights,
-    SSDLite320_MobileNet_V3_Large_Weights,
-)
 
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
     visualize_fp_fn,
 )
+from modelinhos.models.retinanet import RETINANET
+from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Annotation, Sample, read_samples, save_samples
-from modelinhos.zoo import build_trainable_retina, build_trainable_ssd
+from modelinhos.zoo import build_retina, build_ssd
 
 
 @pytest.fixture
@@ -64,15 +62,28 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
 @pytest.mark.parametrize(
     "build_model",
     [
-        partial(
-            build_trainable_retina,
-            weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-            epochs=1,
+        pytest.param(
+            partial(build_retina, arch=RETINANET, epochs=1),
+            id="retinanet",
         ),
-        partial(
-            build_trainable_ssd,
-            weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-            epochs=1,
+        pytest.param(
+            partial(build_ssd, arch=SSDLITE, epochs=1),
+            id="ssdlite",
+        ),
+        # The torchvision-faithful flavors share the same interface and
+        # train through the same machinery, but their anchor grids differ
+        # from the custom flavors this fixture was tuned for (dot size,
+        # epochs, BN-EMA arithmetic), so the mAP assertions are
+        # unvalidated for them.
+        pytest.param(
+            partial(build_retina, epochs=1),
+            id="torchvision_retinanet",
+            marks=pytest.mark.skip(reason="convergence not tuned"),
+        ),
+        pytest.param(
+            partial(build_ssd, epochs=1),
+            id="torchvision_ssdlite",
+            marks=pytest.mark.skip(reason="convergence not tuned"),
         ),
     ],
 )

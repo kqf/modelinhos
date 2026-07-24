@@ -14,10 +14,11 @@ from modelinhos.detector import Detector
 from modelinhos.plot import plot
 from modelinhos.sample import Annotation, Sample
 from modelinhos.zoo import (
-    build_inference_only_custom_retina,
-    build_inference_only_custom_ssd,
     build_reference_retina,
     build_reference_ssd,
+    build_retina,
+    build_ssd,
+    coco_label_encoder,
 )
 
 
@@ -81,7 +82,7 @@ def assert_same_sample(preds, expect):
     [
         pytest.param(
             build_reference_ssd,
-            build_inference_only_custom_ssd,
+            build_ssd,
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             (
                 Sample(
@@ -119,7 +120,7 @@ def assert_same_sample(preds, expect):
         ),
         pytest.param(
             build_reference_retina,
-            build_inference_only_custom_retina,
+            build_retina,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             Sample(
                 file_name=Path("fake-file.png"),
@@ -184,7 +185,11 @@ def test_weights_match(
     assert_same_sample(tv_preds, tv_expected)
 
     md_preds = _run_detector(
-        build_custom(weights, shape),
+        build_custom(
+            resolution=shape,
+            lencoder=coco_label_encoder(weights, resolution=shape),
+            weights=weights,
+        ),
         frame,
         headless,
     )

@@ -117,7 +117,7 @@ def build_torchvision_retinanet(
         num_anchors=9,
     )
     if weights is not None:
-        model.load_state_dict(weights.get_state_dict())
+        load_with_mismatch_from_weights(model, weights=weights, progress=False)
     return model
 
 
@@ -197,6 +197,8 @@ RETINANET = Architecture(
 
 # Faithful-to-torchvision configuration -- same loss, torchvision's own
 # anchors/head shape, for comparing our inference against the reference.
+# Trainable like any other flavor (mismatch-tolerant loading, so the head
+# can be sized for any label set).
 TORCHVISION_RETINANET = Architecture(
     build_model=build_torchvision_retinanet,
     anchors=torchvision_retina_anchors,
