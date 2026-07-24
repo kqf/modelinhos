@@ -92,7 +92,11 @@ def ssd_anchors(resolution: tuple[int, int], backbone) -> torch.Tensor:
 
     H, W = resolution
 
-    # Get real feature map sizes from the backbone
+    # Get real feature map sizes from the backbone. Must run in eval mode:
+    # a freshly built module is in train mode, and at small resolutions the
+    # deepest feature map is 1x1, where train-mode BatchNorm cannot compute
+    # batch statistics (one value per channel) and raises.
+    backbone.eval()
     with torch.no_grad():
         dummy = torch.zeros(1, 3, H, W)
         features = list(backbone(dummy).values())
