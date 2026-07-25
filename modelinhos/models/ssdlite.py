@@ -24,7 +24,7 @@ from modelinhos.loss.subloss import (
 from modelinhos.models.anchors import anchors
 from modelinhos.models.load import load_with_mismatch
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
-from modelinhos.preprocess.image import normalize
+from modelinhos.preprocess.image import normalize, rgb_normalized_image_encoder
 
 
 class SSDPureHead(torch.nn.Module):
@@ -148,13 +148,6 @@ def ssdlite_anchors(resolution: tuple[int, int]) -> torch.Tensor:
         steps=[16, 32, 64],
         clip=False,
     )
-
-
-ssd_normalize = partial(
-    normalize,
-    image_mean=(0.5, 0.5, 0.5),
-    image_std=(0.5, 0.5, 0.5),
-)
 
 
 # This configures ssd as it was trained
@@ -286,11 +279,18 @@ def build_ssd_loss(
 
 # Trainable configuration: retina-style anchors, mismatch-tolerant weight
 # loading -- what modelinhos trains from scratch / fine-tunes.
+ssd_normalize = partial(
+    normalize,
+    image_mean=(0.5, 0.5, 0.5),
+    image_std=(0.5, 0.5, 0.5),
+)
+
+
 SSDLITE = Architecture(
     build_model=build_ssdlite,
     anchors=ssdlite_anchors,
     loss=build_ssd_loss,
-    normalize=ssd_normalize,
+    iencoder=rgb_normalized_image_encoder(ssd_normalize),
 )
 
 # Faithful-to-torchvision configuration: torchvision's own anchors and
@@ -301,5 +301,5 @@ TORCHVISION_SSDLITE = Architecture(
     build_model=build_torchvision_ssdlite,
     anchors=torchvision_ssdlite_anchors,
     loss=build_ssd_loss,
-    normalize=ssd_normalize,
+    iencoder=rgb_normalized_image_encoder(ssd_normalize),
 )
