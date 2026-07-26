@@ -23,11 +23,12 @@ def default_dataloader_builder(
     collate_fn,
     shuffle: bool = False,
     batch_size: int = 2,
+    num_workers: int = 0,
 ) -> torch.utils.data.DataLoader:
     return torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
-        num_workers=0,
+        num_workers=num_workers,
         collate_fn=collate_fn,
         shuffle=shuffle,
     )
@@ -51,7 +52,7 @@ class SimpleTrainer:
         loss_fn: Callable,
         decode: Callable,
         collate,
-        epochs: int = 1,
+        max_epochs: int = 1,
         lr: float = 1e-3,
         optimizer_builder: Callable = default_optimizer_builder,
         train_dataloader_builder: DLBuilder = partial(
@@ -62,7 +63,7 @@ class SimpleTrainer:
     ):
         self.decode = decode
         self.collate = collate
-        self.epochs = epochs
+        self.epochs = max_epochs
         self.train_dataloader_builder = train_dataloader_builder
         self.valid_dataloader_builder = valid_dataloader_builder
 
@@ -139,11 +140,18 @@ class SimpleTrainer:
 
 
 def simple_engine(
-    epochs: int = 1,
+    max_epochs: int = 1,
     lr: float = 1e-3,
+    batch_size: int = 2,
+    num_workers: int = 0,
+    train_dataloader_builder: Optional[DLBuilder] = None,
+    valid_dataloader_builder: Optional[DLBuilder] = None,
     **knobs,
 ) -> Callable[[Baked], SimpleTrainer]:
-    """Baked -> SimpleTrainer builder for build_detector(engine=...)."""
+    """Baked -> SimpleTrainer builder for build_detector(engine=...).
+    batch_size/num_workers cover the common case (same vocabulary as the
+    other engines); pass a *_dataloader_builder to take over loader
+    construction entirely -- it wins over the knobs."""
 
     def build(baked: Baked) -> SimpleTrainer:
         return SimpleTrainer(
@@ -151,8 +159,21 @@ def simple_engine(
             loss_fn=baked.loss,
             decode=baked.loss.decode,
             collate=baked.collate,
-            epochs=epochs,
+            max_epochs=max_epochs,
             lr=lr,
+            train_dataloader_builder=train_dataloader_builder
+            or partial(
+                default_dataloader_builder,
+                shuffle=True,
+                batch_size=batch_size,
+                num_workers=num_workers,
+            ),
+            valid_dataloader_builder=valid_dataloader_builder
+            or partial(
+                default_dataloader_builder,
+                batch_size=batch_size,
+                num_workers=num_workers,
+            ),
             **knobs,
         )
 
