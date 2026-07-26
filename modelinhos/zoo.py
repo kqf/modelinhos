@@ -14,11 +14,16 @@ from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
 )
 
-from modelinhos.detector import DetectionRecipe, Detector, build_detector
+from modelinhos.detector import (
+    DetectionRecipe,
+    Detector,
+    EngineBuilder,
+    build_detector,
+)
+from modelinhos.engine.simple import simple_engine
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.preprocess.lables import LabelEncoder
-from modelinhos.trainer.simple import TrainConfig
 
 
 def coco_label_encoder(
@@ -41,23 +46,25 @@ def build_ssd(
     lencoder: LabelEncoder,
     arch: DetectionRecipe = TORCHVISION_SSDLITE,
     weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
-    epochs: int = 10,
+    engine: EngineBuilder = simple_engine(epochs=10),
     th: float = 0.4,
 ) -> Detector:
     """Our SSD reimplementation. lencoder must be fit: the classification
-    head is sized from len(l2i) at construction time, with index 0
-    reserved for background (LabelEncoder enforces both). Weights load
-    mismatch-tolerantly, so any head size warm-starts from the checkpoint;
-    with coco_label_encoder the defaults reproduce the torchvision
-    pretrained detector exactly. Pass arch=SSDLITE for the trimmed custom
-    flavor, weights=None to start from scratch."""
+    head is sized from lencoder.n_classes at construction time, with
+    index 0 reserved for background (LabelEncoder enforces both). Weights
+    load mismatch-tolerantly, so any head size warm-starts from the
+    checkpoint; with coco_label_encoder the defaults reproduce the
+    torchvision pretrained detector exactly. Pass arch=SSDLITE for the
+    trimmed custom flavor, weights=None to start from scratch, and any
+    engine (skorch_engine, lightning_engine, ...) to swap the training
+    backend."""
     return build_detector(
         arch=arch,
         weights=weights,
         lencoder=lencoder,
         resolution=resolution,
         th=th,
-        train=TrainConfig(epochs=epochs),
+        engine=engine,
     )
 
 
@@ -66,7 +73,7 @@ def build_retina(
     lencoder: LabelEncoder,
     arch: DetectionRecipe = TORCHVISION_RETINANET,
     weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
-    epochs: int = 10,
+    engine: EngineBuilder = simple_engine(epochs=10),
     th: float = 0.4,
 ) -> Detector:
     """Our RetinaNet reimplementation. Same contract as build_ssd:
@@ -84,5 +91,5 @@ def build_retina(
         lencoder=lencoder,
         resolution=resolution,
         th=th,
-        train=TrainConfig(epochs=epochs),
+        engine=engine,
     )

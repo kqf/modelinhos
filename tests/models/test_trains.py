@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 import pytest
 
+from modelinhos.engine.simple import simple_engine
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
@@ -20,6 +21,24 @@ from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Annotation, Sample, read_samples, save_samples
 from modelinhos.zoo import build_retina, build_ssd
+
+
+def _simple():
+    return simple_engine(epochs=1)
+
+
+def _skorch():
+    pytest.importorskip("skorch")
+    from modelinhos.engine.skorch import skorch_engine
+
+    return skorch_engine(max_epochs=1)
+
+
+def _lightning():
+    pytest.importorskip("lightning")
+    from modelinhos.engine.lit import lightning_engine
+
+    return lightning_engine(max_epochs=1)
 
 
 @pytest.fixture
@@ -63,11 +82,11 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
     "build_model",
     [
         pytest.param(
-            partial(build_retina, arch=RETINANET, epochs=1),
+            partial(build_retina, arch=RETINANET),
             id="retinanet",
         ),
         pytest.param(
-            partial(build_ssd, arch=SSDLITE, epochs=1),
+            partial(build_ssd, arch=SSDLITE),
             id="ssdlite",
         ),
         # The torchvision-faithful flavors share the same interface and
@@ -76,19 +95,28 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
         # epochs, BN-EMA arithmetic), so the mAP assertions are
         # unvalidated for them.
         pytest.param(
-            partial(build_retina, epochs=1),
+            build_retina,
             id="torchvision_retinanet",
             marks=pytest.mark.skip(reason="convergence not tuned"),
         ),
         pytest.param(
-            partial(build_ssd, epochs=1),
+            build_ssd,
             id="torchvision_ssdlite",
             marks=pytest.mark.skip(reason="convergence not tuned"),
         ),
     ],
 )
+@pytest.mark.parametrize(
+    "engine",
+    [
+        pytest.param(_simple, id="simple"),
+        pytest.param(_skorch, id="skorch"),
+        pytest.param(_lightning, id="lightning"),
+    ],
+)
 def test_pipeline(
     build_model: Callable,
+    engine: Callable,
     resolution: tuple[int, int],
     dataset: pathlib.Path,
 ):
@@ -96,12 +124,16 @@ def test_pipeline(
 
     # Learn l2i from the data itself (the full from-scratch path). The
     # encoder must be fit BEFORE building: the classification head is
-    # sized from len(l2i) at construction time.
+    # sized from lencoder.n_classes at construction time.
     lencoder = LabelEncoder(
         resolution=resolution,
         l2i={"__background__": 0, "dot": 1},
     ).fit(data)
-    model = build_model(resolution=resolution, lencoder=lencoder)
+    model = build_model(
+        resolution=resolution,
+        lencoder=lencoder,
+        engine=engine(),
+    )
     model.fit(data)
     y_pred = model.transform(data)
     m_ap = mean_average_precision(data, y_pred, model.label_encoder.l2i)

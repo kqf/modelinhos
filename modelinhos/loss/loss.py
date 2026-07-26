@@ -73,10 +73,13 @@ class DetectionLoss(nn.Module):
         self.match = match
         self.register_buffer("priors", priors)
 
+    # PyTorch criterion convention -- (input, target), like
+    # F.cross_entropy -- so the loss plugs into skorch/lightning without
+    # argument-swapping adapters.
     def forward(
         self,
-        y_true: StandardDetection[torch.Tensor],
         y_pred: StandardDetection[torch.Tensor],
+        y_true: StandardDetection[torch.Tensor],
     ) -> dict[str, torch.Tensor]:
         positives, negatives = self.match(
             y_pred,

@@ -162,6 +162,6 @@ def test_atss_plugs_into_detection_loss(y_pred, y_true, priors, levels):
         sublosses=reference.sublosses,
         match=partial(atss_match, negpos_ratio=7, level_sizes=levels),
     )
-    losses = loss_fn(y_true, y_pred)
+    losses = loss_fn(y_pred, y_true)
     assert torch.isfinite(losses["loss"])
     assert losses["loss"] > 0
