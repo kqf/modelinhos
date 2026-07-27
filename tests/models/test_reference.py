@@ -84,10 +84,10 @@ def assert_same_sample(preds, expect):
                 annotations=[
                     Annotation(
                         bbox=(
-                            125.99763488769531,
-                            56.866600036621094,
-                            196.1458282470703,
-                            264.6971130371094,
+                            0.39374260902404784,
+                            0.17770812511444092,
+                            0.6129557132720947,
+                            0.8271784782409668,
                         ),
                         label="person",
                         score=0.9418545961380005,
@@ -99,10 +99,10 @@ def assert_same_sample(preds, expect):
                 annotations=[
                     Annotation(
                         bbox=(
-                            125.92370986938477,
-                            54.23077583312988,
-                            195.98981857299805,
-                            263.4918975830078,
+                            0.3935115933418274,
+                            0.16947117447853088,
+                            0.6124681830406189,
+                            0.8234121799468994,
                         ),
                         label="person",
                         score=0.8907293081283569,
@@ -125,20 +125,20 @@ def assert_same_sample(preds, expect):
                 annotations=[
                     Annotation(
                         bbox=(
-                            488.3135681152344,
-                            227.34669494628906,
-                            597.8914184570312,
-                            575.18212890625,
+                            0.4488176177529728,
+                            0.2841833686828613,
+                            0.549532553728889,
+                            0.7189776611328125,
                         ),
                         label="person",
                         score=0.9937841892242432,
                     ),
                     Annotation(
                         bbox=(
-                            531.1905517578125,
-                            289.6827392578125,
-                            542.9974365234375,
-                            329.750732421875,
+                            0.48822661007151885,
+                            0.36210342407226564,
+                            0.49907852621639476,
+                            0.41218841552734375,
                         ),
                         label="tie",
                         score=0.6264503002166748,
@@ -150,22 +150,20 @@ def assert_same_sample(preds, expect):
                 annotations=[
                     Annotation(
                         bbox=(
-                            491.05938720703125,
-                            230.8584747314453,
-                            593.6303100585938,
-                            572.8419189453125,
+                            0.4513413608074188,
+                            0.28857308626174927,
+                            0.545616090297699,
+                            0.7160523533821106,
                         ),
                         label="person",
                         score=0.9877095222473145,
                     )
                 ],
             ),
-            id="retinanet_resnet50_fpn_v2",
         ),
     ],
 )
 def test_references_match(
-    resolution,
     frame,
     arch,
     build_custom,
@@ -182,7 +180,7 @@ def test_references_match(
 
     detector = build_custom(
         resolution=shape,
-        lencoder=coco_label_encoder(weights, resolution=shape),
+        lencoder=coco_label_encoder(weights),
         arch=arch,
         weights=weights,
     )

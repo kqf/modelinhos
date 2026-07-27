@@ -47,9 +47,7 @@ def infer(
     assert TORCHVISION_SSDLITE.reference is not None
     with timer("inference"):
         y_pred = TORCHVISION_SSDLITE.reference(weights, frames)
-    # torchvision-native predictions are in pixel space end to end, so
-    # the encoder is only consulted for its l2i/i2l mappings here.
-    return y_pred, coco_label_encoder(weights, resolution=(1, 1))
+    return y_pred, coco_label_encoder(weights)
 
 
 def main():
@@ -63,11 +61,25 @@ def main():
 
     y_pred, le = infer(samples)
 
+    # Nominal evaluation resolution: COCO images vary in size, so this
+    # only sets the pixel grid the VOC-style (+1) IoU is computed on.
+    resolution = (640, 640)
+
     with timer("mAP calculation"):
-        m_ap = mean_average_precision(samples, y_pred, l2i=le.l2i)
+        m_ap = mean_average_precision(
+            samples,
+            y_pred,
+            l2i=le.l2i,
+            resolution=resolution,
+        )
 
     with timer("Per sample calculation"):
-        per_sample = per_sample_metrics(samples, y_pred, l2i=le.l2i)
+        per_sample = per_sample_metrics(
+            samples,
+            y_pred,
+            l2i=le.l2i,
+            resolution=resolution,
+        )
 
     visualize_fp_fn(per_sample, i2l=le.i2l, class_agnostic=True)
 

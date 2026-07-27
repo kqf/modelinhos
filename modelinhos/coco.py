@@ -9,8 +9,8 @@ from dataclasses_json import Undefined, dataclass_json
 from tqdm import tqdm
 
 from modelinhos.sample import (
-    AbsoluteXYXY,
     Annotation,
+    RelativeXYXY,
     Sample,
     read_samples,
     save_samples,
@@ -38,6 +38,8 @@ class CocoCategory:
 class CocoImage:
     id: int
     file_name: str
+    width: int
+    height: int
 
 
 @dataclass_json(undefined=Undefined.EXCLUDE)
@@ -129,9 +131,15 @@ def download_validation(root: Path) -> Path:
     return annotations
 
 
-def _bbox_xywh_to_xyxy(bbox: list[float]) -> AbsoluteXYXY:
+# COCO annotations are pixel-space xywh; this is the ingest boundary,
+# so convert to relative xyxy here and pixels never appear upstream.
+def _bbox_xywh_to_xyxy(
+    bbox: list[float],
+    width: int,
+    height: int,
+) -> RelativeXYXY:
     x, y, w, h = bbox
-    return x, y, x + w, y + h
+    return x / width, y / height, (x + w) / width, (y + h) / height
 
 
 def to_samples(annotations_path: Path) -> list[Sample]:
@@ -149,7 +157,9 @@ def to_samples(annotations_path: Path) -> list[Sample]:
             file_name=Path(f"images/val2017/{image.file_name}"),
             annotations=[
                 Annotation(
-                    bbox=_bbox_xywh_to_xyxy(ann.bbox),
+                    bbox=_bbox_xywh_to_xyxy(
+                        ann.bbox, image.width, image.height
+                    ),
                     label=category_name[ann.category_id],
                 )
                 for ann in annotations_by_image[image.id]

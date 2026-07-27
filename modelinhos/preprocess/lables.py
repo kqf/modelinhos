@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
-from modelinhos.sample import AbsoluteXYXY, Annotation, Sample, TrainAnnotation
+from modelinhos.sample import Annotation, Sample, TrainAnnotation
 
 # module logger
 logger = logging.getLogger(__name__)
@@ -25,11 +25,8 @@ class SampleEncoder(Protocol):
 
 @dataclass
 class LabelEncoder:
-    # transform()/inverse_transform() normalise bboxes to [0, 1] and back
-    # — the one place pixel space and model-internal normalised space
-    # meet (torchvision-native decodes normalise too, see
-    # torchvision_to_samples).
-    resolution: tuple[int, int]
+    # Purely label <-> index: bboxes pass through untouched, since they
+    # are relative ([0, 1]) everywhere in the library and stay so.
     # leave both empty to learn the classes from data via fit(); a
     # provided mapping must keep index 0 for BACKGROUND (__post_init__).
     l2i: dict[str, int] = field(default_factory=dict)
@@ -91,16 +88,6 @@ class LabelEncoder:
         self.i2l = {idx: label for label, idx in self.l2i.items()}
         return self
 
-    def _normalize(self, bbox: AbsoluteXYXY) -> AbsoluteXYXY:
-        H, W = self.resolution
-        x1, y1, x2, y2 = bbox
-        return (x1 / W, y1 / H, x2 / W, y2 / H)
-
-    def _denormalize(self, bbox: AbsoluteXYXY) -> AbsoluteXYXY:
-        H, W = self.resolution
-        x1, y1, x2, y2 = bbox
-        return (x1 * W, y1 * H, x2 * W, y2 * H)
-
     def transform(
         self, samples: list[Sample[Annotation]]
     ) -> list[Sample[TrainAnnotation]]:
@@ -109,7 +96,7 @@ class LabelEncoder:
                 file_name=sample.file_name,
                 annotations=[
                     TrainAnnotation(
-                        bboxes=self._normalize(ann.bbox),
+                        bboxes=ann.bbox,
                         scores=(ann.score,),
                         labels=(self.l2i[ann.label],),
                     )
@@ -132,7 +119,7 @@ class LabelEncoder:
                 file_name=sample.file_name,
                 annotations=[
                     Annotation(
-                        bbox=self._denormalize(ann.bboxes),
+                        bbox=ann.bboxes,
                         score=ann.scores[0],
                         label=self.i2l[int(ann.labels[0])],
                     )

@@ -26,17 +26,13 @@ from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.preprocess.lables import LabelEncoder
 
 
-def coco_label_encoder(
-    weights,
-    resolution: tuple[int, int],
-) -> LabelEncoder:
+def coco_label_encoder(weights) -> LabelEncoder:
     """Label encoder over the checkpoint's own COCO categories -- pairs
     with build_ssd/build_retina to reproduce the pretrained detector
-    exactly (91 channels, so the mismatch-tolerant load is a passthrough).
-    Pass the image resolution the detector is built for."""
+    exactly (91 channels, so the mismatch-tolerant load is a
+    passthrough)."""
     labels = weights.meta["categories"]
     return LabelEncoder(
-        resolution=resolution,
         l2i={label: i for i, label in enumerate(labels)},
     )
 

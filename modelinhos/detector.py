@@ -161,9 +161,11 @@ def torchvision_reference(build_model: Callable) -> Callable:
     """Wrap a torchvision-native detection model constructor into a plain
     predict function -- (weights, frames, th) -> list[Sample]. The
     reference path needs none of the Detector machinery: torchvision
-    models resize and normalize internally (GeneralizedRCNNTransform),
-    work in pixel space end to end, and name their own classes via
-    weights.meta. Used as DetectionRecipe.reference for parity tests."""
+    models resize and normalize internally (GeneralizedRCNNTransform)
+    and name their own classes via weights.meta. Their pixel-space boxes
+    are normalized by each frame's size on the way out, so reference
+    predictions are relative like everything else. Used as
+    DetectionRecipe.reference for parity tests."""
     encode = rgb_normalized_image_encoder(lambda x: x)
 
     def predict(
@@ -187,7 +189,18 @@ def torchvision_reference(build_model: Callable) -> Callable:
                         file_name=Path("fake-file.png"),
                         annotations=[
                             Annotation(
-                                bbox=tuple(box.tolist()),  # type: ignore
+                                bbox=tuple(
+                                    (
+                                        box
+                                        / np.array(
+                                            [
+                                                frame.shape[1],
+                                                frame.shape[0],
+                                            ]
+                                            * 2
+                                        )
+                                    ).tolist()
+                                ),  # type: ignore
                                 label=categories[int(label)],
                                 score=float(score),
                             )
@@ -199,7 +212,7 @@ def torchvision_reference(build_model: Callable) -> Callable:
                             if score > th
                         ],
                     )
-                    for pred in predictions
+                    for frame, pred in zip(batch, predictions)
                 )
         return results
 

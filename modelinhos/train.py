@@ -22,7 +22,7 @@ def infer(
     resolution: tuple[int, int],
     samples: list[Sample],
 ) -> tuple[list[Sample], LabelEncoder]:
-    lencoder = LabelEncoder(resolution=resolution).fit(samples)
+    lencoder = LabelEncoder().fit(samples)
     model = build_ssd(resolution, lencoder=lencoder, arch=SSDLITE)
     model.fit(samples)
     return model.transform(samples), lencoder
@@ -51,10 +51,12 @@ def main(
         cv2.imshow("frame", plot(frame, pred))
         cv2.waitKey()
 
-    m_ap = mean_average_precision(train, y_pred, l2i=le.l2i)
+    m_ap = mean_average_precision(
+        train, y_pred, l2i=le.l2i, resolution=resolution
+    )
     print(m_ap["mAP"].iloc[0])
 
-    aps = per_sample_metrics(train, y_pred, l2i=le.l2i)
+    aps = per_sample_metrics(train, y_pred, l2i=le.l2i, resolution=resolution)
     visualize_fp_fn(aps, i2l=le.i2l)
 
 
