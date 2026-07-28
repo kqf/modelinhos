@@ -66,6 +66,9 @@ readme = { file = "README.rst", content-type = "text/x-rst" }
 # required by its own modelinhos.engine.<name> module.
 skorch = ["skorch"]
 lightning = ["lightning"]
+# Only required by modelinhos.augment.albumentations (the torchvision
+# augment adapter runs on the base torchvision dependency).
+albumentations = ["albumentations"]
 
 [tool.setuptools_scm]
 version_scheme = "post-release" # Uses Git tags for versioning
