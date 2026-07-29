@@ -10,46 +10,60 @@ from modelinhos.analysis import (
     # -> per-class verdict
     divergence,  # verdict: (reference df, other df) -> drift table
     labels,  # fact: per-class counts and shares
-    lint,  # fact: one row per problem; empty df == clean
     matchability,  # fact: matcher simulation, per-box matched-anchor count
     materialize,  # sample a stochastic augmentation into a concrete dataset
     model_facts,  # params / FLOPs / measured latency, data-independent
 )
+from modelinhos.analysis.lint import check_visible, lint
 from modelinhos.augment.albumentations import augment
 from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.preprocess.lables import LabelEncoder
-from modelinhos.sample import read_samples
+from modelinhos.sample import Annotation, Sample, read_samples
 
 
 def main(
     root: Path = Path("/mnt/data/misc"),
     resolution: tuple[int, int] = (480, 640),
 ):
-    train = read_samples(root / "train.json")
-    valid = read_samples(root / "valid.json")
-    test_ = read_samples(root / "test.json")
+    # 1. Lint: unreadable files land in .corrupt, images without a
+    # single visible box in .problematic; only .good flows on. Plot the
+    # problematic samples to review what gets dropped.
+    linted = {
+        name: lint(read_samples(root / f"{name}.json"))
+        for name in ("train", "valid", "test")
+    }
+    for name, part in linted.items():
+        print(
+            name,
+            part.classes,
+            f"problematic: {len(part.problematic)}",
+            f"corrupt: {len(part.corrupt)}",
+        )
 
-    # 1. Sanitize the real data first; everything below assumes it passed.
-    # This should be a separate scrip
-    problems = pd.concat(
+    # 2. Sanitize: drop sub-floor boxes (accepting that their objects
+    # stay in the image as unlabeled background) and collapse every
+    # label into the single "object" class the task models.
+    train, valid, test_ = (
         [
-            lint(train, resolution).assign(split="train"),
-            lint(valid, resolution).assign(split="valid"),
-            lint(test_, resolution).assign(split="test"),
+            Sample(
+                file_name=sample.file_name,
+                annotations=[
+                    Annotation(bbox=ann.bbox, label="object", score=ann.score)
+                    for ann in sample.annotations
+                    if check_visible(ann, resolution)
+                ],
+            )
+            for sample in linted[name].good
         ]
+        for name in ("train", "valid", "test")
     )
 
-    # Don't asset but just sanitize
-    assert problems.empty, problems
-
-    # 2. Label space comes from train only, like in a real run --
-    # test labels unseen at fit time surface in class_feasibility.
-    # TODO: This is not true. We model the test set, with the help of train set
-    # not vice versa
-    # This should belong the same script
+    # 3. The label space is the task definition, stated explicitly: we
+    # model the test set with the help of the train set, so
+    # class_feasibility checks that train covers it, not the reverse.
     lencoder = LabelEncoder(l2i={"__background__": 0, "object": 1}).fit(train)
 
-    # 3. The virtual split: the augmentation sampled into concrete data.
+    # 4. The virtual split: the augmentation sampled into concrete data.
     # From here on nothing distinguishes it from a real split.
     augmented = materialize(
         train,
@@ -67,7 +81,7 @@ def main(
         seed=137,
     )
 
-    # 4. Facts: same functions on every split, split is just a column.
+    # 5. Facts: same functions on every split, split is just a column.
     splits = {
         "train": train,
         "train-aug": augmented,
@@ -85,10 +99,10 @@ def main(
         for name, s in splits.items()
     )
 
-    # 5. Model facts: data-independent, once.
+    # 6. Model facts: data-independent, once.
     print(model_facts(SSDLITE, resolution, n_classes=lencoder.n_classes))
 
-    # 6. Verdicts read facts, never samples.
+    # 7. Verdicts read facts, never samples.
     print(anchor_advice(matched))  # solvability: ceilings on ALL splits
     print(class_feasibility(counts, matched))
 
