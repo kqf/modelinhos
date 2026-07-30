@@ -2,7 +2,7 @@
 Facts are unary (list[Sample]) -> DataFrame; divergence and the
 visualize_* views take (reference, other) fact frames -- "split" stays
 a caller-owned column. Purely data-side: no model, no torch
-(model-facing checks live in modelinhos.inspect)."""
+(model-facing checks live in modelinhos.infos)."""
 
 from collections import Counter
 
