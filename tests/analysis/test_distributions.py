@@ -1,8 +1,15 @@
 import pathlib
 
 import pytest
+from matplotlib import pyplot as plt
 
-from modelinhos.analysis.distributions import boxes, divergence, labels
+from modelinhos.analysis.distributions import (
+    bboxes,
+    divergence,
+    labels,
+    visualize_bboxes,
+    visualize_labels,
+)
 from modelinhos.sample import Annotation, Sample
 
 
@@ -29,7 +36,7 @@ def dataset(
 
 
 def test_boxes(dataset: list[Sample]):
-    geometry = boxes(dataset)
+    geometry = bboxes(dataset)
 
     # One row per box: the empty image contributes nothing
     assert geometry.file.tolist() == ["a.png", "a.png", "b.png"]
@@ -50,7 +57,7 @@ def test_labels(dataset: list[Sample]):
 
 
 def test_divergence(dataset: list[Sample]):
-    geometry = boxes(dataset)
+    geometry = bboxes(dataset)
     drift = divergence(geometry, geometry.assign(w=geometry.w + 1))
 
     report = drift.set_index("column")
@@ -61,3 +68,16 @@ def test_divergence(dataset: list[Sample]):
     assert report.drifted.tolist() == [True, False, False, False]
     assert report.reference_mean["w"] == pytest.approx(0.7 / 3)
     assert report.other_mean["w"] == pytest.approx(3.7 / 3)
+
+
+def test_visualize(dataset: list[Sample]):
+    plt.switch_backend("agg")
+
+    visualize_labels(labels(dataset), labels(dataset))
+    # Two frames x two labels -> four bars on a single axis
+    assert len(plt.gcf().axes[0].patches) == 4
+
+    visualize_bboxes(bboxes(dataset), bboxes(dataset), resolution=(120, 160))
+    # One panel each for w, h, scale and aspect
+    assert len(plt.gcf().axes) == 4
+    plt.close("all")

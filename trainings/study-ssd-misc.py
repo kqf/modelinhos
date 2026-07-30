@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 
 from modelinhos.analysis.distributions import (
-    boxes,  # fact: per-box geometry (w, h, area, aspect, label, file)
+    bboxes,  # fact: per-box geometry (w, h, area, aspect, label, file)
     divergence,  # verdict: (reference df, other df) -> drift table
     labels,  # fact: per-class counts and shares
 )
@@ -63,7 +63,7 @@ def main(
 
     # Check the box distributions
     geometry = pd.concat(
-        boxes(s).assign(split=name) for name, s in splits.items()
+        bboxes(s).assign(split=name) for name, s in splits.items()
     )
     # Does the data drift between what we fit and what we grade on?
     # This verdict is model independent
