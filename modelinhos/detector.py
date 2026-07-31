@@ -52,7 +52,11 @@ class Detector:
         encoded = self.label_encoder.fit_transform(samples)
         # Augmentation is a train-only concern: the val dataset below and
         # transform() build their SampleDatasets without it.
-        dataset = SampleDataset(encoded, self.image_encoder, self.augment)
+        dataset = SampleDataset(
+            encoded,
+            self.image_encoder,
+            augment=self.augment,
+        )
 
         val_dataset = None
         if val_samples is not None:
@@ -100,7 +104,10 @@ class DetectionRecipe:
 
     build_model: Callable  # (weights, resolution, n_classes) -> nn.Module
     anchors: Callable  # (resolution) -> priors tensor
-    loss: Callable  # (priors, score_thresh) -> DetectionLoss
+    # (priors, score_thresh) -> DetectionLoss: the returned loss carries
+    # the bound matcher, which analysis (modelinhos.infos) reuses -- the
+    # recipe is the single owner of the matching configuration.
+    loss: Callable[..., DetectionLoss]
     # (resolution) -> Augmentation, applied to the training dataset only
     # (never validation or inference). Defaults to none.
     augment: Callable = no_augment

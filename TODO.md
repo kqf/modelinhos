@@ -50,10 +50,10 @@ Things to do:
     - [x] summarize(model, resolution, n_classes): wrap torchinfo + a
           FLOP counter; own code only for latency, measured on the
           current machine (never predicted for the target device)
-    - [ ] matchability(samples, recipe, resolution): fact -- run the
+    - [x] matchability(samples, recipe, resolution): fact -- run the
           recipe's own priors + match_boxes (loss/matching.py) over
           every GT box, per-box matched-anchor counts
-    - [ ] anchor_advice(matched, geometry): verdict -- recall ceilings
+    - [x] anchor_advice(matched, geometry): verdict -- recall ceilings
           per class / size bucket, the serviceable size range implied
           by the steps (~2x finest to ~4x coarsest at the model
           resolution), the share of data outside it (only resolution
