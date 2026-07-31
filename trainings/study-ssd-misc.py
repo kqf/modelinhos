@@ -8,11 +8,7 @@ from modelinhos.analysis.distributions import (
     labels,  # fact: per-class counts and shares
 )
 from modelinhos.analysis.lint import lint
-from modelinhos.inspect import (
-    anchor_advice,  # verdict: matchability df -> ceilings + knob advice
-    class_feasibility,  # verdict: labels df x matchability df
-    # -> per-class verdict
-    matchability,  # fact: matcher simulation, per-box matched-anchors
+from modelinhos.infos import (
     summarize,  # params / FLOPs / measured latency, data-independent
 )
 from modelinhos.models.ssdlite import SSDLITE
@@ -74,21 +70,21 @@ def main(
         )
     )
     # 6. Model facts: data-independent, once.
-    print(summarize(SSDLITE, resolution, n_classes=lencoder.n_classes))
+    print(
+        summarize(SSDLITE, (1, 3, *resolution), n_classes=lencoder.n_classes)
+    )
 
     # 4. The virtual split: the augmentation sampled into concrete data.
     # From here on nothing distinguishes it from a real split.
     # TODO: Implement me later: augmented = materialize(...), the max
     # tries should reflect roughly the number of epochs
-    # 5. Facts: same functions on every split, split is just a column.
-    matched = pd.concat(
-        matchability(s, SSDLITE, resolution).assign(split=name)
-        for name, s in splits.items()
-    )
+    # 5. TODO: Implement me later: matched = concat of matchability per
+    # split -- facts are the same functions on every split, split is
+    # just a column.
 
-    # 7. Verdicts read facts, never samples.
-    print(anchor_advice(matched))  # solvability: ceilings on ALL splits
-    print(class_feasibility(counts, matched))
+    # 7. TODO: Implement me later: verdicts read facts, never samples:
+    # anchor_advice on matched (solvability: ceilings on ALL splits)
+    # and class_feasibility on counts x matched.
 
 
 if __name__ == "__main__":

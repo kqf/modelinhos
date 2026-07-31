@@ -44,10 +44,10 @@ Things to do:
 - [ ] Add the fcos inference
 - [ ] Sanitize the BlazeNet
 - [ ] Make the BlazeNet a part of a group
-- [ ] Finish trainings/study-ssd-misc.py -- needs modelinhos.inspect
+- [ ] Finish trainings/study-ssd-misc.py -- needs modelinhos.infos
       (rule: if the answer changes when you swap the model, it goes to
-      inspect; data-only stays in analysis)
-    - [ ] summarize(model, resolution, n_classes): wrap torchinfo + a
+      infos; data-only stays in analysis)
+    - [x] summarize(model, resolution, n_classes): wrap torchinfo + a
           FLOP counter; own code only for latency, measured on the
           current machine (never predicted for the target device)
     - [ ] matchability(samples, recipe, resolution): fact -- run the
