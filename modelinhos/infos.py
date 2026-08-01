@@ -152,47 +152,71 @@ def anchor_advice(
     resolution: tuple[int, int],
 ) -> pd.DataFrame:
     """Verdict: recall ceilings from the matchability fact, one row
-    per label and size octave (bucket is the octave's lower edge in
-    pixels; "split" is honoured as a grouping column when present).
-    matchable is the share of boxes the matcher can see at all -- no
-    training run beats it. The serviceable range is the recipe's own
-    anchor scale bracket, and the advice column names the knob: below
-    the floor only resolution helps (steps come from the backbone,
-    sizes from data), above the ceiling coarser sizes or a lower
-    resolution; in-range misses point at overlap / anchor layout."""
+    per label. Every count is absolute so the table is self-checking:
+    matched + unmatched adds up to the label's rows in the fact frame,
+    smaller/larger count the boxes outside the recipe's anchor scale
+    bracket, and the bracket itself rides along as lower_px/upper_px
+    values -- fixed column names, so verdicts for different recipes
+    and resolutions stack and compare. Like every function here it is
+    split-agnostic: run it per split (or model) and stack, grouping
+    columns are the caller's. Boxes smaller than lower_px only
+    resolution can save (steps come from the backbone, sizes from
+    data); larger than upper_px calls for coarser sizes or a lower
+    resolution; unmatched inside the bracket points at overlap /
+    anchor layout. The advice cites its evidence before naming the
+    knob."""
     H, W = resolution
     priors = recipe.anchors((H, W))
     scales = (priors[:, 2] * W * priors[:, 3] * H).sqrt()
     floor, ceiling = float(scales.min()), float(scales.max())
-    keys = [key for key in ("split", "label") if key in matched.columns]
     view = matched.assign(
-        bucket=2.0 ** np.floor(np.log2(matched.scale)),
-        matchable=matched.matched > 0,
-        below=matched.scale < floor,
-        above=matched.scale > ceiling,
+        unmatched=matched.matched == 0,
+        smaller=matched.scale < floor,
+        larger=matched.scale > ceiling,
     )
-    ceilings = view.groupby(keys + ["bucket"], as_index=False).agg(
-        boxes=("matchable", "size"),
-        matchable=("matchable", "mean"),
+    ceilings = view.groupby("label", as_index=False).agg(
+        boxes=("unmatched", "size"),
+        unmatched=("unmatched", "sum"),
         anchors_per_box=("matched", "mean"),
-        below_floor=("below", "mean"),
-        above_ceiling=("above", "mean"),
+        smaller=("smaller", "sum"),
+        larger=("larger", "sum"),
+    )
+    reason = np.select(
+        [ceilings.smaller > 0, ceilings.larger > 0],
+        [
+            f"below the {floor:.0f}px anchor floor -- " "raise the resolution",
+            f"above the {ceiling:.0f}px anchor ceiling -- "
+            "add coarser sizes or lower the resolution",
+        ],
+        default="inside the anchor bracket -- lower overlap or "
+        "add sizes/ratios",
+    )
+    evidence = (
+        ceilings.unmatched.astype(str)
+        + " of "
+        + ceilings.boxes.astype(str)
+        + " boxes ("
+        + (100 * ceilings.unmatched / ceilings.boxes)
+        .round()
+        .astype(int)
+        .astype(str)
+        + "%) unmatched "
     )
     return ceilings.assign(
-        advice=np.select(
-            [
-                ceilings.below_floor > 0,
-                ceilings.above_ceiling > 0,
-                ceilings.matchable < 1,
-            ],
-            [
-                f"below the {floor:.0f}px anchor floor: "
-                "raise the resolution",
-                f"above the {ceiling:.0f}px anchor ceiling: "
-                "add coarser sizes or lower the resolution",
-                "in range but unmatched: lower overlap or add "
-                "sizes/ratios near this octave",
-            ],
-            default="",
-        )
-    )
+        matched=ceilings.boxes - ceilings.unmatched,
+        lower_px=floor,
+        upper_px=ceiling,
+        advice=np.where(ceilings.unmatched > 0, evidence + reason, ""),
+    )[
+        [
+            "label",
+            "matched",
+            "unmatched",
+            "smaller",
+            "larger",
+            "lower_px",
+            "upper_px",
+            "anchors_per_box",
+            "advice",
+        ]
+    ]

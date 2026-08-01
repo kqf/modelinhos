@@ -130,8 +130,9 @@ def visualize_bboxes(
         combined = np.concatenate(
             [view[column].to_numpy() for view in views.values()]
         )
-        # Box sizes are log-distributed and anchor levels are octaves,
-        # so log2 bins keep both readable; aspect is a ratio -- linear
+        # Box sizes are log-distributed and anchor levels double in
+        # size, so log2 bins keep both readable; aspect is a ratio --
+        # linear
         if column == "aspect":
             edges = np.histogram_bin_edges(combined, bins=bins)
             ax.set_xlabel("aspect")
