@@ -153,7 +153,12 @@ def anchor_advice(
 ) -> pd.DataFrame:
     """Verdict: recall ceilings from the matchability fact, one row
     per label. Every count is absolute so the table is self-checking:
-    matched + unmatched adds up to the label's rows in the fact frame,
+    matched + unmatched adds up to counts, the label's rows in the
+    fact frame -- counts x matched read together are the class
+    feasibility call (a label with a handful of matchable boxes is
+    infeasible no matter how clean; whether the task's label space is
+    covered at all stays with the caller, since absent classes have
+    no row to appear in),
     smaller/larger count the boxes outside the recipe's anchor scale
     bracket, and the bracket itself rides along as lower_px/upper_px
     values -- fixed column names, so verdicts for different recipes
@@ -175,7 +180,7 @@ def anchor_advice(
         larger=matched.scale > ceiling,
     )
     ceilings = view.groupby("label", as_index=False).agg(
-        boxes=("unmatched", "size"),
+        counts=("unmatched", "size"),
         unmatched=("unmatched", "sum"),
         anchors_per_box=("matched", "mean"),
         smaller=("smaller", "sum"),
@@ -194,22 +199,23 @@ def anchor_advice(
     evidence = (
         ceilings.unmatched.astype(str)
         + " of "
-        + ceilings.boxes.astype(str)
+        + ceilings.counts.astype(str)
         + " boxes ("
-        + (100 * ceilings.unmatched / ceilings.boxes)
+        + (100 * ceilings.unmatched / ceilings.counts)
         .round()
         .astype(int)
         .astype(str)
         + "%) unmatched "
     )
     return ceilings.assign(
-        matched=ceilings.boxes - ceilings.unmatched,
+        matched=ceilings.counts - ceilings.unmatched,
         lower_px=floor,
         upper_px=ceiling,
         advice=np.where(ceilings.unmatched > 0, evidence + reason, ""),
     )[
         [
             "label",
+            "counts",
             "matched",
             "unmatched",
             "smaller",

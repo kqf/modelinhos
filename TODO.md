@@ -59,14 +59,16 @@ Things to do:
           resolution), the share of data outside it (only resolution
           fixes that: steps come from the backbone, sizes from data),
           suggested per-level sizes from the in-range box scales
-    - [ ] class_feasibility(counts, matched): verdict -- owns the task
-          label space (l2i), checks train covers it, judges sample
-          count x matchability jointly
-    - [ ] materialize(train, augmentation, draws, seed): sample the
+    - [x] class_feasibility: dropped -- counts x matched in the
+          anchor_advice table already is the joint judgement; the task
+          label-space coverage check is a one-line set difference in
+          the script (absent classes have no row to appear in)
+    - [x] materialize(train, augmentation, draws, seed): sample the
           augmentation into a virtual split (draws ~ epochs), rerun
-          the same fact functions on it
-    - [ ] Real sanitize step: drop sub-floor boxes, collapse labels to
-          the single "object" class, write sanitized jsons -- the
-          script's step 2 is currently a pass-through of linted.good
+          the same fact functions on it -- lives in
+          modelinhos.augment.infos (augmentation-facing, not model)
+    - [x] Sanitize step: dropped -- sanitizing is the user's
+          responsibility, the library only lints; the script's step 2
+          stays a pass-through until its owner writes the jsons
     - [ ] Wire visualize_labels / visualize_bboxes into the script
           (train vs test, at the model resolution)
