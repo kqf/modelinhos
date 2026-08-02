@@ -1,11 +1,6 @@
 import random
 from pathlib import Path
 
-import pandas as pd
-from torchvision.models.detection import (
-    SSDLite320_MobileNet_V3_Large_Weights,
-)
-
 from modelinhos.analysis.distributions import (
     bboxes,  # fact: per-box geometry (w, h, area, aspect, label, file)
     divergence,  # verdict: (reference df, other df) -> drift table
@@ -13,7 +8,7 @@ from modelinhos.analysis.distributions import (
     visualize_bboxes,  # view: overlaid geometry histograms
     visualize_labels,  # view: paired share bars over the label union
 )
-from modelinhos.analysis.lint import lint
+from modelinhos.analysis.lint import lint, rename
 from modelinhos.coco import load_samples
 from modelinhos.infos import (
     anchor_advice,  # verdict: matchability df -> ceilings + knob advice
@@ -21,7 +16,7 @@ from modelinhos.infos import (
     summarize,  # params / FLOPs / measured latency, data-independent
 )
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
-from modelinhos.zoo import coco_label_encoder
+from modelinhos.preprocess.lables import LabelEncoder
 
 
 def main(
@@ -30,17 +25,27 @@ def main(
     holdout: float = 0.2,
     seed: int = 0,
 ):
-    # 0. The label space is the task definition -- here the pretrained
-    # checkpoint's own COCO categories, since TORCHVISION_SSDLITE is
-    # studied exactly as it was trained.
-    lencoder = coco_label_encoder(
-        SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+    # 0. The label space is the task definition -- the misc task keeps
+    # person and car, everything else collapses into "other".
+    lencoder = LabelEncoder(
+        l2i={"__background__": 0, "person": 1, "car": 2, "other": 3},
     )
 
     # 1. One dataset, nothing downloaded beyond the evaluation set: a
     # shuffled holdout stands in for train/test -- enough to run every
-    # fact and verdict against a real distribution.
+    # fact and verdict against a real distribution. Labels collapse at
+    # ingest, so every fact and verdict below sees the task's classes.
     samples = load_samples(annotations)
+    samples = rename(
+        samples,
+        lencoder,
+        new={
+            annotation.label: "other"
+            for sample in samples
+            for annotation in sample.annotations
+            if annotation.label not in lencoder.l2i
+        },
+    )
     random.Random(seed).shuffle(samples)
     edge = int(len(samples) * holdout)
     parts = {"train": samples[edge:], "test": samples[:edge]}
@@ -58,36 +63,22 @@ def main(
         )
     splits = {name: linted[name].good for name in parts}
 
-    # 3. Facts: same functions on every split, split is just a column.
-    counts = pd.concat(
-        labels(s).assign(split=name) for name, s in splits.items()
-    )
+    # 3. Facts: same functions on every split, split stays the dict key.
+    counts = {name: labels(part) for name, part in splits.items()}
     # Pure label counts: do we have enough boxes for each class?
-    print(counts.to_string())
+    for name, frame in counts.items():
+        print(name)
+        print(frame.to_string())
 
-    geometry = pd.concat(
-        bboxes(s).assign(split=name) for name, s in splits.items()
-    )
+    geometry = {name: bboxes(part) for name, part in splits.items()}
     # Does the data drift between what we fit and what we grade on?
     # This verdict is model independent.
-    print(
-        divergence(
-            geometry[geometry.split == "train"],
-            geometry[geometry.split == "test"],
-        )
-    )
+    print(divergence(geometry["train"], geometry["test"]))
 
     # 4. Views: the same train-vs-test comparison as divergence, for
     # eyes -- box geometry at the resolution the model consumes.
-    visualize_labels(
-        counts[counts.split == "train"],
-        counts[counts.split == "test"],
-    )
-    visualize_bboxes(
-        geometry[geometry.split == "train"],
-        geometry[geometry.split == "test"],
-        resolution=resolution,
-    )
+    visualize_labels(counts)
+    visualize_bboxes(geometry, resolution=resolution)
 
     # 5. Model facts: data-independent, once.
     print(
@@ -100,30 +91,25 @@ def main(
 
     # 6. The matcher simulation: the recipe's own priors and loss over
     # every GT box of every split.
-    matched = pd.concat(
-        matchability(s, TORCHVISION_SSDLITE, resolution, lencoder).assign(
-            split=name
-        )
-        for name, s in splits.items()
-    )
+    matched = {
+        name: matchability(part, TORCHVISION_SSDLITE, resolution, lencoder)
+        for name, part in splits.items()
+    }
 
     # 7. Verdicts read facts, never samples -- and they are as
-    # split-blind as the facts: run per split and stack, the split
-    # column stays ours. Solvability: ceilings on ALL splits.
-    print(
-        pd.concat(
-            anchor_advice(part, TORCHVISION_SSDLITE, resolution).assign(
-                split=name
-            )
-            for name, part in matched.groupby("split")
-        ).to_string()
-    )
+    # split-blind as the facts: run per split, the split stays our dict
+    # key. Solvability: ceilings on ALL splits.
+    for name, part in matched.items():
+        print(name)
+        print(anchor_advice(part, TORCHVISION_SSDLITE, resolution).to_string())
     # Class feasibility is a read, not a function: counts x matched in
     # the advice table above. The one thing no table can show is a task
     # class with zero boxes anywhere -- absent classes have no row:
     print(
         "task classes without data:",
-        set(lencoder.l2i) - {"__background__"} - set(matched.label),
+        set(lencoder.l2i)
+        - {"__background__"}
+        - {label for part in matched.values() for label in part.label},
     )
 
 

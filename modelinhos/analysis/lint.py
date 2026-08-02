@@ -4,6 +4,7 @@ from typing import Callable
 
 import cv2
 
+from modelinhos.preprocess.lables import SampleEncoder
 from modelinhos.sample import Annotation, Sample
 
 
@@ -83,6 +84,32 @@ def lint(
         corrupt=corrupt,
         classes=dict(classes),
     )
+
+
+def rename(
+    dataset: list[Sample[Annotation]],
+    lencoder: SampleEncoder,
+    new: dict[str, str],
+) -> list[Sample[Annotation]]:
+    """Rename labels via new (old -> new); labels outside the mapping
+    pass through. Every resulting label must be one the encoder knows
+    -- loud failure here (before anything is touched), since an unknown
+    label would otherwise surface as a KeyError deep inside
+    lencoder.transform at training time."""
+    unknown = {
+        new.get(annotation.label, annotation.label)
+        for sample in dataset
+        for annotation in sample.annotations
+    } - set(lencoder.l2i)
+    if unknown:
+        raise ValueError(
+            f"labels {sorted(unknown)} are outside the encoder's space "
+            f"{sorted(lencoder.l2i)} -- extend new to cover them"
+        )
+    for sample in dataset:
+        for annotation in sample.annotations:
+            annotation.label = new.get(annotation.label, annotation.label)
+    return dataset
 
 
 def normalize(data: list[Sample]) -> list[Sample]:

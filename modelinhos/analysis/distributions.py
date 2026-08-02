@@ -1,8 +1,9 @@
 """Distribution facts, the drift verdict, and views between splits.
-Facts are unary (list[Sample]) -> DataFrame; divergence and the
-visualize_* views take (reference, other) fact frames -- "split" stays
-a caller-owned column. Purely data-side: no model, no torch
-(model-facing checks live in modelinhos.infos)."""
+Facts are unary (list[Sample]) -> DataFrame; divergence takes
+(reference, other) fact frames, the visualize_* views a dict of them
+keyed by split name -- splits stay caller-owned either way. Purely
+data-side: no model, no torch (model-facing checks live in
+modelinhos.infos)."""
 
 from collections import Counter
 
@@ -80,21 +81,22 @@ def divergence(
     return pd.DataFrame(rows).assign(drifted=lambda df: df.ks > threshold)
 
 
-def visualize_labels(reference: pd.DataFrame, other: pd.DataFrame):
-    """View: paired share bars over the union of labels, ordered by
-    reference count. Shares, not counts -- the frames differ in size.
-    A bar next to a gap is the coverage finding: a class one split
-    has and the other misses."""
-    order = reference.sort_values("count", ascending=False).label.tolist()
-    union = order + [label for label in other.label if label not in set(order)]
+def visualize_labels(frames: dict[str, pd.DataFrame]):
+    """View: grouped share bars over the union of labels, ordered by
+    the first frame's count. Shares, not counts -- the frames differ
+    in size. A bar next to a gap is the coverage finding: a class one
+    split has and another misses. Keys name the bars in the legend."""
+    first, *rest = frames.values()
+    union = first.sort_values("count", ascending=False).label.tolist()
+    for frame in rest:
+        union += [label for label in frame.label if label not in union]
     x = np.arange(len(union))
+    width = 0.8 / len(frames)
     fig, ax = plt.subplots(figsize=(6, 4))
-    for shift, (name, frame) in zip(
-        (-0.2, 0.2),
-        (("reference", reference), ("other", other)),
-    ):
+    for i, (name, frame) in enumerate(frames.items()):
         shares = frame.set_index("label").share.reindex(union, fill_value=0)
-        ax.bar(x + shift, shares, width=0.4, label=name)
+        shift = (i - (len(frames) - 1) / 2) * width
+        ax.bar(x + shift, shares, width=width, label=name)
     ax.set_xticks(x, union)
     ax.set_ylabel("share")
     ax.legend()
@@ -104,13 +106,13 @@ def visualize_labels(reference: pd.DataFrame, other: pd.DataFrame):
 
 
 def visualize_bboxes(
-    reference: pd.DataFrame,
-    other: pd.DataFrame,
+    frames: dict[str, pd.DataFrame],
     resolution: tuple[int, int] = (1, 1),  # h, w -- the model's
     bins: int = 20,
 ):
     """View: overlaid share histograms of box geometry on bins shared
-    by both frames. resolution is the resolution the model consumes
+    by all frames; keys name the curves in the legend. resolution is
+    the resolution the model consumes
     (not the images' own): it scales w/h into the pixel space where
     anchor sizes and the matcher floor live. scale and aspect are
     recomputed after scaling, because the fact frame's relative aspect
@@ -123,7 +125,7 @@ def visualize_bboxes(
             scale=lambda df: np.sqrt(df.w * df.h),
             aspect=lambda df: df.w / df.h,
         )
-        for name, frame in (("reference", reference), ("other", other))
+        for name, frame in frames.items()
     }
     fig, axes = plt.subplots(1, 4, figsize=(16, 4))
     for ax, column in zip(axes, ("w", "h", "scale", "aspect")):

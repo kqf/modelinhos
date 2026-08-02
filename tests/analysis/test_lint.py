@@ -8,7 +8,9 @@ from modelinhos.analysis.lint import (
     contains_annotations,
     contains_no_invalid_annotations,
     lint,
+    rename,
 )
+from modelinhos.preprocess.lables import LabelEncoder
 from modelinhos.sample import Annotation, Sample
 
 
@@ -100,3 +102,30 @@ def test_lints(
 
     # Printed to decide which labels are worth modelling
     assert linted.classes == {"person": 2, "car": 1}
+
+
+def test_renames(dataset: list[Sample]):
+    lencoder = LabelEncoder(
+        l2i={"__background__": 0, "person": 1, "other": 2},
+    )
+
+    # A label outside the encoder's space fails loudly ...
+    with pytest.raises(ValueError, match="car"):
+        rename(dataset, lencoder, new={})
+
+    # ... and before anything is touched: no annotation was renamed
+    assert [
+        annotation.label
+        for sample in dataset
+        for annotation in sample.annotations
+    ] == ["person", "person", "car", "person", "person", "person"]
+
+    renamed = rename(dataset, lencoder, new={"car": "other"})
+
+    # In-place, same list: mapped labels change, the rest pass through
+    assert renamed is dataset
+    assert [
+        annotation.label
+        for sample in renamed
+        for annotation in sample.annotations
+    ] == ["person", "person", "other", "person", "person", "person"]

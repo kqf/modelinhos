@@ -73,11 +73,14 @@ def test_divergence(dataset: list[Sample]):
 def test_visualize(dataset: list[Sample]):
     plt.switch_backend("agg")
 
-    visualize_labels(labels(dataset), labels(dataset))
+    visualize_labels({"train": labels(dataset), "test": labels(dataset)})
     # Two frames x two labels -> four bars on a single axis
     assert len(plt.gcf().axes[0].patches) == 4
 
-    visualize_bboxes(bboxes(dataset), bboxes(dataset), resolution=(120, 160))
+    visualize_bboxes(
+        {"train": bboxes(dataset), "test": bboxes(dataset)},
+        resolution=(120, 160),
+    )
     # One panel each for w, h, scale and aspect
     assert len(plt.gcf().axes) == 4
     plt.close("all")
