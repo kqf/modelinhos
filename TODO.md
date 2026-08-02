@@ -44,7 +44,7 @@ Things to do:
 - [ ] Add the fcos inference
 - [ ] Sanitize the BlazeNet
 - [ ] Make the BlazeNet a part of a group
-- [ ] Finish trainings/study-ssd-misc.py -- needs modelinhos.infos
+- [x] Finish trainings/study-ssd-misc.py -- needs modelinhos.infos
       (rule: if the answer changes when you swap the model, it goes to
       infos; data-only stays in analysis)
     - [x] summarize(model, resolution, n_classes): wrap torchinfo + a
@@ -70,5 +70,8 @@ Things to do:
     - [x] Sanitize step: dropped -- sanitizing is the user's
           responsibility, the library only lints; the script's step 2
           stays a pass-through until its owner writes the jsons
-    - [ ] Wire visualize_labels / visualize_bboxes into the script
-          (train vs test, at the model resolution)
+    - [x] Wire visualize_labels / visualize_bboxes into the script
+          (train vs test, at the model resolution) -- the script is
+          hardwired to COCO now: the evaluation set randomly split
+          into train/test (no train download), TORCHVISION_SSDLITE
+          at its native 320x320, the checkpoint's own label space

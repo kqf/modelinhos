@@ -83,3 +83,15 @@ def lint(
         corrupt=corrupt,
         classes=dict(classes),
     )
+
+
+def normalize(data: list[Sample]) -> list[Sample]:
+    def process(sample: Sample) -> Sample:
+        image = cv2.imread(str(sample.file_name))
+        h, w, _ = image.shape
+        for ann in sample.annotations:
+            x1, y1, x2, y2 = ann.bbox
+            ann.bbox = (x1 / w, y1 / h, x2 / w, y2 / h)
+        return sample
+
+    return list(map(process, data))
