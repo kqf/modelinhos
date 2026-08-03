@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 from typing import Iterator
 
@@ -5,8 +6,19 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from mean_average_precision import MetricBuilder
+from tqdm import tqdm
 
 from modelinhos.sample import Sample
+
+# The backend concatenates empty match tables on every add(), which
+# pandas has deprecated -- one FutureWarning per call floods the
+# output. Scoped to warnings issued from inside the package, so our
+# own pandas deprecations stay visible.
+warnings.filterwarnings(
+    "ignore",
+    category=FutureWarning,
+    module=r"mean_average_precision\.",
+)
 
 
 # The mean_average_precision backend computes VOC-style IoU with the
@@ -56,6 +68,13 @@ def _annotations_to_pred(
     return np.array(rows, dtype=np.float32)
 
 
+def _box_sizes(rows: np.ndarray) -> np.ndarray:
+    """sqrt(w * h) per box, in the pixel space the rows are scaled to."""
+    if not len(rows):
+        return np.empty(0, dtype=np.float32)
+    return np.sqrt((rows[:, 2] - rows[:, 0]) * (rows[:, 3] - rows[:, 1]))
+
+
 def _iter_class_results(value: dict) -> Iterator[tuple[float, int, dict]]:
     for iou, class_results in value.items():
         if not isinstance(class_results, dict):
@@ -91,6 +110,13 @@ def _per_class_fp_fn(
             "fn": max(n_true - tp, 0),
         }
 
+    # GT classes the model never predicted have no PR curve above, but
+    # they still count -- as pure misses.
+    gt_classes = {int(c) for c in true[:, 4]} if len(true) else set()
+    for class_id in gt_classes - set(per_class):
+        n_true = int((true[:, 4] == class_id).sum())
+        per_class[class_id] = {"tp": 0, "fp": 0, "fn": n_true}
+
     return per_class
 
 
@@ -124,9 +150,7 @@ def _mean_ap_over_gt_classes(
         if isinstance(class_results, dict)
         for cid in gt_class_ids
     ]
-    if not aps:
-        return float("nan")
-    return float(np.mean(aps))
+    return float(np.mean(aps)) if aps else float("nan")
 
 
 def _map_results_to_df(results: dict, map_score: float) -> pd.DataFrame:
@@ -165,16 +189,15 @@ def _map_results_to_df(results: dict, map_score: float) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
-def _per_sample_to_df(results: list[dict]) -> pd.DataFrame:
+def _per_group_to_df(results: list[dict]) -> pd.DataFrame:
+    """One record per (group, class): every key except "classes" is the
+    group identity (sample_idx, size bin, ...) and repeats per class.
+    Groups with no boxes at all produce no records."""
     records: list[dict[str, float]] = []
     for row in results:
+        meta = {k: v for k, v in row.items() if k != "classes"}
         records.extend(
-            {
-                "sample_idx": row["sample_idx"],
-                "class_id": class_id,
-                "mAP": row["mAP"],
-                **counts,
-            }
+            {**meta, "class_id": class_id, **counts}
             for class_id, counts in row["classes"].items()
         )
     return pd.DataFrame(records)
@@ -265,7 +288,12 @@ def per_sample_metrics(
     num_classes = max(l2i.values()) + 1
     results = []
 
-    for idx, (true_sample, pred_sample) in enumerate(zip(y_true, y_pred)):
+    pairs = tqdm(
+        zip(y_true, y_pred),
+        total=len(y_true),
+        desc="Per-sample metrics",
+    )
+    for idx, (true_sample, pred_sample) in enumerate(pairs):
         true = _annotations_to_true(true_sample, l2i, resolution)
         pred = _annotations_to_pred(pred_sample, l2i, resolution)
 
@@ -286,7 +314,66 @@ def per_sample_metrics(
             }
         )
 
-    return _per_sample_to_df(results)
+    return _per_group_to_df(results)
+
+
+def per_size_metrics(
+    y_true: list[Sample],
+    y_pred: list[Sample],
+    l2i: dict[str, int],
+    resolution: tuple[int, int],  # h, w
+    bins: list[float],  # sqrt(w * h) edges, pixels at `resolution`
+    iou_threshold: float = 0.5,
+    threshold: float = 0.5,
+    mpolicy: str = "greedy",
+) -> pd.DataFrame:
+    """Same metrics as per_sample_metrics, grouped by object size
+    instead of by image. GT boxes go to the bin of their own size,
+    predictions to the bin of theirs, so a prediction whose size falls
+    in the wrong bin counts as FP there and FN in the GT's bin --
+    boundary noise, acceptable for a histogram. Bins with no boxes at
+    all are absent from the output."""
+    num_classes = max(l2i.values()) + 1
+    trues = [_annotations_to_true(s, l2i, resolution) for s in y_true]
+    preds = [_annotations_to_pred(s, l2i, resolution) for s in y_pred]
+
+    results = []
+    edges = tqdm(
+        zip(bins[:-1], bins[1:]),
+        total=len(bins) - 1,
+        desc="Per-size metrics",
+    )
+    for lo, hi in edges:
+        metric_fn = MetricBuilder.build_evaluation_metric(
+            "map_2d", async_mode=False, num_classes=num_classes
+        )
+        bin_trues, bin_preds = [], []
+        for true, pred in zip(trues, preds):
+            bin_true = true[(_box_sizes(true) >= lo) & (_box_sizes(true) < hi)]
+            bin_pred = pred[(_box_sizes(pred) >= lo) & (_box_sizes(pred) < hi)]
+            # Matching stays per image: only boxes from the same frame
+            # may pair up, the size filter just narrows the population.
+            metric_fn.add(bin_pred, bin_true)
+            bin_trues.append(bin_true)
+            bin_preds.append(bin_pred)
+
+        true = np.concatenate(bin_trues)
+        pred = np.concatenate(bin_preds)
+        value = metric_fn.value(
+            iou_thresholds=[iou_threshold],
+            mpolicy=mpolicy,
+        )
+        gt_class_ids = {int(row[4]) for row in true}
+        results.append(
+            {
+                "size_lo": lo,
+                "size_hi": hi,
+                "mAP": _mean_ap_over_gt_classes(value, gt_class_ids),
+                "classes": _per_class_fp_fn(value, pred, true, threshold),
+            }
+        )
+
+    return _per_group_to_df(results)
 
 
 def visualize_pr(
@@ -324,6 +411,42 @@ def visualize_pr(
         ax.grid(True)
         plt.tight_layout()
         plt.show()
+
+
+def visualize_map_size(per_size: pd.DataFrame):
+    # mAP repeats per (bin, class): one value per bin, support summed
+    # over classes.
+    bins = (
+        per_size.groupby(["size_lo", "size_hi"])
+        .agg(mAP=("mAP", "first"), tp=("tp", "sum"), fn=("fn", "sum"))
+        .reset_index()
+    )
+    labels = [
+        f"{lo:g}–{hi:g}" for lo, hi in zip(bins["size_lo"], bins["size_hi"])
+    ]
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar(labels, bins["mAP"], color="steelblue", edgecolor="white")
+    supports = bins["tp"] + bins["fn"]
+    for x, (m_ap, support) in enumerate(zip(bins["mAP"], supports)):
+        y = 0.0 if np.isnan(m_ap) else m_ap
+        ax.annotate(
+            f"n={int(support)}",
+            (x, y),
+            textcoords="offset points",
+            xytext=(0, 3),
+            ha="center",
+            fontsize=8,
+            color="gray",
+        )
+
+    ax.set_xlabel("Object size $\\sqrt{w \\cdot h}$, px")
+    ax.set_ylabel("mAP")
+    ax.set_ylim(0, 1.05)
+    ax.set_title("mAP vs object size")
+    ax.grid(axis="y", alpha=0.4)
+    plt.tight_layout()
+    plt.show()
 
 
 def visualize_fp_fn(
