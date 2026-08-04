@@ -10,6 +10,7 @@ from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
 )
 
+from modelinhos.models.load import warm_start
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.plot import plot
@@ -182,7 +183,7 @@ def test_references_match(
         resolution=shape,
         lencoder=coco_label_encoder(weights),
         arch=arch,
-        weights=weights,
+        weights=warm_start(weights),
     )
     md_preds = _show(frame, detector.transform_single(frame)[0], headless)
     assert_same_sample(md_preds, md_expected)

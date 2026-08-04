@@ -74,5 +74,5 @@ albumentations = ["albumentations"]
 [tool.setuptools_scm]
 version_scheme = "post-release" # Uses Git tags for versioning
 
-[tool.setuptools]
-packages = ["modelinhos"]
+[tool.setuptools.packages.find]
+include = ["modelinhos*"]

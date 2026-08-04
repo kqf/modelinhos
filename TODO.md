@@ -74,27 +74,29 @@ Things to do:
           at its native 320x320, the checkpoint's own label space
 P0 -- the train -> evaluate -> deploy loop is broken in the middle:
 
-- [ ] Load the checkpoints -> blocks everything. Concretely: `weights`
-      only accepts objects with `.get_state_dict()` (torchvision
-      WeightsEnum), so the params.pt that train-ssd-misc.py's Checkpoint
-      writes cannot be fed back into build_ssd for evaluation or export.
-      Needs a `local_weights(path)` adapter over load_with_mismatch --
-      minding the key namespace: engines save the wrapped DetectionModel
-      state dict (`model.`-prefixed keys) while build_model produces the
-      raw model.
+- [x] Load the checkpoints: `weights` now takes a loader from
+      modelinhos.models.load carrying the intent -- warm_start(source)
+      is mismatch-tolerant and only for training warm starts,
+      restore(source) is strict (any key/shape drift raises) for
+      evaluation and export. Source is a torchvision-style enum or a
+      checkpoint path; the DetectionModel `model.` prefix is stripped
+      at read time, so engines keep saving what they save and nothing
+      unwrapped is ever written. Enums stay raw where only `meta` is
+      read (coco_label_encoder, recipe.reference).
 - [x] Fix packaging: `[tool.setuptools] packages = ["modelinhos"]`
       ships only the top-level package -- engine/, models/, loss/, ...
       are missing from a `pip install`. Switch to the find directive.
 
 P1 -- deployable and measurable:
 
-- [ ] Export to ONNX uniformly for all the recipes (only blaze/to_onnx
-      exists today; depends on checkpoint loading)
+- [ ] Perhaps add SSDCUSTOM recipe that has exactly the same anchro structure as RETINANET (uses retina_anchors)
 - [ ] DO the first trainings on COCO dataset:
   - [ ] Train the COCO dataset with warmups probably on grayscale no normalization:
   - [ ] LR scheduler
   - [ ] Add augmentaitons
   - [ ] Early stopping
+- [ ] Export to ONNX uniformly for all the recipes (only blaze/to_onnx
+      exists today; depends on checkpoint loading)
 
 P2 -- hygiene before there are external users (renames get expensive later):
 
@@ -113,7 +115,6 @@ P2 -- hygiene before there are external users (renames get expensive later):
 
 Someday:
 
-- [ ] Perhaps add SSDCUSTOM recipe that has exactly the same anchro structure as RETINANET (uses retina_anchors)
 - [ ] Add the fcos inference
 
 Decided against (deliberate, don't re-propose):

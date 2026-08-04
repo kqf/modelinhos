@@ -21,6 +21,7 @@ from modelinhos.detector import (
     build_detector,
 )
 from modelinhos.engine.simple import simple_engine
+from modelinhos.models.load import Weights, warm_start
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.preprocess.lables import LabelEncoder
@@ -41,17 +42,21 @@ def build_ssd(
     resolution: tuple[int, int],
     lencoder: LabelEncoder,
     arch: DetectionRecipe = TORCHVISION_SSDLITE,
-    weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+    weights: Weights = warm_start(
+        SSDLite320_MobileNet_V3_Large_Weights.COCO_V1
+    ),
     engine: EngineBuilder = simple_engine(max_epochs=10),
     th: float = 0.4,
 ) -> Detector:
     """Our SSD reimplementation. lencoder must be fit: the classification
     head is sized from lencoder.n_classes at construction time, with
-    index 0 reserved for background (LabelEncoder enforces both). Weights
-    load mismatch-tolerantly, so any head size warm-starts from the
-    checkpoint; with coco_label_encoder the defaults reproduce the
-    torchvision pretrained detector exactly. Pass arch=SSDLITE for the
-    trimmed custom flavor, weights=None to start from scratch, and any
+    index 0 reserved for background (LabelEncoder enforces both). weights
+    is a loader from modelinhos.models.load: warm_start(...) (the
+    default) is mismatch-tolerant, so any head size warm-starts from the
+    checkpoint -- with coco_label_encoder the defaults reproduce the
+    torchvision pretrained detector exactly; restore(path) loads a
+    trained checkpoint strictly for evaluation/export; None starts from
+    scratch. Pass arch=SSDLITE for the trimmed custom flavor and any
     engine (skorch_engine, lightning_engine, ...) to swap the training
     backend."""
     return build_detector(
@@ -68,13 +73,16 @@ def build_retina(
     resolution: tuple[int, int],
     lencoder: LabelEncoder,
     arch: DetectionRecipe = TORCHVISION_RETINANET,
-    weights=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+    weights: Weights = warm_start(
+        RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1, progress=False
+    ),
     engine: EngineBuilder = simple_engine(max_epochs=10),
     th: float = 0.4,
 ) -> Detector:
     """Our RetinaNet reimplementation. Same contract as build_ssd:
-    lencoder must be fit (it sizes the head), weights load
-    mismatch-tolerantly, and with coco_label_encoder the defaults
+    lencoder must be fit (it sizes the head), weights is a
+    warm_start/restore loader (None for scratch), and with
+    coco_label_encoder the defaults
     reproduce the torchvision pretrained detector exactly. The loss
     (build_ret_loss) is the sigmoid focal loss the pretrained checkpoint
     was itself trained under, so the warm start is convention-exact: the

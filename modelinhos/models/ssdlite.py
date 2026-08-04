@@ -23,7 +23,6 @@ from modelinhos.loss.subloss import (
     sum_normalized,
 )
 from modelinhos.models.anchors import anchors
-from modelinhos.models.load import load_with_mismatch
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
 from modelinhos.preprocess.image import normalize, rgb_normalized_image_encoder
 
@@ -164,7 +163,7 @@ def build_torchvision_ssdlite(
         extra=None,
     )
     if weights is not None:
-        model = load_with_mismatch(model, weights.get_state_dict())
+        model = weights(model)
     return model
 
 
@@ -176,7 +175,7 @@ def build_ssdlite(
 ):
     model = SSDPure(resolution, n_classes=n_classes)
     if weights is not None:
-        model = load_with_mismatch(model, weights.get_state_dict())
+        model = weights(model)
     return model
 
 
@@ -278,8 +277,8 @@ def build_ssd_loss(
 # at any image size) so the extra steps stay cheap in CI. If you lower
 # epochs or n_samples, redo the 0.97^N arithmetijjk first.
 
-# Trainable configuration: retina-style anchors, mismatch-tolerant weight
-# loading -- what modelinhos trains from scratch / fine-tunes.
+# Trainable configuration: retina-style anchors -- what modelinhos
+# trains from scratch / fine-tunes (weights=warm_start(...)).
 ssd_normalize = partial(
     normalize,
     image_mean=(0.5, 0.5, 0.5),
@@ -296,8 +295,8 @@ SSDLITE = DetectionRecipe(
 
 # Faithful-to-torchvision configuration: torchvision's own anchors and
 # head shape, for comparing our inference against the reference -- and
-# trainable like any other flavor (mismatch-tolerant loading, so the head
-# can be sized for any label set).
+# trainable like any other flavor (warm_start loading, so the head can
+# be sized for any label set).
 TORCHVISION_SSDLITE = DetectionRecipe(
     build_model=build_torchvision_ssdlite,
     anchors=torchvision_ssdlite_anchors,

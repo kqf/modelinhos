@@ -22,7 +22,6 @@ from modelinhos.loss.subloss import (
     sum_normalized,
 )
 from modelinhos.models.anchors import anchors, tvison_anchors
-from modelinhos.models.load import load_with_mismatch_from_weights
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
 
 
@@ -103,7 +102,7 @@ def torchvision_retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
 def bulid_retinanet(n_classes, resolution: tuple[int, int], weights=None):
     model = RetinaNetPure(n_classes)
     if weights is not None:
-        load_with_mismatch_from_weights(model, weights=weights, progress=False)
+        model = weights(model)
     return model
 
 
@@ -118,7 +117,7 @@ def build_torchvision_retinanet(
         num_anchors=9,
     )
     if weights is not None:
-        load_with_mismatch_from_weights(model, weights=weights, progress=False)
+        model = weights(model)
     return model
 
 
@@ -198,8 +197,8 @@ RETINANET = DetectionRecipe(
 
 # Faithful-to-torchvision configuration -- same loss, torchvision's own
 # anchors/head shape, for comparing our inference against the reference.
-# Trainable like any other flavor (mismatch-tolerant loading, so the head
-# can be sized for any label set).
+# Trainable like any other flavor (warm_start loading, so the head can
+# be sized for any label set).
 TORCHVISION_RETINANET = DetectionRecipe(
     build_model=build_torchvision_retinanet,
     anchors=torchvision_retina_anchors,
