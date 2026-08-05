@@ -87,14 +87,17 @@ P0 -- the train -> evaluate -> deploy loop is broken in the middle:
       ships only the top-level package -- engine/, models/, loss/, ...
       are missing from a `pip install`. Switch to the find directive.
 
-P1 -- deployable and measurable:
+P1 -- deployable and measurable. Check retina vs ssd backbone effects
 
+- [ ] Fix the convoluted loading in build_model
 - [x] Perhaps add SSDCUSTOM recipe that has exactly the same anchro structure as RETINANET (uses retina_anchors)
       - [ ] Verify correctness
       - [ ] Clean the code -> simplify
-
 - [ ] DO the first trainings on COCO dataset:
+- [ ] Download the coco dataset but unpack it to data/ location
   - [ ] Train the COCO dataset with warmups probably on grayscale no normalization:
+  - [ ] Validatoin map
+  - [ ] Extend add the precision recall @p=0.5,
   - [ ] LR scheduler
   - [ ] Add augmentaitons
   - [ ] Early stopping

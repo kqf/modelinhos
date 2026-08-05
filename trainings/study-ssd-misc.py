@@ -20,7 +20,7 @@ from modelinhos.preprocess.lables import LabelEncoder
 
 
 def main(
-    annotations: Path = Path("datasets/coco/annotations.json"),
+    annotations: Path = Path("data/coco/annotations.json"),
     resolution: tuple[int, int] = (320, 320),  # the recipe's native
     holdout: float = 0.2,
     seed: int = 0,

@@ -52,8 +52,12 @@ def infer(
     return y_pred, coco_label_encoder(weights)
 
 
-def main():
-    annotations = Path("datasets/coco/annotations.json")
+def main(
+    annotations=Path("data/coco/annotations.json"),
+    # Nominal evaluation resolution: COCO images vary in size, so this
+    # only sets the pixel grid the VOC-style (+1) IoU is computed on.
+    resolution=(480, 640),
+):
     samples = load_samples(annotations)
     for i, sample in enumerate(samples):
         if i > 10:
@@ -62,11 +66,6 @@ def main():
         cv2.imshow("frame", plot(frame, sample))
 
     y_pred, le = infer(samples)
-
-    # Nominal evaluation resolution: COCO images vary in size, so this
-    # only sets the pixel grid the VOC-style (+1) IoU is computed on.
-    resolution = (640, 640)
-
     with timer("mAP calculation"):
         m_ap = mean_average_precision(
             samples,
