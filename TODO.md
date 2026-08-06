@@ -106,7 +106,7 @@ P1 -- deployable and measurable. Check retina vs ssd backbone effects
 
 P2 -- hygiene before there are external users (renames get expensive later):
 
-- [ ] Move modelinhos/train.py out of the library -- it is a script
+- [x] Move modelinhos/train.py out of the library -- it is a script
       (cv2.imshow, joblib cache, __main__) predating trainings/, and it
       drags the dadinhos import into the package
 - [ ] Rename preprocess/lables.py -> labels.py (public import path with

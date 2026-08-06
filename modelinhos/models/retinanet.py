@@ -99,26 +99,19 @@ def torchvision_retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
     )
 
 
-def bulid_retinanet(n_classes, resolution: tuple[int, int], weights=None):
-    model = RetinaNetPure(n_classes)
-    if weights is not None:
-        model = weights(model)
-    return model
+def bulid_retinanet(n_classes, resolution: tuple[int, int]):
+    return RetinaNetPure(n_classes)
 
 
 def build_torchvision_retinanet(
     n_classes=91,
     resolution: tuple[int, int] = (800, 1088),
-    weights=None,
 ):
-    model = RetinaNetPure(
+    return RetinaNetPure(
         n_classes,
         extra_blocks=LastLevelP6P7(2048, 256),
         num_anchors=9,
     )
-    if weights is not None:
-        model = weights(model)
-    return model
 
 
 # The single RetinaNet loss, trainable and decode-faithful at once: it

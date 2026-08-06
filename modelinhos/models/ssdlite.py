@@ -211,29 +211,21 @@ def ssdlite_anchors(resolution: tuple[int, int]) -> torch.Tensor:
 def build_torchvision_ssdlite(
     n_classes=91,
     resolution: tuple[int, int] = (320, 320),
-    weights=None,
 ):
-    model = SSDPure(
+    return SSDPure(
         resolution=resolution,
         n_classes=n_classes,
         num_anchors=6,
         extra=None,
     )
-    if weights is not None:
-        model = weights(model)
-    return model
 
 
 # This configures retina-net like network
 def build_ssdlite(
     resolution: tuple[int, int],
     n_classes: int = 92,
-    weights=None,
 ):
-    model = SSDPure(resolution, n_classes=n_classes)
-    if weights is not None:
-        model = weights(model)
-    return model
+    return SSDPure(resolution, n_classes=n_classes)
 
 
 # weights for encoding/decoding box regression targets, same convention
@@ -356,17 +348,13 @@ def retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
 def build_retina_ssdlite(
     resolution: tuple[int, int],
     n_classes: int = 92,
-    weights=None,
 ):
-    model = SSDPure(
+    return SSDPure(
         resolution,
         n_classes=n_classes,
         extra=None,  # all 3 taps are native and used, nothing to drop
         backbone_extractor=mobilenet_c3c4c5_extractor,
     )
-    if weights is not None:
-        model = weights(model)
-    return model
 
 
 SSDLARGE = DetectionRecipe(
