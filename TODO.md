@@ -93,8 +93,8 @@ P1 -- deployable and measurable. Check retina vs ssd backbone effects
 - [x] Perhaps add SSDCUSTOM recipe that has exactly the same anchro structure as RETINANET (uses retina_anchors)
       - [ ] Verify correctness
       - [ ] Clean the code -> simplify
-- [ ] DO the first trainings on COCO dataset:
 - [ ] Download the coco dataset but unpack it to data/ location
+- [ ] DO the first trainings on COCO dataset:
   - [ ] Train the COCO dataset with warmups probably on grayscale no normalization:
   - [ ] Validatoin map
   - [ ] Extend add the precision recall @p=0.5,
@@ -118,6 +118,7 @@ P2 -- hygiene before there are external users (renames get expensive later):
 - [ ] Make the BlazeNet a part of a group: models/blazenet.py has the
       weights enum but no DetectionRecipe; blaze/ still carries its own
       infer/postprocessing path outside the Recipe/Detector flow
+- [ ] Make the pipeline generic
 
 Someday:
 
