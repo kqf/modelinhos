@@ -89,11 +89,11 @@ P0 -- the train -> evaluate -> deploy loop is broken in the middle:
 
 P1 -- deployable and measurable. Check retina vs ssd backbone effects
 
-- [ ] Fix the convoluted loading in build_model
+- [x] Fix the convoluted loading in build_model
 - [x] Perhaps add SSDCUSTOM recipe that has exactly the same anchro structure as RETINANET (uses retina_anchors)
-      - [ ] Verify correctness
-      - [ ] Clean the code -> simplify
-- [ ] Download the coco dataset but unpack it to data/ location
+      - [x] Verify correctness
+      - [x] Clean the code -> simplify
+- [x] Download the coco dataset but unpack it to data/ location
 - [ ] DO the first trainings on COCO dataset:
   - [ ] Train the COCO dataset with warmups probably on grayscale no normalization:
   - [ ] Validatoin map
