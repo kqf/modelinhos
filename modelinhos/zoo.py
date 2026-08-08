@@ -21,6 +21,7 @@ from modelinhos.detector import (
     build_detector,
 )
 from modelinhos.engine.simple import simple_engine
+from modelinhos.models.blazenet import BLAZEFACE, BlazeNet_Weights
 from modelinhos.models.load import Weights, warm_start
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
@@ -35,6 +36,20 @@ def coco_label_encoder(weights) -> LabelEncoder:
     labels = weights.meta["categories"]
     return LabelEncoder(
         l2i={label: i for i, label in enumerate(labels)},
+    )
+
+
+def blaze_label_encoder(weights) -> LabelEncoder:
+    """Label encoder over a blaze checkpoint's categories. Unlike the
+    COCO checkpoints, blaze meta carries no background slot (the vanilla
+    net emits a single sigmoid face channel), so indices start at 1 and
+    0 keeps the background convention -- n_classes comes out as 2."""
+    labels = weights.meta["categories"]
+    return LabelEncoder(
+        l2i={
+            "__background__": 0,
+            **{label: i for i, label in enumerate(labels, start=1)},
+        },
     )
 
 
@@ -88,6 +103,30 @@ def build_retina(
     was itself trained under, so the warm start is convention-exact: the
     head starts quiet (prior-probability biases) instead of firing
     everywhere. Pass arch=RETINANET for the trimmed custom flavor,
+    weights=from_scratch to skip loading."""
+    return build_detector(
+        arch=arch,
+        weights=weights,
+        lencoder=lencoder,
+        resolution=resolution,
+        th=th,
+        engine=engine,
+    )
+
+
+def build_blaze(
+    resolution: tuple[int, int],
+    lencoder: LabelEncoder,
+    arch: DetectionRecipe = BLAZEFACE,
+    weights: Weights = warm_start(BlazeNet_Weights.FRONT_V1),
+    engine: EngineBuilder = simple_engine(max_epochs=10),
+    th: float = 0.4,
+) -> Detector:
+    """Our BlazeFace wiring. Same contract as build_ssd: lencoder must
+    be fit (it sizes the head; with blaze_label_encoder the defaults
+    reproduce the pretrained face detector at its native 128x128), and
+    weights is a warm_start/restore loader. Pass arch=RETINANET (the
+    models.blazenet flavor) for the retina-anchored trainable extension,
     weights=from_scratch to skip loading."""
     return build_detector(
         arch=arch,
