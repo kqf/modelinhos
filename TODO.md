@@ -101,7 +101,7 @@ P1 -- deployable and measurable. Check retina vs ssd backbone effects
   - [ ] LR scheduler
   - [ ] Add augmentaitons
   - [ ] Early stopping
-- [ ] Export to ONNX uniformly for all the recipes (only blaze/to_onnx
+- [x] Export to ONNX uniformly for all the recipes (only blaze/to_onnx
       exists today; depends on checkpoint loading)
 
 P2 -- hygiene before there are external users (renames get expensive later):
