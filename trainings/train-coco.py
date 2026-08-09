@@ -1,8 +1,15 @@
 """Train the SSDLARGE or RETINANET flavor on COCO: full label space,
-grayscale input without normalization, deliberately no augmentations --
-this is the baseline the augmentation step will later be measured
-against. Raw (0, 255) intensities go straight into the network; the
-first BatchNorm learns the input statistics itself.
+grayscale input without normalization. Raw (0, 255) intensities go
+straight into the network; the first BatchNorm learns the input
+statistics itself.
+
+Training applies the classic SSD augmentation suite (photometric
+distortion, zoom-out, IoU crop, horizontal flip) through the
+torchvision adapter -- train split only, validation and inference see
+raw frames. Zoom-out is capped at 2x: the finest anchors sit at 16 px
+and shrinking further pushes COCO's small boxes below the matchable
+floor. The un-augmented baseline is the previous commit of this script
+-- the commit hash is the config.
 
 Both recipes share the same anchor structure (retina_anchors: sizes
 16-512 over strides 8/16/32) and train at the same resolution, so a run
@@ -48,7 +55,9 @@ from skorch.callbacks import (
     LRScheduler,
     MlflowLogger,
 )
+from torchvision.transforms import v2
 
+from modelinhos.augment.torchvision import augment
 from modelinhos.coco import load_samples
 from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import mean_average_precision
@@ -138,6 +147,15 @@ def main(
         arch=replace(
             config["arch"],
             iencoder=grayscale_image_encoder(resolution),
+            augment=lambda _: augment(
+                [
+                    v2.RandomPhotometricDistort(p=0.5),
+                    v2.RandomZoomOut(fill=114, side_range=(1.0, 2.0), p=0.5),
+                    v2.RandomIoUCrop(),
+                    v2.RandomHorizontalFlip(p=0.5),
+                ],
+                min_visibility=0.3,
+            ),
         ),
         engine=skorch_engine(
             max_epochs=max_epochs,

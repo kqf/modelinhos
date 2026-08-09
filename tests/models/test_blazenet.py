@@ -3,7 +3,6 @@ import numpy as np
 import pytest
 import torch
 
-from modelinhos.blaze.infer import EXPECTED
 from modelinhos.blaze.postprocessing import predict_on_image
 from modelinhos.models.blazenet import (
     BLAZEFACE,
@@ -19,6 +18,33 @@ from modelinhos.models.blazenet import (
 )
 from modelinhos.models.load import restore
 from modelinhos.zoo import blaze_label_encoder, build_blaze
+
+# Reference output of the original BlazeFace-PyTorch implementation
+# (hollance's blazeface.py, weights + anchors.npy from that repo) on its
+# 1face.png sample: ymin, xmin, ymax, xmax, 6 keypoints (x, y), score.
+EXPECTED = np.array(
+    [
+        [
+            0.27143508195877075,
+            0.31713399291038513,
+            0.44155359268188477,
+            0.48725229501724243,
+            0.3863072991371155,
+            0.3126678764820099,
+            0.46129563450813293,
+            0.3186052143573761,
+            0.43995076417922974,
+            0.355654776096344,
+            0.4327559769153595,
+            0.3914948105812073,
+            0.3153791129589081,
+            0.32960063219070435,
+            0.4778282344341278,
+            0.3367067277431488,
+            0.9959920644760132,
+        ]
+    ],
+)
 
 
 @pytest.mark.parametrize(

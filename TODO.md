@@ -95,12 +95,12 @@ P1 -- deployable and measurable. Check retina vs ssd backbone effects
       - [x] Clean the code -> simplify
 - [x] Download the coco dataset but unpack it to data/ location
 - [ ] DO the first trainings on COCO dataset:
-  - [ ] Train the COCO dataset with warmups probably on grayscale no normalization:
-  - [ ] Validatoin map
-  - [ ] Extend add the precision recall @p=0.5,
-  - [ ] LR scheduler
-  - [ ] Add augmentaitons
-  - [ ] Early stopping
+  - [x] Train the COCO dataset with warmups probably on grayscale no normalization:
+  - [x] Validatoin map
+  - [x] Extend add the precision recall @p=0.5,
+  - [x] LR scheduler
+  - [x] Add augmentaitons
+  - [x] Early stopping
 - [x] Export to ONNX uniformly for all the recipes (only blaze/to_onnx
       exists today; depends on checkpoint loading)
 
@@ -109,12 +109,15 @@ P2 -- hygiene before there are external users (renames get expensive later):
 - [x] Move modelinhos/train.py out of the library -- it is a script
       (cv2.imshow, joblib cache, __main__) predating trainings/, and it
       drags the dadinhos import into the package
-- [ ] Rename preprocess/lables.py -> labels.py (public import path with
+- [x] Rename preprocess/lables.py -> labels.py (public import path with
       a typo, already spread through README and every script)
-- [ ] Update the readme: How to from start to production. The Usage
+- [x] Update the readme: How to from start to production. The Usage
       example is already stale: LabelEncoder takes no `resolution`
       kwarg, and boxes are relative everywhere -- fix while at it.
-- [ ] Sanitize the BlazeNet
+- [x] Sanitize the BlazeNet: blaze/ is the vanilla reference only --
+      to_onnx.py superseded by inference/export.py, the infer.py demo
+      script folded into tests/models/test_blazenet.py, dead loaders
+      dropped, predict_on_batch fixed to return every image's faces
 - [x] Make the BlazeNet a part of a group: BLAZEFACE recipe (vanilla
       front model, MediaPipe box codec) with the original blaze/
       inference path demoted to recipe.reference for parity tests, plus
