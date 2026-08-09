@@ -55,7 +55,7 @@ from modelinhos.evaluation import mean_average_precision
 from modelinhos.models.retinanet import RETINANET
 from modelinhos.models.ssdlite import SSDLARGE
 from modelinhos.preprocess.image import grayscale_image_encoder
-from modelinhos.preprocess.lables import LabelEncoder
+from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.zoo import build_retina, build_ssd
 
 CONFIGS: dict[str, dict[str, Any]] = {

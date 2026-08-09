@@ -10,7 +10,7 @@ from modelinhos.analysis.lint import (
     lint,
     rename,
 )
-from modelinhos.preprocess.lables import LabelEncoder
+from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import Annotation, Sample
 
 

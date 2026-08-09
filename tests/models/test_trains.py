@@ -20,7 +20,7 @@ from modelinhos.evaluation import (
 )
 from modelinhos.models.retinanet import RETINANET
 from modelinhos.models.ssdlite import SSDLITE
-from modelinhos.preprocess.lables import LabelEncoder
+from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import Annotation, Sample, read_samples, save_samples
 from modelinhos.zoo import build_retina, build_ssd
 

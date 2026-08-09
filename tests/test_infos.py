@@ -7,7 +7,7 @@ from modelinhos.augment.infos import materialize
 from modelinhos.infos import anchor_advice, matchability, summarize
 from modelinhos.models.retinanet import RETINANET, TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import SSDLARGE, SSDLITE, TORCHVISION_SSDLITE
-from modelinhos.preprocess.lables import LabelEncoder
+from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import Annotation, Sample, TrainAnnotation
 
 

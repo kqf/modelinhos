@@ -12,7 +12,7 @@ import torch
 
 from modelinhos.augment import Augmentation
 from modelinhos.data import opencv_read
-from modelinhos.preprocess.lables import LabelEncoder
+from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import Annotation, Sample
 
 

@@ -19,7 +19,7 @@ from modelinhos.evaluation import (
 )
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.plot import plot
-from modelinhos.preprocess.lables import SampleEncoder
+from modelinhos.preprocess.labels import SampleEncoder
 from modelinhos.sample import Sample
 from modelinhos.zoo import coco_label_encoder
 
