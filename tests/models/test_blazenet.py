@@ -93,7 +93,6 @@ def test_vanilla_blazenet_matches_repo(face):
     predictions = predict_on_image(
         model,
         face,
-        back_model=False,
         min_suppression_threshold=model.min_suppression_threshold,
         min_score_thresh=model.min_score_thresh,
     )

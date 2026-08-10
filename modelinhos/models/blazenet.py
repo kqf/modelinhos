@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models._api import Weights, WeightsEnum
+from torchvision.ops import box_iou
 from torchvision.transforms._presets import ObjectDetection
 
 from modelinhos.detector import DetectionRecipe
@@ -31,7 +32,7 @@ from modelinhos.sample import Annotation, Sample
 
 class BlazeBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1):
-        super(BlazeBlock, self).__init__()
+        super().__init__()
 
         self.stride = stride
         self.channel_pad = out_channels - in_channels
@@ -79,9 +80,21 @@ class BlazeBlock(nn.Module):
         return self.act(self.convs(h) + x)
 
 
+def _blaze_stack(
+    in_channels: int,
+    schedule: list[tuple[int, int]],
+) -> list[BlazeBlock]:
+    """BlazeBlocks chained along a (out_channels, stride) schedule."""
+    blocks = []
+    for out_channels, stride in schedule:
+        blocks.append(BlazeBlock(in_channels, out_channels, stride=stride))
+        in_channels = out_channels
+    return blocks
+
+
 class FinalBlazeBlock(nn.Module):
     def __init__(self, channels, kernel_size=3):
-        super(FinalBlazeBlock, self).__init__()
+        super().__init__()
         # TFLite uses slightly different padding than PyTorch
         # on the depthwise conv layer when the stride is 2.
         self.convs = nn.Sequential(
@@ -112,6 +125,23 @@ class FinalBlazeBlock(nn.Module):
         return self.act(self.convs(h))
 
 
+def _blaze_stem() -> list[nn.Module]:
+    """The shared 5x5/2 input conv; its TFLite padding is applied
+    manually in BlazeNet.forward."""
+    return [
+        nn.Conv2d(3, 24, kernel_size=5, stride=2),
+        nn.ReLU(inplace=True),
+    ]
+
+
+def _flatten_head(features: torch.Tensor, coords: int) -> torch.Tensor:
+    """Flatten a head map to (b, cells * anchors, coords) in NHWC
+    order -- the TFLite anchor layout the checkpoints and the repo
+    anchors use; the permute is what keeps that parity."""
+    b = features.shape[0]
+    return features.permute(0, 2, 3, 1).reshape(b, -1, coords)
+
+
 class BlazeNet(nn.Module):
     """The BlazeFace face detection model from MediaPipe.
 
@@ -129,162 +159,127 @@ class BlazeNet(nn.Module):
     This version works on batches, while the MediaPipe version can only
     handle a single image at a time.
 
+    Two concrete flavors below: BlazeNetFront and BlazeNetBack; each
+    owns its feature extractor and its scale (the input side length),
+    the heads and output packing are shared here.
+
     Based on code from https://github.com/tkat0/PyTorch_BlazeFace/ and
     https://github.com/google/mediapipe/
     """
 
-    def __init__(self, back_model=False):
-        super(BlazeNet, self).__init__()
+    # These are the settings from the MediaPipe example graphs
+    # mediapipe/graphs/face_detection/face_detection_mobile_gpu.pbtxt
+    # and
+    # mediapipe/graphs/face_detection/face_detection_back_mobile_gpu.pbtxt
+    num_classes = 1
+    num_anchors = 896
+    num_coords = 16
+    score_clipping_thresh = 100.0
+    min_suppression_threshold = 0.3
+    # The four x/y/w/h scales of the MediaPipe config are always one
+    # and the same number: the flavor's input side length.
+    scale: float
+    min_score_thresh: float
 
-        # These are the settings from the MediaPipe example graphs
-        # mediapipe/graphs/face_detection/face_detection_mobile_gpu.pbtxt
-        # and
-        # mediapipe/graphs/face_detection/face_detection_back_mobile_gpu.pbtxt
-        self.num_classes = 1
-        self.num_anchors = 896
-        self.num_coords = 16
-        self.score_clipping_thresh = 100.0
-        self.back_model = back_model
-        if back_model:
-            self.x_scale = 256.0
-            self.y_scale = 256.0
-            self.h_scale = 256.0
-            self.w_scale = 256.0
-            self.min_score_thresh = 0.65
-        else:
-            self.x_scale = 128.0
-            self.y_scale = 128.0
-            self.h_scale = 128.0
-            self.w_scale = 128.0
-            self.min_score_thresh = 0.75
-        self.min_suppression_threshold = 0.3
+    def __init__(self, channels_8: int):
+        super().__init__()
+        # 2 anchors per stride-8 cell, 6 per stride-16 -- the same
+        # counts blaze_anchors below restores.
+        self.classifier_8 = nn.Conv2d(channels_8, 2 * self.num_classes, 1)
+        self.classifier_16 = nn.Conv2d(96, 6 * self.num_classes, 1)
+        self.regressor_8 = nn.Conv2d(channels_8, 2 * self.num_coords, 1)
+        self.regressor_16 = nn.Conv2d(96, 6 * self.num_coords, 1)
 
-        self._define_layers()
-
-    def _define_layers(self):
-        if self.back_model:
-            self.backbone = nn.Sequential(
-                nn.Conv2d(
-                    in_channels=3,
-                    out_channels=24,
-                    kernel_size=5,
-                    stride=2,
-                    padding=0,
-                    bias=True,
-                ),
-                nn.ReLU(inplace=True),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24, stride=2),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 48, stride=2),
-                BlazeBlock(48, 48),
-                BlazeBlock(48, 48),
-                BlazeBlock(48, 48),
-                BlazeBlock(48, 48),
-                BlazeBlock(48, 48),
-                BlazeBlock(48, 48),
-                BlazeBlock(48, 48),
-                BlazeBlock(48, 96, stride=2),
-                BlazeBlock(96, 96),
-                BlazeBlock(96, 96),
-                BlazeBlock(96, 96),
-                BlazeBlock(96, 96),
-                BlazeBlock(96, 96),
-                BlazeBlock(96, 96),
-                BlazeBlock(96, 96),
-            )
-            self.final = FinalBlazeBlock(96)
-            self.classifier_8 = nn.Conv2d(96, 2, 1, bias=True)
-            self.classifier_16 = nn.Conv2d(96, 6, 1, bias=True)
-
-            self.regressor_8 = nn.Conv2d(96, 32, 1, bias=True)
-            self.regressor_16 = nn.Conv2d(96, 96, 1, bias=True)
-        else:
-            self.backbone1 = nn.Sequential(
-                nn.Conv2d(
-                    in_channels=3,
-                    out_channels=24,
-                    kernel_size=5,
-                    stride=2,
-                    padding=0,
-                    bias=True,
-                ),
-                nn.ReLU(inplace=True),
-                BlazeBlock(24, 24),
-                BlazeBlock(24, 28),
-                BlazeBlock(28, 32, stride=2),
-                BlazeBlock(32, 36),
-                BlazeBlock(36, 42),
-                BlazeBlock(42, 48, stride=2),
-                BlazeBlock(48, 56),
-                BlazeBlock(56, 64),
-                BlazeBlock(64, 72),
-                BlazeBlock(72, 80),
-                BlazeBlock(80, 88),
-            )
-
-            self.backbone2 = nn.Sequential(
-                BlazeBlock(88, 96, stride=2),
-                BlazeBlock(96, 96),
-                BlazeBlock(96, 96),
-                BlazeBlock(96, 96),
-                BlazeBlock(96, 96),
-            )
-            self.classifier_8 = nn.Conv2d(88, 2, 1, bias=True)
-            self.classifier_16 = nn.Conv2d(96, 6, 1, bias=True)
-
-            self.regressor_8 = nn.Conv2d(88, 32, 1, bias=True)
-            self.regressor_16 = nn.Conv2d(96, 96, 1, bias=True)
+    def features(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """The two head maps, finest first."""
+        raise NotImplementedError
 
     def forward(self, image):
         # TFLite uses slightly different padding on the first conv layer
         # than PyTorch, so do it manually.
         x = F.pad(image, (1, 2, 1, 2), "constant", 0)
-
-        b = x.shape[0]  # batch size, needed for reshaping later
-
-        if self.back_model:
-            x = self.backbone(x)  # (b, 16, 16, 96)
-            h = self.final(x)  # (b, 8, 8, 96)
-        else:
-            x = self.backbone1(x)  # (b, 88, 16, 16)
-            h = self.backbone2(x)  # (b, 96, 8, 8)
-
-        # Note: Because PyTorch is NCHW but TFLite is NHWC, we need to
-        # permute the output from the conv layers before reshaping it.
-
-        c1 = self.classifier_8(x)  # (b, 2, 16, 16)
-        c1 = c1.permute(0, 2, 3, 1)  # (b, 16, 16, 2)
-        c1 = c1.reshape(b, -1, 1)  # (b, 512, 1)
-
-        c2 = self.classifier_16(h)  # (b, 6, 8, 8)
-        c2 = c2.permute(0, 2, 3, 1)  # (b, 8, 8, 6)
-        c2 = c2.reshape(b, -1, 1)  # (b, 384, 1)
-
-        c = torch.cat((c1, c2), dim=1)  # (b, 896, 1)
-
-        r1 = self.regressor_8(x)  # (b, 32, 16, 16)
-        r1 = r1.permute(0, 2, 3, 1)  # (b, 16, 16, 32)
-        r1 = r1.reshape(b, -1, 16)  # (b, 512, 16)
-
-        r2 = self.regressor_16(h)  # (b, 96, 8, 8)
-        r2 = r2.permute(0, 2, 3, 1)  # (b, 8, 8, 96)
-        r2 = r2.reshape(b, -1, 16)  # (b, 384, 16)
-
-        r = torch.cat((r1, r2), dim=1)  # (b, 896, 16)
+        x8, x16 = self.features(x)
+        r = torch.cat(
+            [
+                _flatten_head(self.regressor_8(x8), self.num_coords),
+                _flatten_head(self.regressor_16(x16), self.num_coords),
+            ],
+            dim=1,
+        )  # (b, 896, 16)
+        c = torch.cat(
+            [
+                _flatten_head(self.classifier_8(x8), self.num_classes),
+                _flatten_head(self.classifier_16(x16), self.num_classes),
+            ],
+            dim=1,
+        )  # (b, 896, 1)
         return [r, c]
+
+
+class BlazeNetFront(BlazeNet):
+    """The 128x128 front-camera flavor: head maps at strides 8/16, an
+    uneven channel ramp up to 88/96."""
+
+    scale = 128.0
+    min_score_thresh = 0.75
+
+    def __init__(self):
+        super().__init__(channels_8=88)
+        self.backbone1 = nn.Sequential(
+            *_blaze_stem(),
+            *_blaze_stack(
+                24,
+                [
+                    (24, 1),
+                    (28, 1),
+                    (32, 2),
+                    (36, 1),
+                    (42, 1),
+                    (48, 2),
+                    (56, 1),
+                    (64, 1),
+                    (72, 1),
+                    (80, 1),
+                    (88, 1),
+                ],
+            ),
+        )
+        self.backbone2 = nn.Sequential(
+            *_blaze_stack(88, [(96, 2)] + [(96, 1)] * 4),
+        )
+
+    def features(self, x):
+        x8 = self.backbone1(x)
+        return x8, self.backbone2(x8)
+
+
+class BlazeNetBack(BlazeNet):
+    """The 256x256 back-camera flavor: four runs of seven blocks joined
+    by stride-2 transitions, so the head maps sit at strides 16/32."""
+
+    scale = 256.0
+    min_score_thresh = 0.65
+
+    def __init__(self):
+        super().__init__(channels_8=96)
+        self.backbone = nn.Sequential(
+            *_blaze_stem(),
+            *_blaze_stack(
+                24,
+                [(24, 1)] * 7
+                + [(24, 2)]
+                + [(24, 1)] * 7
+                + [(48, 2)]
+                + [(48, 1)] * 7
+                + [(96, 2)]
+                + [(96, 1)] * 7,
+            ),
+        )
+        self.final = FinalBlazeBlock(96)
+
+    def features(self, x):
+        x8 = self.backbone(x)
+        return x8, self.final(x8)
 
 
 _BLAZE_REPO = "https://github.com/hollance/BlazeFace-PyTorch/raw/master"
@@ -402,11 +397,30 @@ def build_blazenet(
         )
     if weights is not None:
         back_model = weights.meta["back_model"]
-    model = BlazeNet(back_model=back_model)
+    if back_model:
+        model: BlazeNet = BlazeNetBack()
+    else:
+        model = BlazeNetFront()
     if weights is not None:
         model.load_state_dict(weights.get_state_dict(progress=True))
     model.eval()
     return model
+
+
+def decode_blaze_points(
+    rel_codes: torch.Tensor,  # (..., N, 2k) interleaved x, y offsets
+    priors: torch.Tensor,  # (N, 4) normalised cxcywh
+    scale: float,
+) -> torch.Tensor:  # (..., N, 2k) normalised interleaved x, y points
+    """The point half of MediaPipe's codec: every x offset decodes as
+    / scale * pw + pcx and every y as / scale * ph + pcy -- the same
+    affine map for box centers and keypoints alike, so the interleaved
+    lanes broadcast against the priors, any number of points at once."""
+    pcx, pcy, pw, ph = (p[:, None] for p in priors.to(rel_codes).unbind(-1))
+    points = torch.empty_like(rel_codes)
+    points[..., 0::2] = rel_codes[..., 0::2] / scale * pw + pcx
+    points[..., 1::2] = rel_codes[..., 1::2] / scale * ph + pcy
+    return points
 
 
 def decode_blaze_boxes(
@@ -417,9 +431,8 @@ def decode_blaze_boxes(
     """MediaPipe's box codec: offsets are denominated in input pixels
     (scale = the input side length) and sizes decode linearly -- no exp,
     unlike decode_boxes in preprocess/boxes.py."""
-    pcx, pcy, pw, ph = priors.to(rel_codes).unbind(-1)
-    cx = rel_codes[..., 0] / scale * pw + pcx
-    cy = rel_codes[..., 1] / scale * ph + pcy
+    _, _, pw, ph = priors.to(rel_codes).unbind(-1)
+    cx, cy = decode_blaze_points(rel_codes[..., :2], priors, scale).unbind(-1)
     w = rel_codes[..., 2] / scale * pw
     h = rel_codes[..., 3] / scale * ph
     return torch.stack(
@@ -500,63 +513,6 @@ def build_blaze_loss(
     )
 
 
-def intersect(box_a, box_b):
-    """We resize both tensors to [A,B,2] without new malloc:
-    [A,2] -> [A,1,2] -> [A,B,2]
-    [B,2] -> [1,B,2] -> [A,B,2]
-    Then we compute the area of intersect between box_a and box_b.
-    Args:
-      box_a: (tensor) bounding boxes, Shape: [A,4].
-      box_b: (tensor) bounding boxes, Shape: [B,4].
-    Return:
-      (tensor) intersection area, Shape: [A,B].
-    """
-    A = box_a.size(0)
-    B = box_b.size(0)
-    max_xy = torch.min(
-        box_a[:, 2:].unsqueeze(1).expand(A, B, 2),
-        box_b[:, 2:].unsqueeze(0).expand(A, B, 2),
-    )
-    min_xy = torch.max(
-        box_a[:, :2].unsqueeze(1).expand(A, B, 2),
-        box_b[:, :2].unsqueeze(0).expand(A, B, 2),
-    )
-    inter = torch.clamp((max_xy - min_xy), min=0)
-    return inter[:, :, 0] * inter[:, :, 1]
-
-
-def jaccard(box_a, box_b):
-    """Compute the jaccard overlap of two sets of boxes.  The jaccard overlap
-    is simply the intersection over union of two boxes.  Here we operate on
-    ground truth boxes and default boxes.
-    E.g.:
-        A ∩ B / A ∪ B = A ∩ B / (area(A) + area(B) - A ∩ B)
-    Args:
-        box_a: (tensor) Ground truth bounding boxes, Shape: [num_objects,4]
-        box_b: (tensor) Prior boxes from priorbox layers, Shape: [num_priors,4]
-    Return:
-        jaccard overlap: (tensor) Shape: [box_a.size(0), box_b.size(0)]
-    """
-    inter = intersect(box_a, box_b)
-    area_a = (
-        ((box_a[:, 2] - box_a[:, 0]) * (box_a[:, 3] - box_a[:, 1]))
-        .unsqueeze(1)
-        .expand_as(inter)
-    )  # [A,B]
-    area_b = (
-        ((box_b[:, 2] - box_b[:, 0]) * (box_b[:, 3] - box_b[:, 1]))
-        .unsqueeze(0)
-        .expand_as(inter)
-    )  # [A,B]
-    union = area_a + area_b - inter
-    return inter / union  # [A,B]
-
-
-def overlap_similarity(box, other_boxes):
-    """Computes the IOU between a bounding box and set of other boxes."""
-    return jaccard(box.unsqueeze(0), other_boxes).squeeze(0)
-
-
 def _weighted_non_max_suppression(
     detections,
     min_suppression_threshold: float,
@@ -592,10 +548,11 @@ def _weighted_non_max_suppression(
 
         # Compute the overlap between the first box and the other
         # remaining boxes. (Note that the other_boxes also include
-        # the first_box.)
+        # the first_box.) Boxes are y-first here, but IoU is invariant
+        # under swapping the axes of both arguments alike.
         first_box = detection[:4]
         other_boxes = detections[remaining, :4]
-        ious = overlap_similarity(first_box, other_boxes)
+        ious = box_iou(first_box.unsqueeze(0), other_boxes).squeeze(0)
 
         # If two detections don't overlap enough, they are considered
         # to be from different faces.
@@ -622,31 +579,22 @@ def _weighted_non_max_suppression(
 def _decode_boxes(model: BlazeNet, raw, anchors):
     """Converts the predictions into actual coordinates using
     the anchor boxes. Processes the entire batch at once.
+
+    Both halves are the shared codec: decode_blaze_boxes for the box,
+    stored in the upstream's y-first order, and decode_blaze_points for
+    the 6 keypoints.
     """
     boxes = torch.zeros_like(raw)
 
-    x_center = raw[..., 0] / model.x_scale * anchors[:, 2] + anchors[:, 0]
-    y_center = raw[..., 1] / model.y_scale * anchors[:, 3] + anchors[:, 1]
+    x1, y1, x2, y2 = decode_blaze_boxes(
+        raw, priors=anchors, scale=model.scale
+    ).unbind(-1)
+    boxes[..., 0] = y1  # ymin
+    boxes[..., 1] = x1  # xmin
+    boxes[..., 2] = y2  # ymax
+    boxes[..., 3] = x2  # xmax
 
-    w = raw[..., 2] / model.w_scale * anchors[:, 2]
-    h = raw[..., 3] / model.h_scale * anchors[:, 3]
-
-    boxes[..., 0] = y_center - h / 2.0  # ymin
-    boxes[..., 1] = x_center - w / 2.0  # xmin
-    boxes[..., 2] = y_center + h / 2.0  # ymax
-    boxes[..., 3] = x_center + w / 2.0  # xmax
-
-    for k in range(6):
-        offset = 4 + k * 2
-        keypoint_x = (
-            raw[..., offset] / model.x_scale * anchors[:, 2] + anchors[:, 0]
-        )  # noqa
-        keypoint_y = (
-            raw[..., offset + 1] / model.y_scale * anchors[:, 3]
-            + anchors[:, 1]  # noqa
-        )
-        boxes[..., offset] = keypoint_x
-        boxes[..., offset + 1] = keypoint_y
+    boxes[..., 4:] = decode_blaze_points(raw[..., 4:], anchors, model.scale)
 
     return boxes
 
@@ -710,7 +658,6 @@ def _preprocess(x):
 def predict_on_batch(
     model: BlazeNet,
     x,
-    back_model,
     min_suppression_threshold: float,
     min_score_thresh: float,
 ):
@@ -718,7 +665,8 @@ def predict_on_batch(
 
     Arguments:
         x: a NumPy array of shape (b, H, W, 3) or a PyTorch tensor of
-            shape (b, 3, H, W). The height and width should be 128 pixels.
+            shape (b, 3, H, W). The height and width should match
+            model.scale.
 
     Returns:
         A list containing a tensor of face detections for each image in
@@ -734,12 +682,7 @@ def predict_on_batch(
         x = torch.from_numpy(x).permute((0, 3, 1, 2))
 
     assert x.shape[1] == 3
-    if back_model:
-        assert x.shape[2] == 256
-        assert x.shape[3] == 256
-    else:
-        assert x.shape[2] == 128
-        assert x.shape[3] == 128
+    assert x.shape[2] == x.shape[3] == int(model.scale)
 
     # 1. Preprocess the images into tensors:
     x = x.to(model.classifier_8.weight.device)
@@ -773,7 +716,6 @@ def predict_on_batch(
 def predict_on_image(
     model: BlazeNet,
     image,
-    back_model,
     min_suppression_threshold: float,
     min_score_thresh: float,
 ):
@@ -781,8 +723,8 @@ def predict_on_image(
 
     Arguments:
         img: a NumPy array of shape (H, W, 3) or a PyTorch tensor of
-                shape (3, H, W). The image's height and width should be
-                128 pixels.
+                shape (3, H, W). The image's height and width should
+                match model.scale.
 
     Returns:
         A tensor with face detections.
@@ -793,7 +735,6 @@ def predict_on_image(
     return predict_on_batch(
         model,
         image.unsqueeze(0),
-        back_model=back_model,
         min_suppression_threshold=min_suppression_threshold,
         min_score_thresh=min_score_thresh,
     )[0]
@@ -818,7 +759,6 @@ def blaze_reference(
         detections = predict_on_image(
             model,
             cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
-            back_model=weights.meta["back_model"],
             min_suppression_threshold=model.min_suppression_threshold,
             min_score_thresh=th,
         )
@@ -856,7 +796,7 @@ class BlazePure(torch.nn.Module):
     def __init__(self, n_classes: int, num_anchors: int = 2):
         super().__init__()
         self.n_classes = n_classes
-        base = BlazeNet(back_model=False)
+        base = BlazeNetFront()
         self.backbone1 = base.backbone1  # stride 8, 88 channels
         self.backbone2 = base.backbone2  # stride 16, 96 channels
         self.backbone3 = FinalBlazeBlock(96)  # stride 32
@@ -875,17 +815,16 @@ class BlazePure(torch.nn.Module):
         c4 = self.backbone2(c3)
         c5 = self.backbone3(c4)
 
-        b = images.shape[0]
         boxes = torch.cat(
             [
-                r(f).permute(0, 2, 3, 1).reshape(b, -1, 4)
+                _flatten_head(r(f), 4)
                 for r, f in zip(self.regressors, (c3, c4, c5))
             ],
             dim=1,
         )
         classes = torch.cat(
             [
-                c(f).permute(0, 2, 3, 1).reshape(b, -1, self.n_classes)
+                _flatten_head(c(f), self.n_classes)
                 for c, f in zip(self.classifiers, (c3, c4, c5))
             ],
             dim=1,
