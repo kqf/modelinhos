@@ -34,7 +34,7 @@ from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import mean_average_precision
 from modelinhos.models.anchors import anchors
 from modelinhos.models.ssdlite import SSDLITE
-from modelinhos.preprocess.lables import LabelEncoder
+from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import Annotation, Sample, read_samples
 from modelinhos.zoo import build_ssd
 

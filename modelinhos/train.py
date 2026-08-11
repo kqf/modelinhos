@@ -11,7 +11,7 @@ from modelinhos.evaluation import (
 )
 from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.plot import plot
-from modelinhos.preprocess.lables import LabelEncoder
+from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import Sample, read_samples
 from modelinhos.zoo import build_ssd
 
