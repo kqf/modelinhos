@@ -5,6 +5,12 @@ import pytest
 
 from modelinhos.augment.infos import materialize
 from modelinhos.infos import anchor_advice, matchability, summarize
+from modelinhos.models.blazenet import (
+    BLAZEFACE_B,
+    BLAZEFACE_F,
+    RETINANET_B,
+    RETINANET_F,
+)
 from modelinhos.models.retinanet import RETINANET, TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import SSDLARGE, SSDLITE, TORCHVISION_SSDLITE
 from modelinhos.preprocess.labels import LabelEncoder
@@ -19,9 +25,13 @@ from modelinhos.sample import Annotation, Sample, TrainAnnotation
         SSDLARGE,
         RETINANET,
         TORCHVISION_RETINANET,
+        BLAZEFACE_B,
+        BLAZEFACE_F,
+        RETINANET_B,
+        RETINANET_F,
     ],
 )
-def test_summarize(recipe, resolution=(640, 480), n_classes=4):
+def test_summarize(recipe, resolution=(640, 480), n_classes=2):
     print()
     print(
         summarize(
@@ -41,6 +51,8 @@ def test_summarize(recipe, resolution=(640, 480), n_classes=4):
         TORCHVISION_SSDLITE,
         RETINANET,
         TORCHVISION_RETINANET,
+        RETINANET_B,
+        RETINANET_F,
     ],
 )
 def test_matchability(
