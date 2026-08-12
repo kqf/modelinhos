@@ -20,6 +20,13 @@ class WeightedLoss:
     enc_pred: Callable = lambda x, _: x
     enc_true: Callable = lambda x, _: x
     needs_negatives: bool = False
+    # Which y_true field this subloss trains against; None means its own
+    # name. For heads whose target is derived from another field rather
+    # than stored in the annotations -- e.g. an FCOS-style centerness
+    # head lives in the scores slot but its target is a function of the
+    # matched GT box (true_field="bboxes") and the anchor, computed by
+    # enc_true.
+    true_field: Optional[str] = None
 
     def __call__(self, y_pred, y_true, anchors):
         y_pred_encoded = self.enc_pred(y_pred, anchors)

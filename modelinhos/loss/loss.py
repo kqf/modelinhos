@@ -95,7 +95,7 @@ class DetectionLoss(nn.Module):
                 continue
             y_pred_, y_true_, anchor_ = select(
                 getattr(y_pred, name),
-                getattr(y_true, name),
+                getattr(y_true, subloss.true_field or name),
                 self.priors,
                 use_negatives=subloss.needs_negatives,
                 positives=positives,
