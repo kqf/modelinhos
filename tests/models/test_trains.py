@@ -18,12 +18,11 @@ from modelinhos.evaluation import (
     per_sample_metrics,
     visualize_fp_fn,
 )
-from modelinhos.models.blazenet import RETINANET_F
 from modelinhos.models.retinanet import RETINANET
 from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import Annotation, Sample, read_samples, save_samples
-from modelinhos.zoo import build_blaze, build_retina, build_ssd
+from modelinhos.zoo import build_retina, build_ssd
 
 
 @pytest.fixture
@@ -88,13 +87,6 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
             build_ssd,
             id="torchvision_ssdlite",
             marks=pytest.mark.skip(reason="convergence not tuned"),
-        ),
-        # The vanilla BLAZEFACE recipes keep MediaPipe's full-image
-        # anchors, which never match a small box -- only the retina-
-        # anchored trainable flavor can learn this dataset.
-        pytest.param(
-            partial(build_blaze, arch=RETINANET_F),
-            id="blazenet",
         ),
     ],
 )

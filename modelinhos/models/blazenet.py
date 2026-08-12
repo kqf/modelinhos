@@ -41,11 +41,7 @@ class BlazeBlock(nn.Module):
         # TFLite uses slightly different padding than PyTorch
         # on the depthwise conv layer when the stride is 2.
         if stride == 2:
-            # ceil_mode matches the conv path (and the ceil-based anchor
-            # grids) on odd feature maps; a no-op on even ones.
-            self.max_pool = nn.MaxPool2d(
-                kernel_size=stride, stride=stride, ceil_mode=True
-            )
+            self.max_pool = nn.MaxPool2d(kernel_size=stride, stride=stride)
             padding = 0
         else:
             padding = (kernel_size - 1) // 2
@@ -790,7 +786,9 @@ class BlazePure(nn.Module):
     keypoints. The flavors below provide stages() -- the three head
     maps -- reusing the donor BlazeNet's modules under their original
     names, so warm_start with the matching checkpoint picks up the
-    backbone and leaves the fresh heads alone."""
+    backbone and leaves the fresh heads alone. The stride-2 residual
+    blocks need even feature maps, so H and W must be divisible by
+    16."""
 
     channels: tuple[int, int, int]
 
