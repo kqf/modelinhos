@@ -5,15 +5,18 @@ Each recipe gets its meaningful resolution ladder up to 1080p: the
 native size first, then VGA, 720p and 1080p rounded to the stride-32
 grid (720 and 1080 themselves are not divisible by 32 -- the stride-8
 feature map goes odd and the stride-2 blocks of every backbone here
-break, hence 736x1280 and 1088x1920). Models are built fresh, weights
-untouched: the benchmark measures shapes and speed, not accuracy.
+break, hence 736x1280 and 1088x1920). Models are built fresh with
+randomized weights: the benchmark measures shapes and speed, not
+accuracy.
 
 Files land in inference/models/<recipe>/<height>-<width>.onnx; run from
 the repo root:  python inference/export.py
 """
 
+import itertools
 from pathlib import Path
 
+import onnx
 import torch
 
 from modelinhos.models.blazenet import (
@@ -107,6 +110,20 @@ def main(models: Path = Path(__file__).parent / "models"):
                 n_classes=n_classes,
             )
             model.eval()
+            # Torchvision inits leave many byte-identical tensors (zero
+            # biases, unit norm scales); torch.onnx deduplicates those
+            # into Identity-of-initializer nodes that OpenCV 4.6 cannot
+            # parse, and their degenerate values (Mul by 1, Add 0) would
+            # let optimizers fold real per-layer work out of the graph.
+            # Random positive values keep every tensor unique and every
+            # op live, so the benchmark measures the trained-model cost.
+            with torch.no_grad():
+                for tensor in itertools.chain(
+                    model.parameters(),
+                    model.buffers(),
+                ):
+                    if tensor.is_floating_point():
+                        tensor.uniform_(0.01, 0.1)
             path = models / name / f"{height}-{width}.onnx"
             path.parent.mkdir(parents=True, exist_ok=True)
             torch.onnx.export(
@@ -118,6 +135,31 @@ def main(models: Path = Path(__file__).parent / "models"):
                 opset_version=13,
                 do_constant_folding=True,
             )
+            # Heads shared across pyramid levels reuse the same
+            # Parameter object; the exporter deduplicates it into one
+            # initializer plus Identity aliases, which OpenCV 4.6
+            # cannot parse. Materialize each alias as its own
+            # initializer and drop the Identity; chains resolve over
+            # iterations. Pure aliasing: no compute is removed.
+            exported = onnx.load(str(path))
+            graph = exported.graph
+            while True:
+                initializers = {i.name: i for i in graph.initializer}
+                aliases = [
+                    node
+                    for node in graph.node
+                    if node.op_type == "Identity"
+                    and node.input[0] in initializers
+                ]
+                if not aliases:
+                    break
+                for node in aliases:
+                    clone = onnx.TensorProto()
+                    clone.CopyFrom(initializers[node.input[0]])
+                    clone.name = node.output[0]
+                    graph.initializer.append(clone)
+                    graph.node.remove(node)
+            onnx.save(exported, str(path))
             print(f"exported {path}")
 
 
