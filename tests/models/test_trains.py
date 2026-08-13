@@ -18,11 +18,13 @@ from modelinhos.evaluation import (
     per_sample_metrics,
     visualize_fp_fn,
 )
+from modelinhos.models.blazenet import RETINANET_F
+from modelinhos.models.fcos import FCOS_DELTA
 from modelinhos.models.retinanet import RETINANET
 from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import Annotation, Sample, read_samples, save_samples
-from modelinhos.zoo import build_retina, build_ssd
+from modelinhos.zoo import build_blaze, build_fcos, build_retina, build_ssd
 
 
 @pytest.fixture
@@ -73,6 +75,19 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
             partial(build_ssd, arch=SSDLITE),
             id="ssdlite",
         ),
+        # FCOS on RetinaNet's anchors and codec -- the same training
+        # problem as the retinanet flavor with only the head swapped
+        # (see models/fcos.py for the A/B rationale). Unlike retinanet,
+        # its warm start is convention-mismatched (the FCOS checkpoint's
+        # relu'd ltrb regression and 91 COCO class channels must be
+        # unlearned before the delta codec works), so one shared epoch
+        # is not enough -- test_fcos_delta_converges below trains it
+        # with its own budget.
+        pytest.param(
+            partial(build_fcos, arch=FCOS_DELTA),
+            id="fcos",
+            marks=pytest.mark.skip(reason="needs more than one epoch"),
+        ),
         # The torchvision-faithful flavors share the same interface and
         # train through the same machinery, but their anchor grids differ
         # from the custom flavors this fixture was tuned for (dot size,
@@ -87,6 +102,18 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
             build_ssd,
             id="torchvision_ssdlite",
             marks=pytest.mark.skip(reason="convergence not tuned"),
+        ),
+        pytest.param(
+            build_fcos,
+            id="torchvision_fcos",
+            marks=pytest.mark.skip(reason="convergence not tuned"),
+        ),
+        # The vanilla BLAZEFACE recipes keep MediaPipe's full-image
+        # anchors, which never match a small box -- only the retina-
+        # anchored trainable flavor can learn this dataset.
+        pytest.param(
+            partial(build_blaze, arch=RETINANET_F),
+            id="blazenet",
         ),
     ],
 )
@@ -137,3 +164,32 @@ def test_pipeline(
 
     assert aps.iloc[0]["mAP"] == pytest.approx(1.0)
     visualize_fp_fn(aps, i2l=model.label_encoder.i2l)
+
+
+def test_fcos_delta_converges(
+    resolution: tuple[int, int],
+    dataset: pathlib.Path,
+):
+    """The FCOS_DELTA counterpart of test_pipeline's fcos case, with the
+    epoch budget its convention-mismatched warm start needs (see the
+    skip note in the parametrization above)."""
+    data = read_samples(dataset)
+
+    lencoder = LabelEncoder(
+        l2i={"__background__": 0, "dot": 1},
+    ).fit(data)
+    model = build_fcos(
+        resolution=resolution,
+        lencoder=lencoder,
+        arch=FCOS_DELTA,
+        engine=simple_engine(max_epochs=5),
+    )
+    model.fit(data)
+    y_pred = model.transform(data)
+    m_ap = mean_average_precision(
+        data,
+        y_pred,
+        model.label_encoder.l2i,
+        resolution=resolution,
+    )
+    assert m_ap["mAP"].iloc[0] == pytest.approx(1.0)

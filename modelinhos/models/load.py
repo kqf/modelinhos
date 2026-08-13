@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from typing import Callable
 
@@ -48,18 +49,35 @@ def load_with_mismatch(model, pretrained_state_dict):
     return model
 
 
+def modernize_fpn(state: dict) -> dict:
+    """Checkpoints predating torchvision's Conv2dNormActivation FPN
+    blocks (e.g. the FCOS COCO weights) address the lateral convs as
+    fpn.{inner,layer}_blocks.N.weight; current models nest them one
+    level deeper (...N.0.weight). torchvision performs this rename in
+    FeaturePyramidNetwork._load_from_state_dict, a hook that
+    load_with_mismatch's plain dict lookup bypasses -- so redo it here.
+    Modern keys don't match the pattern and pass through unchanged."""
+    pattern = re.compile(
+        r"(.*fpn\.(?:inner|layer)_blocks\.\d+\.)(weight|bias)$"
+    )
+    return {
+        pattern.sub(r"\g<1>0.\g<2>", name): param
+        for name, param in state.items()
+    }
+
+
 def state_dict(source, progress: bool = True) -> dict:
     """Normalize a weights source into a plain state dict. A source is
     either a torchvision-style weights object (anything with
     .get_state_dict()) or a checkpoint path. Engine checkpoints hold the
     DetectionModel wrapper's dict (model.-prefixed keys); the prefix is
-    stripped so the result always addresses the raw model that
-    build_model produces."""
+    stripped -- and legacy FPN keys renamed -- so the result always
+    addresses the raw model that build_model produces."""
     if isinstance(source, (str, Path)):
         state = torch.load(source, map_location="cpu", weights_only=True)
         consume_prefix_in_state_dict_if_present(state, "model.")
-        return state
-    return source.get_state_dict(progress=progress)
+        return modernize_fpn(state)
+    return modernize_fpn(source.get_state_dict(progress=progress))
 
 
 def warm_start(source, progress: bool = True) -> Weights:

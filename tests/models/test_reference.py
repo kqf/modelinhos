@@ -6,16 +6,23 @@ import pytest
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
 )
+from torchvision.models.detection.fcos import FCOS_ResNet50_FPN_Weights
 from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
 )
 
+from modelinhos.models.fcos import TORCHVISION_FCOS
 from modelinhos.models.load import warm_start
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.plot import plot
 from modelinhos.sample import Annotation, Sample
-from modelinhos.zoo import build_retina, build_ssd, coco_label_encoder
+from modelinhos.zoo import (
+    build_fcos,
+    build_retina,
+    build_ssd,
+    coco_label_encoder,
+)
 
 
 def pad(image: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
@@ -52,7 +59,9 @@ def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
 
 
 def _show(frame, predictions: Sample, headless: bool) -> Sample:
-    annotated = plot(frame, predictions)
+    # plot() draws in place; the copy keeps the fixture frame pristine
+    # for the custom-flavor half of the test.
+    annotated = plot(frame.copy(), predictions)
     # sourcery skip: no-conditionals-in-tests
     if not headless:
         cv2.imshow("Predictions", annotated)
@@ -100,13 +109,13 @@ def assert_same_sample(preds, expect):
                 annotations=[
                     Annotation(
                         bbox=(
-                            0.3935115933418274,
-                            0.16947117447853088,
-                            0.6124681830406189,
-                            0.8234121799468994,
+                            0.39374256134033203,
+                            0.17770814895629883,
+                            0.6129556894302368,
+                            0.8271784782409668,
                         ),
                         label="person",
-                        score=0.8907293081283569,
+                        score=0.9418545961380005,
                     )
                 ],
             ),
@@ -151,16 +160,107 @@ def assert_same_sample(preds, expect):
                 annotations=[
                     Annotation(
                         bbox=(
-                            0.4513413608074188,
-                            0.28857308626174927,
-                            0.545616090297699,
-                            0.7160523533821106,
+                            0.44881758093833923,
+                            0.28418341279029846,
+                            0.5495325326919556,
+                            0.718977689743042,
                         ),
                         label="person",
-                        score=0.9877095222473145,
-                    )
+                        score=0.9937841892242432,
+                    ),
+                    Annotation(
+                        bbox=(
+                            0.4882265329360962,
+                            0.3621034026145935,
+                            0.49907851219177246,
+                            0.4121883511543274,
+                        ),
+                        label="tie",
+                        score=0.6264503002166748,
+                    ),
                 ],
             ),
+        ),
+        pytest.param(
+            # This is magic resolution to avoid additional geometric conversion
+            (
+                800,
+                1088,
+            ),
+            TORCHVISION_FCOS,
+            build_fcos,
+            FCOS_ResNet50_FPN_Weights.COCO_V1,
+            Sample(
+                file_name=Path("fake-file.png"),
+                annotations=[
+                    Annotation(
+                        bbox=(
+                            0.4511823093189913,
+                            0.27916501998901366,
+                            0.5481687433579389,
+                            0.7202278900146485,
+                        ),
+                        label="person",
+                        score=0.9291312098503113,
+                    ),
+                    Annotation(
+                        bbox=(
+                            0.4872165567734662,
+                            0.3600777053833008,
+                            0.4979667102589327,
+                            0.42221889495849607,
+                        ),
+                        label="tie",
+                        score=0.7631757259368896,
+                    ),
+                    Annotation(
+                        bbox=(
+                            0.476831828846651,
+                            0.35910423278808595,
+                            0.5004750420065487,
+                            0.5312664031982421,
+                        ),
+                        label="tie",
+                        score=0.4490560293197632,
+                    ),
+                ],
+            ),
+            Sample(
+                file_name=Path("fake-file.png"),
+                annotations=[
+                    Annotation(
+                        bbox=(
+                            0.4511823058128357,
+                            0.27916499972343445,
+                            0.5481687784194946,
+                            0.720227837562561,
+                        ),
+                        label="person",
+                        score=0.9291312098503113,
+                    ),
+                    Annotation(
+                        bbox=(
+                            0.4872165322303772,
+                            0.3600776791572571,
+                            0.4979666769504547,
+                            0.42221885919570923,
+                        ),
+                        label="tie",
+                        score=0.7631757259368896,
+                    ),
+                    Annotation(
+                        bbox=(
+                            0.4768318235874176,
+                            0.3591042459011078,
+                            0.5004750490188599,
+                            0.5312663912773132,
+                        ),
+                        label="tie",
+                        score=0.4490560293197632,
+                    ),
+                ],
+            ),
+            id="fcos_resnet50_fpn",
         ),
     ],
 )

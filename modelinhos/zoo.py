@@ -10,6 +10,7 @@ come from recipe.reference -- a plain predict function, not a Detector."""
 from torchvision.models.detection import (
     SSDLite320_MobileNet_V3_Large_Weights,
 )
+from torchvision.models.detection.fcos import FCOS_ResNet50_FPN_Weights
 from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
 )
@@ -22,6 +23,7 @@ from modelinhos.detector import (
 )
 from modelinhos.engine.simple import simple_engine
 from modelinhos.models.blazenet import BLAZEFACE_F, BlazeNet_Weights
+from modelinhos.models.fcos import TORCHVISION_FCOS
 from modelinhos.models.load import Weights, warm_start
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
@@ -104,6 +106,35 @@ def build_retina(
     head starts quiet (prior-probability biases) instead of firing
     everywhere. Pass arch=RETINANET for the trimmed custom flavor,
     weights=from_scratch to skip loading."""
+    return build_detector(
+        arch=arch,
+        weights=weights,
+        lencoder=lencoder,
+        resolution=resolution,
+        th=th,
+        engine=engine,
+    )
+
+
+def build_fcos(
+    resolution: tuple[int, int],
+    lencoder: LabelEncoder,
+    arch: DetectionRecipe = TORCHVISION_FCOS,
+    weights: Weights = warm_start(
+        FCOS_ResNet50_FPN_Weights.COCO_V1, progress=False
+    ),
+    engine: EngineBuilder = simple_engine(max_epochs=10),
+    th: float = 0.4,
+) -> Detector:
+    """Our FCOS reimplementation. Same contract as build_ssd: lencoder
+    must be fit (it sizes the head), weights is a warm_start/restore
+    loader (from_scratch to skip loading), and with coco_label_encoder
+    the defaults reproduce the torchvision pretrained detector exactly.
+    The loss mirrors torchvision's own (focal + GIoU + centerness BCE
+    with centre-sampling matching), so the warm start is
+    convention-exact. Pass arch=FCOS_DELTA for the retina-anchored
+    trainable flavor on the standard delta codec -- see models/fcos.py
+    for why that pair is a clean RetinaNet A/B."""
     return build_detector(
         arch=arch,
         weights=weights,
