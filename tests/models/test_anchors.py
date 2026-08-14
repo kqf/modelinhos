@@ -64,7 +64,7 @@ def _ssd_anchorgen():
                 anchors,
                 sizes=[[16, 32], [64, 128], [256, 512]],
                 steps=[8, 16, 32],
-                aspect_ratios=[1.0],
+                aspect_ratios=(1.0,),
                 clip=False,
                 offset=0,
             ),

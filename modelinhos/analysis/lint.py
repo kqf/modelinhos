@@ -1,6 +1,6 @@
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import cv2
 

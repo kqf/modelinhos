@@ -1,6 +1,6 @@
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import torch
 from torch.nn.modules.utils import consume_prefix_in_state_dict_if_present
@@ -73,7 +73,7 @@ def state_dict(source, progress: bool = True) -> dict:
     DetectionModel wrapper's dict (model.-prefixed keys); the prefix is
     stripped -- and legacy FPN keys renamed -- so the result always
     addresses the raw model that build_model produces."""
-    if isinstance(source, (str, Path)):
+    if isinstance(source, str | Path):
         state = torch.load(source, map_location="cpu", weights_only=True)
         consume_prefix_in_state_dict_if_present(state, "model.")
         return modernize_fpn(state)

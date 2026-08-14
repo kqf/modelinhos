@@ -3,8 +3,8 @@ import matplotlib
 matplotlib.use("Agg")
 
 import pathlib
+from collections.abc import Callable
 from functools import partial
-from typing import Callable
 
 import cv2
 import numpy as np

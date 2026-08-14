@@ -1,20 +1,19 @@
 import functools
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional, Union
+from typing import TypeAlias
 
 import torch
 
 from modelinhos.tasks.standard import StandardDetection
 
-LossFunctionyType = Union[
-    torch.nn.Module,
-    Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
-]
+CallableLoss: TypeAlias = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+AnyLoss: TypeAlias = torch.nn.Module | CallableLoss
 
 
 @dataclass
 class WeightedLoss:
-    loss: Optional[LossFunctionyType]
+    loss: AnyLoss | None
     weight: float = 1.0
     dec_pred: Callable = lambda x: x
     enc_pred: Callable = lambda x, _: x
@@ -26,7 +25,7 @@ class WeightedLoss:
     # head lives in the scores slot but its target is a function of the
     # matched GT box (true_field="bboxes") and the anchor, computed by
     # enc_true.
-    true_field: Optional[str] = None
+    true_field: str | None = None
 
     def __call__(self, y_pred, y_true, anchors):
         y_pred_encoded = self.enc_pred(y_pred, anchors)
@@ -34,7 +33,7 @@ class WeightedLoss:
         return self.weight * self.loss(y_pred_encoded, y_true_encoded)
 
 
-def masked_loss(loss_function: LossFunctionyType) -> LossFunctionyType:
+def masked_loss(loss_function: AnyLoss) -> AnyLoss:
     @functools.wraps(loss_function)
     def f(pred: torch.Tensor, data: torch.Tensor) -> torch.Tensor:
         mask = ~torch.isnan(data)
@@ -48,7 +47,7 @@ def masked_loss(loss_function: LossFunctionyType) -> LossFunctionyType:
     return f
 
 
-def sum_normalized(loss_function: LossFunctionyType) -> LossFunctionyType:
+def sum_normalized(loss_function: AnyLoss) -> AnyLoss:
     @functools.wraps(loss_function)
     def f(pred: torch.Tensor, true: torch.Tensor) -> torch.Tensor:
         loss = loss_function(pred, true)
@@ -59,7 +58,7 @@ def sum_normalized(loss_function: LossFunctionyType) -> LossFunctionyType:
     return f
 
 
-def positive_normalized(loss_function: LossFunctionyType) -> LossFunctionyType:
+def positive_normalized(loss_function: AnyLoss) -> AnyLoss:
     """Sum-reduced loss divided by the number of positive targets
     (target > 0, background being 0). This is the SSD convention for the
     confidence loss: it is computed over positives plus mined negatives,

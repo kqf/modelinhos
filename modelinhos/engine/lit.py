@@ -4,8 +4,8 @@ outside the loop entirely (evaluate after fit via Detector.transform).
 Importing this module requires lightning
 (pip install modelinhos[lightning])."""
 
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Optional
 
 import torch
 
@@ -133,9 +133,9 @@ def lightning_engine(
     batch_size: int = 2,
     num_workers: int = 0,
     optimizer_builder: Callable = default_optimizer_builder,
-    train_dataloader_builder: Optional[DLBuilder] = None,
-    valid_dataloader_builder: Optional[DLBuilder] = None,
-    trainer_kwargs: Optional[dict] = None,
+    train_dataloader_builder: DLBuilder | None = None,
+    valid_dataloader_builder: DLBuilder | None = None,
+    trainer_kwargs: dict | None = None,
 ) -> Callable[[Baked], LightningEngine]:
     """Baked -> LightningEngine builder for build_detector(engine=...).
     batch_size/num_workers cover the common case (same vocabulary as the
