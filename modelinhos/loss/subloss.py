@@ -1,16 +1,14 @@
 import functools
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Union
 
 import torch
 
 from modelinhos.tasks.standard import StandardDetection
 
-LossFunctionyType = Union[
-    torch.nn.Module,
-    Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
-]
+LossFunctionyType = (
+    torch.nn.Module | Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+)
 
 
 @dataclass
