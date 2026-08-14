@@ -57,8 +57,13 @@ def modernize_fpn(state: dict) -> dict:
     FeaturePyramidNetwork._load_from_state_dict, a hook that
     load_with_mismatch's plain dict lookup bypasses -- so redo it here.
     Modern keys don't match the pattern and pass through unchanged."""
-    pattern = re.compile(r"(.*fpn\.(?:inner|layer)_blocks\.\d+\.)(weight|bias)$")
-    return {pattern.sub(r"\g<1>0.\g<2>", name): param for name, param in state.items()}
+    pattern = re.compile(
+        r"(.*fpn\.(?:inner|layer)_blocks\.\d+\.)(weight|bias)$"
+    )
+    return {
+        pattern.sub(r"\g<1>0.\g<2>", name): param
+        for name, param in state.items()
+    }
 
 
 def state_dict(source, progress: bool = True) -> dict:
