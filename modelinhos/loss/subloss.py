@@ -1,6 +1,7 @@
 import functools
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional, Union
+from typing import Union
 
 import torch
 
@@ -14,7 +15,7 @@ LossFunctionyType = Union[
 
 @dataclass
 class WeightedLoss:
-    loss: Optional[LossFunctionyType]
+    loss: LossFunctionyType | None
     weight: float = 1.0
     dec_pred: Callable = lambda x: x
     enc_pred: Callable = lambda x, _: x
@@ -26,7 +27,7 @@ class WeightedLoss:
     # head lives in the scores slot but its target is a function of the
     # matched GT box (true_field="bboxes") and the anchor, computed by
     # enc_true.
-    true_field: Optional[str] = None
+    true_field: str | None = None
 
     def __call__(self, y_pred, y_true, anchors):
         y_pred_encoded = self.enc_pred(y_pred, anchors)

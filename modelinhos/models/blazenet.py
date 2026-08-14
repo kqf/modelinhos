@@ -1,8 +1,8 @@
+from collections.abc import Callable
 from functools import partial
 from itertools import product
 from math import ceil
 from pathlib import Path
-from typing import Callable
 
 import cv2
 import numpy as np

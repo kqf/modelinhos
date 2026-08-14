@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from dataclasses import fields
 from functools import partial
-from typing import Tuple
 
 import torch
 from torch import nn
@@ -49,7 +48,7 @@ Matching = Callable[
         StandardDetection[torch.Tensor],
         torch.Tensor,
     ],
-    Tuple[torch.Tensor, torch.Tensor],
+    tuple[torch.Tensor, torch.Tensor],
 ]
 
 

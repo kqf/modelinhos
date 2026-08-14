@@ -1,6 +1,6 @@
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import torch
 from torch.nn.modules.utils import consume_prefix_in_state_dict_if_present

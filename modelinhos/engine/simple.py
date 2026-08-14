@@ -4,8 +4,8 @@ Metrics and label handling live outside the loop on purpose: evaluate
 after fit via Detector.transform, so no engine is forced to know about
 label encoders."""
 
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Optional
 
 import torch
 import tqdm
@@ -59,7 +59,7 @@ class SimpleTrainer:
             default_dataloader_builder, shuffle=True
         ),
         valid_dataloader_builder: DLBuilder = default_dataloader_builder,
-        device: Optional[str] = None,
+        device: str | None = None,
     ):
         self.decode = decode
         self.collate = collate
@@ -144,8 +144,8 @@ def simple_engine(
     lr: float = 1e-3,
     batch_size: int = 2,
     num_workers: int = 0,
-    train_dataloader_builder: Optional[DLBuilder] = None,
-    valid_dataloader_builder: Optional[DLBuilder] = None,
+    train_dataloader_builder: DLBuilder | None = None,
+    valid_dataloader_builder: DLBuilder | None = None,
     **knobs,
 ) -> Callable[[Baked], SimpleTrainer]:
     """Baked -> SimpleTrainer builder for build_detector(engine=...).

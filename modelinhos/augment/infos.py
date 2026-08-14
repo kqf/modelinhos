@@ -5,7 +5,7 @@ split -- training simulated at the sample level, no pipeline needed."""
 
 import pathlib
 import random
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 import torch

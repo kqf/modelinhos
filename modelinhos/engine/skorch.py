@@ -7,7 +7,7 @@ already owns the codec, so DetectionNet just delegates to
 criterion_.decode. Importing this module requires skorch
 (pip install modelinhos[skorch])."""
 
-from typing import Callable
+from collections.abc import Callable
 
 import torch
 

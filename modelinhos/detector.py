@@ -1,6 +1,6 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional
 
 import numpy as np
 import torch
@@ -39,7 +39,7 @@ class Detector:
         self,
         engine: Engine,
         image_encoder: Callable,
-        label_encoder: Optional[SampleEncoder] = None,
+        label_encoder: SampleEncoder | None = None,
         augment: Augmentation = identity,
     ):
         self._engine = engine
@@ -48,7 +48,7 @@ class Detector:
         self.augment = augment
 
     def fit(
-        self, samples: list[Sample], val_samples: Optional[list[Sample]] = None
+        self, samples: list[Sample], val_samples: list[Sample] | None = None
     ) -> "Detector":
         encoded = self.label_encoder.fit_transform(samples)
         # Augmentation is a train-only concern: the val dataset below and
@@ -121,7 +121,7 @@ class DetectionRecipe:
     # (weights, frames, th) -> list[Sample]: the torchvision-native
     # upstream this recipe mirrors (see torchvision_reference), used as
     # the ground truth in parity tests. None when there is no upstream.
-    reference: Optional[Callable] = None
+    reference: Callable | None = None
 
     def bake(
         self,

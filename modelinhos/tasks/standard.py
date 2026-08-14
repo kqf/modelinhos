@@ -1,5 +1,6 @@
+from collections.abc import Callable
 from dataclasses import dataclass, fields, replace
-from typing import Callable, Generic, TypeVar
+from typing import Generic, TypeVar
 
 import torch
 
