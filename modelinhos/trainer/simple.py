@@ -1,6 +1,6 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
-from typing import Callable, Optional
 
 import torch
 import tqdm
@@ -43,12 +43,12 @@ class TrainConfig:
     epochs: int = 1
     lr: float = 1e-3
     optimizer_builder: Callable = default_optimizer_builder
-    metrics: Optional[Callable] = None
+    metrics: Callable | None = None
     train_dataloader_builder: DLBuilder = partial(
         default_dataloader_builder, shuffle=True
     )
     valid_dataloader_builder: DLBuilder = default_dataloader_builder
-    device: Optional[str] = None
+    device: str | None = None
 
 
 class SimpleTrainer:

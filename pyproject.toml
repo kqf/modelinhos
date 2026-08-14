@@ -63,8 +63,6 @@ dependencies = [
 readme = { file = "README.rst", content-type = "text/x-rst" }
 
 [project.optional-dependencies]
-# Training engines beyond the built-in SimpleTrainer; each one is only
-# required by its own modelinhos.engine.<name> module.
 skorch = ["skorch"]
 lightning = ["lightning"]
 # Only required by modelinhos.augment.albumentations (the torchvision
