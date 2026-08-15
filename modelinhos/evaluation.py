@@ -1,3 +1,4 @@
+import itertools
 import warnings
 from collections import defaultdict
 from collections.abc import Iterator
@@ -344,7 +345,7 @@ def per_size_metrics(
 
     results = []
     edges = tqdm(
-        zip(bins[:-1], bins[1:]),
+        itertools.pairwise(bins),
         total=len(bins) - 1,
         desc="Per-size metrics",
     )
@@ -394,7 +395,7 @@ def visualize_pr(
         thresholds = group["threshold"].tolist()
         ap = group["ap"].iloc[0]
 
-        fig, ax = plt.subplots(figsize=(6, 5))
+        _, ax = plt.subplots(figsize=(6, 5))
         ax.plot(recall, precision, label="Precision")
         ax.set_xlabel("Recall")
         ax.set_ylabel("Precision")
