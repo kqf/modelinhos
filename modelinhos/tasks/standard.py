@@ -3,6 +3,7 @@ from dataclasses import dataclass, fields, replace
 from typing import Generic, TypeVar
 
 import torch
+from typing_extensions import Self
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -26,7 +27,7 @@ class StandardDetection(Generic[T]):
     scores: T
     labels: T
 
-    def to(self: D, device) -> D:
+    def to(self, device) -> Self:
         # Only meaningful when T supports .to() (i.e. tensors)
         return replace(
             self,

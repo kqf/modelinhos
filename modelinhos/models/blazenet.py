@@ -7,8 +7,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 from torchvision.models._api import Weights, WeightsEnum
 from torchvision.ops import box_iou
 from torchvision.transforms._presets import ObjectDetection

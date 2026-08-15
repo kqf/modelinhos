@@ -92,7 +92,7 @@ def visualize_labels(frames: dict[str, pd.DataFrame]):
         union += [label for label in frame.label if label not in union]
     x = np.arange(len(union))
     width = 0.8 / len(frames)
-    fig, ax = plt.subplots(figsize=(6, 4))
+    _, ax = plt.subplots(figsize=(6, 4))
     for i, (name, frame) in enumerate(frames.items()):
         shares = frame.set_index("label").share.reindex(union, fill_value=0)
         shift = (i - (len(frames) - 1) / 2) * width
@@ -127,7 +127,7 @@ def visualize_bboxes(
         )
         for name, frame in frames.items()
     }
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+    _, axes = plt.subplots(1, 4, figsize=(16, 4))
     for ax, column in zip(axes, ("w", "h", "scale", "aspect")):
         combined = np.concatenate(
             [view[column].to_numpy() for view in views.values()]
