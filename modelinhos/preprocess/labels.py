@@ -131,8 +131,8 @@ class LabelEncoder:
 
 
 class DoNothingEncoder:
-    l2i: dict[str, int] = {}
-    i2l: dict[int, str] = {}
+    l2i: dict[str, int] = field(default_factory=dict)
+    i2l: dict[int, str] = field(default_factory=dict)
     n_classes: int = 0
 
     def fit_transform(self, samples: list[Sample]) -> list[Sample]:
