@@ -189,7 +189,7 @@ def anchor_advice(
     reason = np.select(
         [ceilings.smaller > 0, ceilings.larger > 0],
         [
-            f"below the {floor:.0f}px anchor floor -- " "raise the resolution",
+            f"below the {floor:.0f}px anchor floor -- raise the resolution",
             f"above the {ceiling:.0f}px anchor ceiling -- "
             "add coarser sizes or lower the resolution",
         ],

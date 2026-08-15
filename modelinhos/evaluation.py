@@ -432,7 +432,7 @@ def visualize_map_size(per_size: pd.DataFrame):
         f"{lo:g}–{hi:g}" for lo, hi in zip(bins["size_lo"], bins["size_hi"])
     ]
 
-    fig, ax = plt.subplots(figsize=(8, 4))
+    _, ax = plt.subplots(figsize=(8, 4))
     ax.bar(labels, bins["mAP"], color="steelblue", edgecolor="white")
     supports = bins["tp"] + bins["fn"]
     for x, (m_ap, support) in enumerate(zip(bins["mAP"], supports)):

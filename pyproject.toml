@@ -21,6 +21,8 @@ extend-select = [
 ]
 ignore = [
     "E203",
+    "B008", # Do not perform function call
+    "RUF009", # Don not perform partials
     # "W503",
 ]
 

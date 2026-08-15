@@ -57,10 +57,12 @@ def grayscale_image_encoder(resolution: tuple[int, int]):
                 )
             ),
             T.Lambda(
-                lambda frame: torch.from_numpy(frame)
-                .float()
-                .unsqueeze(0)
-                .repeat(3, 1, 1)
+                lambda frame: (
+                    torch.from_numpy(frame)
+                    .float()
+                    .unsqueeze(0)
+                    .repeat(3, 1, 1)
+                )
             ),
         ]
     )

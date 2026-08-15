@@ -45,9 +45,9 @@ def to_sample(entry: dict[str, Any]) -> Sample[Annotation]:
             data=entry,
             config=Config(cast=[tuple, Path]),
         )
-    except Exception as e:
+    except Exception:
         print(f"Failed to parse entry: {entry}")
-        raise e
+        raise
 
 
 def read_samples(
