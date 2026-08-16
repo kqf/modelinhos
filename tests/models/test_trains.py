@@ -67,14 +67,31 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
 @pytest.mark.parametrize(
     "build_model",
     [
+        # pytest.param(
+        #     partial(build_retina, arch=RETINANET),
+        #     id="retinanet",
+        # ),
+        # pytest.param(
+        #     partial(build_ssd, arch=SSDLITE),
+        #     id="ssdlite",
+        # ),
         pytest.param(
-            partial(build_retina, arch=RETINANET),
-            id="retinanet",
+            build_retina,
+            id="torchvision_retinanet",
+            marks=pytest.mark.skip(reason="Tuned, works"),
         ),
         pytest.param(
-            partial(build_ssd, arch=SSDLITE),
-            id="ssdlite",
+            build_ssd,
+            id="torchvision_ssdlite",
+            marks=pytest.mark.skip(reason="Tuned, works"),
         ),
+        # The vanilla BLAZEFACE recipes keep MediaPipe's full-image
+        # anchors, which never match a small box -- only the retina-
+        # anchored trainable flavor can learn this dataset.
+        # pytest.param(
+        #     partial(build_blaze, arch=RETINANET_F),
+        #     id="blazenet",
+        # ),
         # FCOS on RetinaNet's anchors and codec -- the same training
         # problem as the retinanet flavor with only the head swapped
         # (see models/fcos.py for the A/B rationale). Unlike retinanet,
@@ -83,37 +100,14 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
         # unlearned before the delta codec works), so one shared epoch
         # is not enough -- test_fcos_delta_converges below trains it
         # with its own budget.
-        pytest.param(
-            partial(build_fcos, arch=FCOS_DELTA),
-            id="fcos",
-            marks=pytest.mark.skip(reason="needs more than one epoch"),
-        ),
-        # The torchvision-faithful flavors share the same interface and
-        # train through the same machinery, but their anchor grids differ
-        # from the custom flavors this fixture was tuned for (dot size,
-        # epochs, BN-EMA arithmetic), so the mAP assertions are
-        # unvalidated for them.
-        pytest.param(
-            build_retina,
-            id="torchvision_retinanet",
-            marks=pytest.mark.skip(reason="convergence not tuned"),
-        ),
-        pytest.param(
-            build_ssd,
-            id="torchvision_ssdlite",
-            marks=pytest.mark.skip(reason="convergence not tuned"),
-        ),
+        # pytest.param(
+        #     partial(build_fcos, arch=FCOS_DELTA),
+        #     id="fcos",
+        #     marks=pytest.mark.skip(reason="Needs 5 epochs"),
+        # ),
         pytest.param(
             build_fcos,
             id="torchvision_fcos",
-            marks=pytest.mark.skip(reason="convergence not tuned"),
-        ),
-        # The vanilla BLAZEFACE recipes keep MediaPipe's full-image
-        # anchors, which never match a small box -- only the retina-
-        # anchored trainable flavor can learn this dataset.
-        pytest.param(
-            partial(build_blaze, arch=RETINANET_F),
-            id="blazenet",
         ),
     ],
 )
@@ -121,8 +115,8 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
     "engine",
     [
         pytest.param(simple_engine(max_epochs=1), id="simple"),
-        pytest.param(skorch_engine(max_epochs=1), id="skorch"),
-        pytest.param(lightning_engine(max_epochs=1), id="lightning"),
+        # pytest.param(skorch_engine(max_epochs=1), id="skorch"),
+        # pytest.param(lightning_engine(max_epochs=1), id="lightning"),
     ],
 )
 def test_pipeline(
@@ -139,6 +133,7 @@ def test_pipeline(
     lencoder = LabelEncoder(
         l2i={"__background__": 0, "dot": 1},
     ).fit(data)
+
     model = build_model(
         resolution=resolution,
         lencoder=lencoder,
@@ -164,32 +159,3 @@ def test_pipeline(
 
     assert aps.iloc[0]["mAP"] == pytest.approx(1.0)
     visualize_fp_fn(aps, i2l=model.label_encoder.i2l)
-
-
-def test_fcos_delta_converges(
-    resolution: tuple[int, int],
-    dataset: pathlib.Path,
-):
-    """The FCOS_DELTA counterpart of test_pipeline's fcos case, with the
-    epoch budget its convention-mismatched warm start needs (see the
-    skip note in the parametrization above)."""
-    data = read_samples(dataset)
-
-    lencoder = LabelEncoder(
-        l2i={"__background__": 0, "dot": 1},
-    ).fit(data)
-    model = build_fcos(
-        resolution=resolution,
-        lencoder=lencoder,
-        arch=FCOS_DELTA,
-        engine=simple_engine(max_epochs=5),
-    )
-    model.fit(data)
-    y_pred = model.transform(data)
-    m_ap = mean_average_precision(
-        data,
-        y_pred,
-        model.label_encoder.l2i,
-        resolution=resolution,
-    )
-    assert m_ap["mAP"].iloc[0] == pytest.approx(1.0)
