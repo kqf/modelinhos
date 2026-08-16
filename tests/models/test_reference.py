@@ -53,8 +53,6 @@ def pad(image: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
 @pytest.fixture
 def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
     image = cv2.imread(path)
-    if image is None:
-        pytest.skip(f"Asset not found: {path}")
     return cv2.resize(pad(image, *resolution), resolution[::-1])
 
 
