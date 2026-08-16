@@ -68,7 +68,7 @@ def collate_labels(
 def un_collate(batched: PerBatch, pad_value: float = -1.0) -> list[PerImage]:
     mask = batched.labels[..., 0] != pad_value
     return [
-        map_fields(lambda t: t[i][mask[i]], batched, into=PerImage)
+        map_fields(lambda t, i=i: t[i][mask[i]], batched, into=PerImage)
         for i in range(batched.labels.shape[0])
     ]
 
