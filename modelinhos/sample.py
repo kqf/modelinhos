@@ -60,7 +60,12 @@ def read_samples(
     samples = [to_sample(x) for x in df if x]
     # Loud failure for pixel-space annotations: everything downstream
     # assumes relative coordinates, and pixel boxes would be silently
-    # wrong (tiny) rather than broken.
+    # wrong (tiny) rather than broken. Inside the tolerance the
+    # coordinates are clamped rather than rejected: annotation files
+    # routinely carry a hair of float noise past the edge, and strict
+    # consumers (albumentations validates its bbox range) would raise
+    # on it mid-training. Clamping here is what lets everything
+    # downstream assume [0, 1] exactly.
     for sample in samples:
         for ann in sample.annotations:
             if not all(-0.01 <= c <= 1.01 for c in ann.bbox):
@@ -69,6 +74,7 @@ def read_samples(
                     "relative coordinates -- annotations must be "
                     "normalized to [0, 1] fractions of the image size"
                 )
+            ann.bbox = tuple(min(max(c, 0.0), 1.0) for c in ann.bbox)  # type: ignore
     if relative:
         for sample in samples:
             sample.file_name = path.parent / sample.file_name
