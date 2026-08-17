@@ -47,10 +47,11 @@ def augment(
         annotations: list[TrainAnnotation],
     ) -> tuple[np.ndarray, list[TrainAnnotation]]:
         result = pipeline(
+            # albumentations validates its bbox range strictly; ingest
+            # (sample.read_samples) already clamps the float noise that
+            # would trip it, so boxes go in as they are and a box still
+            # outside [0, 1] here is a genuine bug worth the raise.
             image=image,
-            # ingest tolerates coordinates a hair outside [0, 1];
-            # albumentations validates strictly, so clamp here
-            # Let albumentations fail
             bboxes=[a.bboxes for a in annotations],
             labels=[a.labels for a in annotations],
             scores=[a.scores for a in annotations],
