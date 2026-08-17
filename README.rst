@@ -34,8 +34,8 @@ as::
 
 On the level of data, one sample goes through::
 
-    Sample[Annotation]                boxes in pixels, labels as strings
-      | LabelEncoder.transform        normalize boxes to [0, 1], labels to ints
+    Sample[Annotation]                relative xyxy boxes, string labels
+      | LabelEncoder.transform        labels to ints; boxes pass through
     Sample[TrainAnnotation]
       | SampleDataset[idx]            read pixels; iencoder: BGR uint8 HWC -> float CHW
     (image tensor, PerImage)
@@ -49,12 +49,12 @@ On the level of data, one sample goes through::
       | Collate.un_batch_nms          strip padding, NMS
     list[Sample[TrainAnnotation]]
       | LabelEncoder.inverse_transform
-    list[Sample[Annotation]]          back to pixels and strings
+    list[Sample[Annotation]]          back to string labels
 
-Everything above ``model`` is the ``Detector``'s job (pixel space meets
-normalized space exactly once, in ``LabelEncoder``); everything between
-``model`` and ``loss`` is the engine's job; the recipe guarantees the
-pieces agree.
+Everything above ``model`` is the ``Detector``'s job (boxes stay
+relative the whole way down and back -- only the labels change
+representation, in ``LabelEncoder``); everything between ``model`` and
+``loss`` is the engine's job; the recipe guarantees the pieces agree.
 
 Usage
 -----
@@ -137,7 +137,12 @@ to a commit hash -- the script at that commit is the config.
    ``modelinhos.evaluation.mean_average_precision`` returns the full
    PR tables; ``trainings/evaluate-ssd-misc.py`` shows the flow --
    plot the PR curves, choose the operating threshold, then inspect
-   per-image FP/FN at that threshold to find the failures.
+   per-image FP/FN at that threshold to find the failures. Every
+   entry point takes a ``resolution=(h, w)`` and scales ground truth
+   and predictions to it alike: the mAP backend computes VOC-style
+   IoU with the inclusive ``+1`` pixel convention, so it needs a
+   pixel space, and the numbers depend (weakly, ~1/object_size) on
+   which one -- pin it to the deploy resolution.
 
 5. **Export.** ``restore(checkpoint)`` is the strict loader for
    evaluation and export (any key or shape drift raises -- the
