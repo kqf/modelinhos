@@ -32,8 +32,9 @@ class DetectionModel(torch.nn.Module):
 class Detector:
     """The stable public API: samples in, samples out, regardless of
     which model family or training engine sits behind it. Converts
-    between Sample objects (pixel space, string labels) and whatever
-    the engine's dataset/decode expect. Compose via build_detector()."""
+    between Sample objects (relative xyxy boxes, string labels) and
+    whatever the engine's dataset/decode expect. Compose via
+    build_detector()."""
 
     def __init__(
         self,
