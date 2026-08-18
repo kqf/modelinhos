@@ -130,6 +130,7 @@ class LabelEncoder:
         ]
 
 
+@dataclass
 class DoNothingEncoder:
     l2i: dict[str, int] = field(default_factory=dict)
     i2l: dict[int, str] = field(default_factory=dict)
