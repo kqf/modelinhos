@@ -59,8 +59,6 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
     return save_samples(data, tmp_path / "data" / "annotations.json")
 
 
-# This test checks the models, not the engines: everything trains on
-# the simple engine, and each flavor brings its own epoch budget.
 @pytest.mark.parametrize(
     "build_model, max_epochs",
     [
@@ -121,9 +119,6 @@ def test_pipeline(
     matplotlib.use("Agg")
     data = read_samples(dataset)
 
-    # Learn l2i from the data itself (the full from-scratch path). The
-    # encoder must be fit BEFORE building: the classification head is
-    # sized from lencoder.n_classes at construction time.
     lencoder = LabelEncoder(
         l2i={"__background__": 0, "dot": 1},
     ).fit(data)
