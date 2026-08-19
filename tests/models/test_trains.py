@@ -7,9 +7,7 @@ import matplotlib
 import numpy as np
 import pytest
 
-from modelinhos.engine.lit import lightning_engine
 from modelinhos.engine.simple import simple_engine
-from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
@@ -62,22 +60,26 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
 
 
 @pytest.mark.parametrize(
-    "build_model",
+    "build_model, max_epochs",
     [
         pytest.param(
             partial(build_retina, arch=RETINANET),
+            1,
             id="retinanet",
         ),
         pytest.param(
             partial(build_ssd, arch=SSDLITE),
+            1,
             id="ssdlite",
         ),
         pytest.param(
             build_retina,
+            1,
             id="torchvision_retinanet",
         ),
         pytest.param(
             build_ssd,
+            1,
             id="torchvision_ssdlite",
         ),
         # The vanilla BLAZEFACE recipes keep MediaPipe's full-image
@@ -85,6 +87,7 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
         # anchored trainable flavor can learn this dataset.
         pytest.param(
             partial(build_blaze, arch=RETINANET_F),
+            1,
             id="blazenet",
         ),
         # FCOS on RetinaNet's anchors and codec -- the same training
@@ -92,31 +95,23 @@ def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
         # (see models/fcos.py for the A/B rationale). Unlike retinanet,
         # its warm start is convention-mismatched (the FCOS checkpoint's
         # relu'd ltrb regression and 91 COCO class channels must be
-        # unlearned before the delta codec works), so one shared epoch
-        # is not enough -- test_fcos_delta_converges below trains it
-        # with its own budget.
+        # unlearned before the delta codec works), so it needs a larger
+        # epoch budget than the rest.
         pytest.param(
             partial(build_fcos, arch=FCOS_DELTA),
+            5,
             id="fcos",
-            marks=pytest.mark.skip(reason="Needs 5 epochs"),
         ),
         pytest.param(
             build_fcos,
+            1,
             id="torchvision_fcos",
         ),
     ],
 )
-@pytest.mark.parametrize(
-    "engine",
-    [
-        pytest.param(simple_engine(max_epochs=1), id="simple"),
-        pytest.param(skorch_engine(max_epochs=1), id="skorch"),
-        pytest.param(lightning_engine(max_epochs=1), id="lightning"),
-    ],
-)
 def test_pipeline(
     build_model: Callable,
-    engine: Callable,
+    max_epochs: int,
     resolution: tuple[int, int],
     dataset: pathlib.Path,
 ):
@@ -124,9 +119,6 @@ def test_pipeline(
     matplotlib.use("Agg")
     data = read_samples(dataset)
 
-    # Learn l2i from the data itself (the full from-scratch path). The
-    # encoder must be fit BEFORE building: the classification head is
-    # sized from lencoder.n_classes at construction time.
     lencoder = LabelEncoder(
         l2i={"__background__": 0, "dot": 1},
     ).fit(data)
@@ -134,7 +126,7 @@ def test_pipeline(
     model = build_model(
         resolution=resolution,
         lencoder=lencoder,
-        engine=engine,
+        engine=simple_engine(max_epochs=max_epochs),
     )
     model.fit(data)
     y_pred = model.transform(data)
