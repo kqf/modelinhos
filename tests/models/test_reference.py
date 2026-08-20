@@ -285,3 +285,9 @@ def test_references_match(
     )
     md_preds = _show(frame, detector.transform_single(frame)[0], headless)
     assert_same_sample(md_preds, md_expected)
+
+
+@pytest.fixture
+def resolution() -> tuple[int, int]:
+    # This is magic resolution to avoid additional geometric conversion
+    return 800, 1088
