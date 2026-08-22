@@ -22,19 +22,26 @@ def checkpoint(tmp_path):
 
 
 def test_restores_strictly_across_the_wrapper_prefix(checkpoint):
-    model = restore(checkpoint)(Tiny())
+    load = restore(checkpoint)
+
+    model = load(Tiny())
+
     saved = torch.load(checkpoint, weights_only=True)
     for name, param in model.state_dict().items():
         assert torch.equal(param, saved[f"model.{name}"])
 
 
 def test_restore_refuses_a_resized_head(checkpoint):
+    load = restore(checkpoint)
+    resized = Tiny(n_classes=5)
+
     with pytest.raises(RuntimeError):
-        restore(checkpoint)(Tiny(n_classes=5))
+        load(resized)
 
 
 def test_warm_start_fills_a_resized_head(checkpoint):
-    model = warm_start(checkpoint)(Tiny(n_classes=5))
+    load = warm_start(checkpoint)
+    model = load(Tiny(n_classes=5))
     saved = torch.load(checkpoint, weights_only=True)
     # load_with_mismatch grows rows by repeat_interleave, so the first
     # row of the resized head is still the checkpoint's first row
@@ -46,9 +53,10 @@ def test_warm_start_fills_a_resized_head(checkpoint):
 
 
 def test_warm_start_accepts_torchvision_style_sources():
-    class Enumish:
+    class EnumLikeWeights:
         def get_state_dict(self, progress):
             return Tiny(n_classes=5).state_dict()
 
-    model = warm_start(Enumish())(Tiny(n_classes=2))
+    load = warm_start(EnumLikeWeights())
+    model = load(Tiny(n_classes=2))
     assert model.head.weight.shape == (2, 4)
