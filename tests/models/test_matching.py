@@ -36,8 +36,9 @@ def levels(resolution) -> list[int]:
 @pytest.fixture
 def y_true() -> PerBatch:
     # One real box centred on the image plus one padding row, exactly as
-    # collate_labels pads ragged batches (pad_value=-1).
-    labels = torch.tensor([[[1.0], [-1.0]]])
+    # collate_labels pads ragged batches (pad_value=-1) -- label ids are
+    # int64 there, whether or not the batch had any annotations.
+    labels = torch.tensor([[[1], [-1]]])
     return PerBatch(
         bboxes=torch.tensor(
             [
@@ -47,7 +48,7 @@ def y_true() -> PerBatch:
                 ]
             ]
         ),
-        scores=torch.ones_like(labels),
+        scores=torch.ones_like(labels, dtype=torch.float32),
         labels=labels,
     )
 
@@ -119,7 +120,7 @@ def test_atss_assigns_centred_gt(y_pred, y_true, priors, levels):
 
 
 def test_atss_gives_each_anchor_one_gt(y_pred, priors, levels):
-    labels = torch.tensor([[[1.0], [1.0]]])
+    labels = torch.tensor([[[1], [1]]])
     y_true = PerBatch(
         bboxes=torch.tensor(
             [
@@ -129,7 +130,7 @@ def test_atss_gives_each_anchor_one_gt(y_pred, priors, levels):
                 ]
             ]
         ),
-        scores=torch.ones_like(labels),
+        scores=torch.ones_like(labels, dtype=torch.float32),
         labels=labels,
     )
     positives, _ = atss_match(

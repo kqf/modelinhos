@@ -37,7 +37,7 @@ def select(
     anch_neg = anchors[a_neg]
 
     pred_all = torch.cat([pred_pos, pred_neg], dim=0)
-    true_all = torch.cat([true_pos.view(-1), true_neg], dim=0).long()
+    true_all = torch.cat([true_pos.view(-1), true_neg], dim=0)
     anch_all = torch.cat([anch_pos, anch_neg], dim=0)
     return pred_all, true_all, anch_all
 
