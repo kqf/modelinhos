@@ -177,12 +177,10 @@ def mine_negatives(
 ) -> torch.Tensor:
     batch_size, num_anchors, _ = positive.shape
     pos_batch, pos_anchor, pos_obj = torch.where(positive)
-    labels = torch.zeros_like(pred[:, :, 0], dtype=label.dtype)
-    # TODO: Check why?
-    labels = labels.long()
-    labels[pos_batch, pos_anchor] = (
-        label[pos_batch, pos_obj].squeeze(-1).long()
-    )
+    # long because it holds class indices, not because label needs
+    # fixing -- the buffer is shaped from pred, which is float logits.
+    labels = torch.zeros_like(pred[:, :, 0], dtype=torch.long)
+    labels[pos_batch, pos_anchor] = label[pos_batch, pos_obj].squeeze(-1)
     loss = F.cross_entropy(
         pred.view(-1, pred.shape[-1]),
         labels.view(-1),

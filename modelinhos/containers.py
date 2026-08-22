@@ -2,6 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, fields, replace
 from functools import partial
 from pathlib import Path
+from typing import get_args, get_type_hints
 
 import torch
 import torch.nn.utils.rnn as rnn_utils
@@ -16,13 +17,43 @@ from modelinhos.tasks.standard import (
 )
 
 
+def field_specs(annotation: type) -> dict[str, tuple[torch.dtype, int]]:
+    """Per-field tensor dtype and width, read off the type hints.
+
+    An image without annotations carries no values to infer either from,
+    so the schema stands in for them: TrainAnnotation declares labels as
+    ints, boxes and scores as floats, and boxes as a 4-tuple. A batch
+    then has the same dtypes and widths whether or not the images in it
+    were annotated. Without this an annotation-less batch comes out as
+    float32 label ids in (0, 1) boxes, and every consumer downstream
+    papers over it -- Long class indices for F.cross_entropy, four
+    coordinates to unbind.
+    """
+    hints = get_type_hints(annotation)
+    specs = {}
+    for f in fields(annotation):
+        args = get_args(hints[f.name])
+        elems = {a for a in args if a is not Ellipsis}
+        # tuple[float, ...] is variadic: one value per annotation
+        width = 1 if Ellipsis in args else len(args)
+        dtype = torch.long if elems == {int} else torch.float32
+        specs[f.name] = (dtype, width)
+    return specs
+
+
+SPECS = field_specs(TrainAnnotation)
+
+
 def anno2tensors(annotations: list[TrainAnnotation]) -> PerImage:
     return PerImage(
         **{
             f.name: (
-                torch.tensor([getattr(a, f.name) for a in annotations])
+                torch.tensor(
+                    [getattr(a, f.name) for a in annotations],
+                    dtype=SPECS[f.name][0],
+                )
                 if annotations
-                else torch.empty((0, 1))
+                else torch.empty((0, SPECS[f.name][1]), dtype=SPECS[f.name][0])
             )
             for f in fields(PerImage)
         }
@@ -49,9 +80,10 @@ def collate_labels(
 ) -> PerBatch:
     if not tensors:
         return PerBatch(
-            bboxes=torch.empty(0),
-            scores=torch.empty(0),
-            labels=torch.empty(0),
+            **{
+                f.name: torch.empty(0, dtype=SPECS[f.name][0])
+                for f in fields(PerBatch)
+            }
         )
 
     return map_fields(
