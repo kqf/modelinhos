@@ -2,7 +2,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, fields, replace
 from functools import partial
 from pathlib import Path
-from typing import get_args, get_type_hints
 
 import torch
 import torch.nn.utils.rnn as rnn_utils
@@ -16,62 +15,64 @@ from modelinhos.tasks.standard import (
     map_fields,
 )
 
+Specs = dict[str, tuple[torch.dtype, int]]
 
-def field_specs(annotation: type) -> dict[str, tuple[torch.dtype, int]]:
-    """Per-field tensor dtype and width, read off the type hints.
 
-    An image without annotations carries no values to infer either from,
-    so the schema stands in for them: TrainAnnotation declares labels as
-    ints, boxes and scores as floats, and boxes as a 4-tuple. A batch
-    then has the same dtypes and widths whether or not the images in it
-    were annotated. Without this an annotation-less batch comes out as
-    float32 label ids in (0, 1) boxes, and every consumer downstream
-    papers over it -- Long class indices for F.cross_entropy, four
-    coordinates to unbind.
+def columns(annotations: list[TrainAnnotation]) -> dict[str, torch.Tensor]:
+    return {
+        f.name: torch.tensor([getattr(a, f.name) for a in annotations])
+        for f in fields(PerImage)
+    }
+
+
+def field_specs(samples: list[Sample[TrainAnnotation]]) -> Specs:
+    """Field dtypes and widths, taken from the first annotated sample.
+
+    An annotation-less image carries no dtype or width of its own, and
+    a batch of nothing but those has none to lend it -- a background
+    image at batch_size 1, or an augmentation that cropped every box
+    away, and there is no sample left to ask. So the tie is broken once
+    per dataset instead of once per batch, which is the scope where an
+    annotated sample really is guaranteed: a detection dataset without a
+    single box is the thing worth exploding over, and this explodes at
+    construction rather than at some random batch hours into training.
     """
-    hints = get_type_hints(annotation)
-    specs = {}
-    for f in fields(annotation):
-        args = get_args(hints[f.name])
-        elems = {a for a in args if a is not Ellipsis}
-        # tuple[float, ...] is variadic: one value per annotation
-        width = 1 if Ellipsis in args else len(args)
-        dtype = torch.long if elems == {int} else torch.float32
-        specs[f.name] = (dtype, width)
-    return specs
+    for sample in samples:
+        if sample.annotations:
+            return {
+                name: (column.dtype, column.shape[1])
+                for name, column in columns(sample.annotations).items()
+            }
+    raise ValueError(
+        "no annotated sample in the dataset -- there is nothing to "
+        "detect, and nothing to take field dtypes and widths from"
+    )
 
 
-SPECS = field_specs(TrainAnnotation)
+def anno2tensors(
+    annotations: list[TrainAnnotation],
+    specs: Specs,
+) -> PerImage:
+    if annotations:
+        return PerImage(**columns(annotations))
 
-
-def anno2tensors(annotations: list[TrainAnnotation]) -> PerImage:
     return PerImage(
         **{
-            f.name: (
-                torch.tensor(
-                    [getattr(a, f.name) for a in annotations],
-                    dtype=SPECS[f.name][0],
-                )
-                if annotations
-                else torch.empty((0, SPECS[f.name][1]), dtype=SPECS[f.name][0])
-            )
-            for f in fields(PerImage)
+            name: torch.empty((0, width), dtype=dtype)
+            for name, (dtype, width) in specs.items()
         }
     )
 
 
 def ensure_correct_shapes(tensors: list[torch.Tensor]) -> list[torch.Tensor]:
-    specs = {(t.shape[1:], t.dtype) for t in tensors if t.numel() > 0}
+    """Assert the batch is stackable. anno2tensors gives every sample
+    the dataset's dtypes and widths, annotated or not, so disagreement
+    here means samples from different datasets met in one batch."""
+    specs = {(t.shape[1:], t.dtype) for t in tensors}
     if len(specs) > 1:
-        raise ValueError(f"Expected all andnd dtype, got {specs}")
+        raise ValueError(f"Expected a single shape and dtype, got {specs}")
 
-    if not specs:
-        return tensors
-
-    (width,), dtype = specs.pop()
-
-    # This is needed to reshape empty
-    return [t.reshape(-1, width).to(dtype) for t in tensors]
+    return tensors
 
 
 def collate_labels(
@@ -80,10 +81,9 @@ def collate_labels(
 ) -> PerBatch:
     if not tensors:
         return PerBatch(
-            **{
-                f.name: torch.empty(0, dtype=SPECS[f.name][0])
-                for f in fields(PerBatch)
-            }
+            bboxes=torch.empty(0),
+            scores=torch.empty(0),
+            labels=torch.empty(0),
         )
 
     return map_fields(
