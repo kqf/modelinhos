@@ -82,8 +82,8 @@ class SSDPure(torch.nn.Module):
         self,
         resolution,
         n_classes,
-        num_anchors=2,
-        extra=-3,
+        num_anchors: int = 2,
+        extra: int | None = -3,
         backbone_extractor=lambda b, n: _mobilenet_extractor(b, 6, n),
     ):
         super().__init__()
@@ -101,10 +101,10 @@ class SSDPure(torch.nn.Module):
             resolution,
         )[:extra]
 
-        num_anchors = [num_anchors for _ in out_channels]
+        num_anchors_per_layer = [num_anchors for _ in out_channels]
         self.head = SSDPureHead(
             out_channels=out_channels,
-            num_anchors=num_anchors,
+            num_anchors=num_anchors_per_layer,
             norm_layer=norm_layer,
             n_classes=n_classes,
         )
