@@ -14,7 +14,11 @@ from torchvision.models.detection.ssdlite import (
 )
 from torchvision.models.feature_extraction import create_feature_extractor
 
-from modelinhos.detector import DetectionRecipe, torchvision_reference
+from modelinhos.detector import (
+    DetectionRecipe,
+    ReferencedDetectionRecipe,
+    torchvision_reference,
+)
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match
 from modelinhos.loss.subloss import (
@@ -349,7 +353,7 @@ SSDLITE = DetectionRecipe(
 # head shape, for comparing our inference against the reference -- and
 # trainable like any other flavor (warm_start loading, so the head can
 # be sized for any label set).
-TORCHVISION_SSDLITE = DetectionRecipe(
+TORCHVISION_SSDLITE = ReferencedDetectionRecipe(
     build_model=build_torchvision_ssdlite,
     anchors=torchvision_ssdlite_anchors,
     loss=build_ssd_loss,

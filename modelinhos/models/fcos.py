@@ -12,7 +12,11 @@ from torchvision.models.detection.retinanet import LastLevelP6P7
 from torchvision.models.resnet import ResNet50_Weights, resnet50
 from torchvision.ops import generalized_box_iou_loss, sigmoid_focal_loss
 
-from modelinhos.detector import DetectionRecipe, torchvision_reference
+from modelinhos.detector import (
+    DetectionRecipe,
+    ReferencedDetectionRecipe,
+    torchvision_reference,
+)
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match_all_negatives
 from modelinhos.loss.subloss import (
@@ -470,7 +474,7 @@ FCOS_DELTA = DetectionRecipe(
 # ltrb codec and centre-sampling matcher, for comparing our inference
 # against the reference. Trainable like any other flavor (warm_start
 # loading, so the head can be sized for any label set).
-TORCHVISION_FCOS = DetectionRecipe(
+TORCHVISION_FCOS = ReferencedDetectionRecipe(
     build_model=build_torchvision_fcos,
     anchors=fcos_anchors,
     loss=build_fcos_loss,

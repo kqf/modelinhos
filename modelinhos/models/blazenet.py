@@ -13,7 +13,7 @@ from torchvision.models._api import Weights, WeightsEnum
 from torchvision.ops import box_iou
 from torchvision.transforms._presets import ObjectDetection
 
-from modelinhos.detector import DetectionRecipe
+from modelinhos.detector import DetectionRecipe, ReferencedDetectionRecipe
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match_all_negatives
 from modelinhos.loss.subloss import (
@@ -899,7 +899,7 @@ def build_blaze_retina(flavor: type[BlazePure]):
 # channel. reference is the original BlazeFace-PyTorch inference path,
 # so parity tests can compare the two end to end (the NMS differs:
 # weighted blending there, hard NMS here).
-BLAZEFACE_F = DetectionRecipe(
+BLAZEFACE_F = ReferencedDetectionRecipe(
     build_model=build_blazeface(BlazeNetFront),
     anchors=blaze_anchors,
     loss=build_blaze_loss,
@@ -909,7 +909,7 @@ BLAZEFACE_F = DetectionRecipe(
 
 # The back-camera flavor: double the strides, and the box offsets are
 # denominated in its 256-pixel input side.
-BLAZEFACE_B = DetectionRecipe(
+BLAZEFACE_B = ReferencedDetectionRecipe(
     build_model=build_blazeface(BlazeNetBack),
     anchors=blaze_back_anchors,
     loss=partial(build_blaze_loss, scale=256.0),
