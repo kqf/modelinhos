@@ -147,9 +147,10 @@ def test_atss_handles_empty_and_bad_levels(priors):
     empty = atss_boxes(torch.empty((0, 1)), priors, topk=9)
     assert empty.shape == (priors.shape[0], 0)
 
+    bboxes = torch.tensor([[0.2, 0.2, 0.6, 0.6]])
     with pytest.raises(ValueError):
         atss_boxes(
-            torch.tensor([[0.2, 0.2, 0.6, 0.6]]),
+            bboxes,
             priors,
             topk=9,
             level_sizes=[1, 2, 3],
