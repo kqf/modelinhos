@@ -29,3 +29,10 @@ repos:
       - id: mypy
         additional_dependencies: ["types-PyYAML"]
         args: ["--config-file", "pyproject.toml"]
+
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.407
+    hooks:
+      - id: pyright
+        language: system
+        entry: env PYRIGHT_PYTHON_IGNORE_WARNINGS=1 pyright
