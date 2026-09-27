@@ -225,11 +225,10 @@ class BlazeNetFront(BlazeNet):
     """The 128x128 front-camera flavor: head maps at strides 8/16, an
     uneven channel ramp up to 88/96."""
 
-    scale = 128.0
-    min_score_thresh = 0.75
-
-    def __init__(self):
+    def __init__(self, scale=128.0, min_score_thresh=0.75):
         super().__init__(channels_8=88)
+        self.scale = scale
+        self.min_score_thresh = min_score_thresh
         self.backbone1 = nn.Sequential(
             *_blaze_stem(),
             *_blaze_stack(
