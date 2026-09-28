@@ -122,7 +122,6 @@ class DetectionRecipe:
     # (weights, frames, th) -> list[Sample]: the torchvision-native
     # upstream this recipe mirrors (see torchvision_reference), used as
     # the ground truth in parity tests. None when there is no upstream.
-    reference: Callable | None = None
 
     def bake(
         self,
@@ -150,6 +149,11 @@ class DetectionRecipe:
             iencoder=self.iencoder,
             augment=self.augment(resolution),
         )
+
+
+@dataclass(frozen=True)
+class ReferencedDetectionRecipe(DetectionRecipe):
+    reference: Callable = lambda x: x
 
 
 EngineBuilder = Callable[[Baked], Engine]

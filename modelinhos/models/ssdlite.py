@@ -14,7 +14,11 @@ from torchvision.models.detection.ssdlite import (
 )
 from torchvision.models.feature_extraction import create_feature_extractor
 
-from modelinhos.detector import DetectionRecipe, torchvision_reference
+from modelinhos.detector import (
+    DetectionRecipe,
+    ReferencedDetectionRecipe,
+    torchvision_reference,
+)
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match
 from modelinhos.loss.subloss import (
@@ -82,8 +86,8 @@ class SSDPure(torch.nn.Module):
         self,
         resolution,
         n_classes,
-        num_anchors=2,
-        extra=-3,
+        num_anchors: int = 2,
+        extra: int | None = -3,
         backbone_extractor=lambda b, n: _mobilenet_extractor(b, 6, n),
     ):
         super().__init__()
@@ -101,10 +105,10 @@ class SSDPure(torch.nn.Module):
             resolution,
         )[:extra]
 
-        num_anchors = [num_anchors for _ in out_channels]
+        num_anchors_per_layer = [num_anchors for _ in out_channels]
         self.head = SSDPureHead(
             out_channels=out_channels,
-            num_anchors=num_anchors,
+            num_anchors=num_anchors_per_layer,
             norm_layer=norm_layer,
             n_classes=n_classes,
         )
@@ -349,7 +353,7 @@ SSDLITE = DetectionRecipe(
 # head shape, for comparing our inference against the reference -- and
 # trainable like any other flavor (warm_start loading, so the head can
 # be sized for any label set).
-TORCHVISION_SSDLITE = DetectionRecipe(
+TORCHVISION_SSDLITE = ReferencedDetectionRecipe(
     build_model=build_torchvision_ssdlite,
     anchors=torchvision_ssdlite_anchors,
     loss=build_ssd_loss,

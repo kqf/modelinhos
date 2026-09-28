@@ -12,7 +12,11 @@ from torchvision.models.detection.retinanet import (
 from torchvision.models.resnet import ResNet50_Weights, resnet50
 from torchvision.ops import sigmoid_focal_loss
 
-from modelinhos.detector import DetectionRecipe, torchvision_reference
+from modelinhos.detector import (
+    DetectionRecipe,
+    ReferencedDetectionRecipe,
+    torchvision_reference,
+)
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.loss.matching import match_all_negatives
 from modelinhos.loss.subloss import (
@@ -192,7 +196,7 @@ RETINANET = DetectionRecipe(
 # anchors/head shape, for comparing our inference against the reference.
 # Trainable like any other flavor (warm_start loading, so the head can
 # be sized for any label set).
-TORCHVISION_RETINANET = DetectionRecipe(
+TORCHVISION_RETINANET = ReferencedDetectionRecipe(
     build_model=build_torchvision_retinanet,
     anchors=torchvision_retina_anchors,
     loss=build_ret_loss,

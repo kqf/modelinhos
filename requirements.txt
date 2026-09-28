@@ -2,3 +2,4 @@ pytest
 pytest-coverage
 pre-commit
 ipdb
+pyright[nodejs]
