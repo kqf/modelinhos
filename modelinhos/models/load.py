@@ -1,18 +1,18 @@
 import re
-from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol, TypeVar
 
 import torch
 from torch.nn.modules.utils import consume_prefix_in_state_dict_if_present
 
-# What bake()/build_detector accept as `weights`: a loader applied to
-# the freshly built model -- from_scratch (the default), or one built
-# by warm_start/restore below. Never None: passing weights around as an
-# always-callable keeps every build_model free of loading concerns.
-Weights = Callable[[torch.nn.Module], torch.nn.Module]
+M = TypeVar("M", bound=torch.nn.Module)
 
 
-def from_scratch(model: torch.nn.Module) -> torch.nn.Module:
+class Weights(Protocol):
+    def __call__(self, model: M, /) -> M: ...
+
+
+def from_scratch(model: M) -> M:
     """The identity loader: keep the freshly initialized parameters."""
     return model
 
@@ -87,7 +87,7 @@ def warm_start(source, progress: bool = True) -> Weights:
     Never use it for evaluation or export -- a mismatch there means the
     rebuilt model is not the trained one; that is what restore guards."""
 
-    def load(model: torch.nn.Module) -> torch.nn.Module:
+    def load(model: M) -> M:
         return load_with_mismatch(model, state_dict(source, progress))
 
     return load
@@ -98,7 +98,7 @@ def restore(source, progress: bool = True) -> Weights:
     model, so every key and shape must match exactly or loading raises
     -- no silent resizing."""
 
-    def load(model: torch.nn.Module) -> torch.nn.Module:
+    def load(model: M) -> M:
         model.load_state_dict(state_dict(source, progress))
         return model
 
