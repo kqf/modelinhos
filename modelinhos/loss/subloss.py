@@ -30,6 +30,9 @@ class WeightedLoss:
     def __call__(self, y_pred, y_true, anchors):
         y_pred_encoded = self.enc_pred(y_pred, anchors)
         y_true_encoded = self.enc_true(y_true, anchors)
+        # TODO: Avoid using None
+        if self.loss is None:
+            return 0
         return self.weight * self.loss(y_pred_encoded, y_true_encoded)
 
 
@@ -85,7 +88,7 @@ class Sublosses(StandardDetection[WeightedLoss]):
 def retina_confidence_loss(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,
-) -> tuple[torch.Tensor]:
+) -> torch.Tensor:
     n_pos = (y_true > 0).sum()
     loss = torch.nn.functional.cross_entropy(
         y_pred,
