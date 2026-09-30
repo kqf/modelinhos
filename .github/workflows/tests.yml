@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install ".[skorch,lightning]"
+          pip install ".[all]"
 
       - name: Run the tests
         run: |
