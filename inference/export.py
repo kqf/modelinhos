@@ -128,7 +128,7 @@ def main(models: Path = Path(__file__).parent / "models"):
             path.parent.mkdir(parents=True, exist_ok=True)
             torch.onnx.export(
                 model,
-                torch.randn(1, 3, height, width),
+                (torch.randn(1, 3, height, width),),
                 str(path),
                 input_names=["image"],
                 output_names=["boxes", "classes"],
