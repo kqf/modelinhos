@@ -53,6 +53,8 @@ Matching = Callable[
 
 
 class DetectionLoss(nn.Module):
+    priors: torch.Tensor
+
     def __init__(
         self,
         priors: torch.Tensor,
