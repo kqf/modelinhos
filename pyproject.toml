@@ -65,9 +65,9 @@ dependencies = [
 readme = { file = "README.rst", content-type = "text/x-rst" }
 
 [project.optional-dependencies]
-skorch = ["skorch"]
-lightning = ["lightning"]
-albumentations = ["albumentations"]
+skorch = ["skorch", "mlflow"]
+lightning = ["lightning", "mlflow"]
+albumentations = ["albumentations", "mlflow"]
 all = ["modelinhos[skorch,lightning,albumentations]"]
 
 [tool.setuptools_scm]
