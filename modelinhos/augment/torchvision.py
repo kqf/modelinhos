@@ -56,9 +56,10 @@ def augment(
                 "image": tv_tensors.Image(
                     torch.from_numpy(image).permute(2, 0, 1)
                 ),
-                "boxes": tv_tensors.BoundingBoxes(
+                # __new__ takes these; pyright also checks Tensor.__init__
+                "boxes": tv_tensors.BoundingBoxes(  # type: ignore
                     torch.from_numpy(boxes * scale),
-                    format="XYXY",
+                    format=tv_tensors.BoundingBoxFormat.XYXY,
                     canvas_size=(h, w),
                 ),
                 "labels": torch.arange(len(annotations)),
