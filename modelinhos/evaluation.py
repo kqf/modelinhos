@@ -2,6 +2,7 @@ import itertools
 import warnings
 from collections import defaultdict
 from collections.abc import Iterator
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -388,7 +389,8 @@ def visualize_pr(
     map_results: pd.DataFrame,
     i2l: dict[int, str],
 ):
-    for (iou, class_id), group in map_results.groupby(["iou", "class_id"]):
+    for key, group in map_results.groupby(["iou", "class_id"]):
+        iou, class_id = cast(tuple[float, int], key)
         label = i2l.get(class_id, str(class_id))
         recall = group["recall"].tolist()
         precision = group["precision"].tolist()
@@ -465,14 +467,18 @@ def visualize_fp_fn(
     if class_agnostic:
         # Rows are per (image, class): collapse to per image, or an
         # image with errors in two classes would show up as two bars.
-        per_sample = (
-            per_sample.groupby("sample_idx", as_index=False)[["fp", "fn"]]
-            .sum()
-            .assign(class_id="all classes")
-        )
+        totals = per_sample.groupby("sample_idx", as_index=False)[
+            ["fp", "fn"]
+        ].sum()
+        per_sample = cast(pd.DataFrame, totals).assign(class_id="all classes")
 
     for class_id, group in per_sample.groupby("class_id"):
-        label = i2l.get(class_id, str(class_id))
+        # class_id is the "all classes" string in class_agnostic mode.
+        label = (
+            i2l.get(class_id, str(class_id))
+            if isinstance(class_id, int)
+            else str(class_id)
+        )
         fps = group["fp"].to_numpy()
         fns = group["fn"].to_numpy()
         indices = group["sample_idx"].to_numpy()
