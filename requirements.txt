@@ -3,3 +3,4 @@ pytest-coverage
 pre-commit
 ipdb
 pyright[nodejs]
+pandas-stubs
