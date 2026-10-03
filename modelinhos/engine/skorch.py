@@ -10,6 +10,7 @@ criterion_.decode. Importing this module requires skorch
 from collections.abc import Callable
 
 import torch
+from torch import nn
 
 try:
     from skorch import NeuralNet
@@ -22,12 +23,21 @@ except ImportError as e:
 
 from modelinhos.containers import Collate
 from modelinhos.detector import Baked
+from modelinhos.loss.loss import DetectionLoss
+from modelinhos.sample import Sample, TrainAnnotation
+from modelinhos.tasks.standard import PerBatchEncoded
 
 
 class DetectionNet(NeuralNet):
     """sklearn-style detection estimator: fit(dataset) trains,
-    predict(dataset) returns decoded, NMS'd samples in the model's
-    normalized space."""
+    predict_samples(dataset) returns decoded, NMS'd samples in the
+    model's normalized space. NeuralNet.predict is left alone -- its
+    ndarray contract doesn't fit a list of variable-length samples."""
+
+    # skorch builds these in initialize(); declare what they hold so the
+    # type checker doesn't fall back to nn.Module.__getattr__ -> Tensor
+    module_: nn.Module
+    criterion_: DetectionLoss
 
     def __init__(self, *args, collate: Collate, **kwargs):
         super().__init__(*args, **kwargs)
@@ -39,16 +49,23 @@ class DetectionNet(NeuralNet):
         loss = self.criterion_(y_pred, y_true.to(self.device))
         return loss["loss"] if isinstance(loss, dict) else loss
 
-    def predict(self, X) -> list:
-        return [
-            sample
-            for preds in self.forward_iter(X, training=False)
-            for sample in self.collate.un_batch_nms(
-                self.criterion_.decode(preds)
+    def predict_samples(self, X) -> list[Sample[TrainAnnotation]]:
+        samples: list[Sample[TrainAnnotation]] = []
+        for preds in self.forward_iter(X, training=False):
+            # forward_iter is typed for any module output; ours must be
+            # the encoded container DetectionLoss.decode expects
+            if not isinstance(preds, PerBatchEncoded):
+                raise TypeError(
+                    f"module_ must return PerBatchEncoded, got {type(preds)}"
+                )
+            samples.extend(
+                self.collate.un_batch_nms(self.criterion_.decode(preds))
             )
-        ]
+        return samples
 
-    def predict_single(self, blob: torch.Tensor) -> list:
+    def predict_single(
+        self, blob: torch.Tensor
+    ) -> list[Sample[TrainAnnotation]]:
         self.module_.eval()
         with torch.no_grad():
             preds = self.criterion_.decode(self.module_(blob.to(self.device)))
@@ -69,10 +86,12 @@ class SkorchEngine:
         self.net.fit(dataset, y=None)
         return self
 
-    def predict(self, dataset) -> list:
-        return self.net.predict(dataset)
+    def predict(self, dataset) -> list[Sample[TrainAnnotation]]:
+        return self.net.predict_samples(dataset)
 
-    def predict_single(self, blob: torch.Tensor) -> list:
+    def predict_single(
+        self, blob: torch.Tensor
+    ) -> list[Sample[TrainAnnotation]]:
         return self.net.predict_single(blob)
 
 
