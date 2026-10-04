@@ -137,8 +137,8 @@ def main(
     checkpoint = Checkpoint(
         monitor="valid_mAP_best",
         dirname=str(checkpoints),
-        f_optimizer=None,
-        f_criterion=None,
+        f_optimizer=None,  # type: ignore
+        f_criterion=None,  # type: ignore
     )
 
     detector = config["build"](
