@@ -48,7 +48,7 @@ dynamic = ["version"]
 description = "Model zoo for a very small models"
 dependencies = [
     "opencv-python",
-    "numpy<2",
+    "numpy>=2",
     "torch",
     "torchvision",
     "onnx",
