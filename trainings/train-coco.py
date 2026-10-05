@@ -178,7 +178,7 @@ def main(
                     patience=patience,
                 ),
                 LRScheduler(
-                    policy=torch.optim.lr_scheduler.OneCycleLR,
+                    policy=torch.optim.lr_scheduler.OneCycleLR,  # type: ignore
                     max_lr=config["lr"],
                     total_steps=max_epochs
                     * math.ceil(len(train) / config["batch_size"]),
