@@ -23,7 +23,7 @@ class SampleDataset(torch.utils.data.Dataset):
         self,
         samples: list[Sample[TrainAnnotation]],
         encode_images,
-        read_image: Callable[[pathlib.Path], np.ndarray] = opencv_read,
+        read_image: Callable[[pathlib.Path], np.ndarray | None] = opencv_read,
         augment: Augmentation = identity,
     ):
         self.samples = samples
