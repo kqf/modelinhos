@@ -115,6 +115,8 @@ def rename(
 def normalize(data: list[Sample]) -> list[Sample]:
     def process(sample: Sample) -> Sample:
         image = cv2.imread(str(sample.file_name))
+        if image is None:
+            raise OSError(f"File not found. {sample.file_name=}")
         h, w, _ = image.shape
         for ann in sample.annotations:
             x1, y1, x2, y2 = ann.bbox
