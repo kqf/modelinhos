@@ -11,7 +11,7 @@ from modelinhos.sample import Sample, TrainAnnotation
 from modelinhos.tasks.standard import PerImage
 
 
-def opencv_read(file_name: pathlib.Path) -> np.ndarray:
+def opencv_read(file_name: pathlib.Path) -> np.ndarray | None:
     return cv2.imread(str(file_name))
 
 
@@ -20,7 +20,7 @@ class SampleDataset(torch.utils.data.Dataset):
         self,
         samples: list[Sample[TrainAnnotation]],
         encode_images,
-        read_image: Callable[[pathlib.Path], np.ndarray] = opencv_read,
+        read_image: Callable[[pathlib.Path], np.ndarray | None] = opencv_read,
         augment: Augmentation = identity,
     ):
         self.samples = samples
@@ -41,6 +41,8 @@ class SampleDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, PerImage]:
         sample = self.samples[idx]
         bgr = self.read_image(sample.file_name)
+        if bgr is None:
+            raise OSError(f"Sample {idx} is not found: {sample.file_name=}")
         # Every __getitem__ re-rolls the augmentation, epoch to epoch
         bgr, annotations = self.augment(bgr, sample.annotations)
         image = self.encode_images(bgr)
