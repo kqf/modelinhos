@@ -11,8 +11,11 @@ from modelinhos.sample import Sample, TrainAnnotation
 from modelinhos.tasks.standard import PerImage
 
 
-def opencv_read(file_name: pathlib.Path) -> np.ndarray | None:
-    return cv2.imread(str(file_name))
+def opencv_read(file_name: pathlib.Path) -> np.ndarray:
+    image = cv2.imread(str(file_name))
+    if image is None:
+        raise OSError(f"File not found {file_name=}")
+    return image
 
 
 class SampleDataset(torch.utils.data.Dataset):
