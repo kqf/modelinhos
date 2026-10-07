@@ -85,8 +85,9 @@ def test_one_prediction_per_anchor(flavor, build_anchors, resolution):
 
 @pytest.fixture
 def face() -> np.ndarray:
-    image = cv2.imread(str(download_blaze_asset("1face.png")))
-    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    if image := cv2.imread(str(download_blaze_asset("1face.png"))):
+        return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    raise OSError("Cant find 1face.png file")
 
 
 def test_vanilla_blazenet_matches_repo(face):
