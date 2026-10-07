@@ -84,9 +84,16 @@ def test_one_prediction_per_anchor(flavor, build_anchors, resolution):
 
 
 @pytest.fixture
-def face() -> np.ndarray:
+def frame() -> np.ndarray:
     image = cv2.imread(str(download_blaze_asset("1face.png")))
-    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    if image is not None:
+        return image
+    raise OSError("Cant find 1face.png file")
+
+
+@pytest.fixture
+def face(frame) -> np.ndarray:
+    return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
 
 def test_vanilla_blazenet_matches_repo(face):
@@ -104,12 +111,6 @@ def test_vanilla_blazenet_matches_repo(face):
         EXPECTED,
         decimal=4,
     )
-
-
-@pytest.fixture
-def frame() -> np.ndarray:
-    # BGR, like every frame entering the Detector flow.
-    return cv2.imread(str(download_blaze_asset("1face.png")))
 
 
 def test_blazeface_recipe_matches_reference(frame):
