@@ -48,6 +48,8 @@ def main(
         if i > 1:
             continue
         frame = cv2.imread(str(true.file_name))
+        if frame is None:
+            raise OSError(f"The files are missing {true.file_name=}")
         cv2.imshow("frame", plot(frame, pred))
         cv2.waitKey()
 
