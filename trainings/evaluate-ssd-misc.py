@@ -63,6 +63,8 @@ def main(
         if i > 10:
             continue
         frame = cv2.imread(str(sample.file_name))
+        if frame is None:
+            raise OSError(f"Missing file {sample.file_name}")
         cv2.imshow("frame", plot(frame, sample))
 
     y_pred, le = infer(samples)
