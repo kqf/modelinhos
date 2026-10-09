@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -O2
-OPENCV := $(shell pkg-config --cflags --libs opencv4)
+OPENCV = $(shell pkg-config --cflags --libs opencv4)
 MODELS := $(shell find models -name '*.onnx' 2>/dev/null | sort)
 
 # Resolution comes from the file name: models/<recipe>/<height>-<width>.onnx
@@ -22,4 +22,4 @@ models:
 clean:
 	rm -f run.bin
 
-.PHONY: all clean
+.PHONY: all clean models
