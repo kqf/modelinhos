@@ -37,10 +37,10 @@ int main(int argc, char** argv) {
     // one-line change.
     if (mode == "int8") net = net.quantize({blob}, CV_32F, CV_32F);
     net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
-    net.setPreferableTarget(mode == "fp16" ? cv::dnn::DNN_TARGET_CPU_FP16
-                                           : cv::dnn::DNN_TARGET_CPU);
+    // net.setPreferableTarget(mode == "fp16" ? cv::dnn::DNN_TARGET_CPU_FP16
+    //                                        : cv::dnn::DNN_TARGET_CPU);
     net.enableFusion(true);
-    net.enableWinograd(true);
+    // net.enableWinograd(true);
     std::vector<cv::String> names = net.getUnconnectedOutLayersNames();
     std::vector<cv::Mat> outputs;
 

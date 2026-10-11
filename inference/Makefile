@@ -1,10 +1,16 @@
-# export.py needs the modelinhos package, so the sources go along with
-# the benchmark; the copy has no .git, hence the pinned version.
-rpi5:
-	ssh rpi5 'mkdir -p ~/modelinhos'
-	cd .. && rsync -azR pyproject.toml README.rst modelinhos inference/vonnx rpi5:~/modelinhos/
-	ssh rpi5 'cd ~/modelinhos/inference/vonnx && python3 -m venv .venv \
-		&& SETUPTOOLS_SCM_PRETEND_VERSION=0 make deps models PYTHON=.venv/bin/python \
-		&& make MODE=fp32'
+MODE ?= fp32
+REMOTE = rpi5:~/modelinhos/inference/vonnx/
 
-.PHONY: rpi5
+rpi5: vonnx/models
+	ssh rpi5 'mkdir -p ~/modelinhos/inference/vonnx'
+	rsync -az --delete vonnx/Makefile vonnx/infer.cpp vonnx/models $(REMOTE)
+	ssh rpi5 'make -C ~/modelinhos/inference/vonnx MODE=$(MODE)'
+
+# Exported once; `make models` re-exports after the recipes change.
+vonnx/models:
+	$(MAKE) models
+
+models:
+	python vonnx/export.py
+
+.PHONY: rpi5 models
