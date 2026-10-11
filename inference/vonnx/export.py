@@ -1,18 +1,3 @@
-"""Export every detection recipe to static-shape ONNX for the C++
-benchmark in inference/infer.cpp.
-
-Each recipe gets its meaningful resolution ladder up to 1080p: the
-native size first, then VGA, 720p and 1080p rounded to the stride-32
-grid (720 and 1080 themselves are not divisible by 32 -- the stride-8
-feature map goes odd and the stride-2 blocks of every backbone here
-break, hence 736x1280 and 1088x1920). Models are built fresh with
-randomized weights: the benchmark measures shapes and speed, not
-accuracy.
-
-Files land in inference/models/<recipe>/<height>-<width>.onnx; run from
-the repo root:  python inference/export.py
-"""
-
 import itertools
 from pathlib import Path
 
