@@ -146,6 +146,6 @@ to a commit hash -- the script at that commit is the config.
 
 5. **Export.** ``restore(checkpoint)`` is the strict loader for
    evaluation and export (any key or shape drift raises -- the
-   checkpoint IS the model); ``inference/export.py`` exports every
+   checkpoint IS the model); ``inference/vonnx/export.py`` exports every
    recipe to static-shape ONNX, benchmarked by the C++ runner in
-   ``inference/infer.cpp``.
+   ``inference/vonnx/infer.cpp``.
