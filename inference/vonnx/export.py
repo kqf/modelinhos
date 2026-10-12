@@ -145,6 +145,10 @@ def main(models: Path = Path(__file__).parent / "models"):
                     graph.initializer.append(clone)
                     graph.node.remove(node)
             onnx.save(exported, str(path))
+            # The exporter also writes the weights to a sidecar; the
+            # save above inlines them, so the sidecar is a dead copy
+            # that would only double the upload.
+            path.with_name(f"{path.name}.data").unlink(missing_ok=True)
             print(f"exported {path}")
 
 
