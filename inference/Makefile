@@ -1,16 +1,18 @@
 MODE ?= fp32
 REMOTE = rpi5:~/modelinhos/inference/vonnx/
+EXPORTED = vonnx/models/.exported
 
-rpi5: vonnx/models
+rpi5: $(EXPORTED)
 	ssh rpi5 'mkdir -p ~/modelinhos/inference/vonnx'
-	rsync -az --delete vonnx/Makefile vonnx/infer.cpp vonnx/models $(REMOTE)
+	rsync -az --delete --progress vonnx/Makefile vonnx/infer.cpp vonnx/models $(REMOTE)
 	ssh rpi5 'make -C ~/modelinhos/inference/vonnx MODE=$(MODE)'
 
-# Exported once; `make models` re-exports after the recipes change.
-vonnx/models:
-	$(MAKE) models
+$(EXPORTED):
+	python vonnx/export.py
+	touch $@
 
 models:
-	python vonnx/export.py
+	rm -f $(EXPORTED)
+	$(MAKE) $(EXPORTED)
 
 .PHONY: rpi5 models
