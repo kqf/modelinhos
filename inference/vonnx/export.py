@@ -150,6 +150,7 @@ def main(models: Path = Path(__file__).parent / "models"):
             # that would only double the upload.
             path.with_name(f"{path.name}.data").unlink(missing_ok=True)
             print(f"exported {path}")
+            break
 
 
 if __name__ == "__main__":
