@@ -107,8 +107,25 @@ def pool_globally(node, initializers):
     del node.attribute[:]
 
 
+def clip_by_attributes(node, initializers):
+    # Same opset story for the ReLU6s: since opset 11 Clip takes its
+    # bounds as inputs, while OpenCV 4.6 insists on a single input and
+    # reads min/max from attributes. Constant bounds move back into
+    # attributes; the clamp itself is unchanged.
+    if node.op_type != "Clip" or len(node.input) == 1:
+        return
+    bounds = dict(zip(("min", "max"), node.input[1:]))
+    if any(name and name not in initializers for name in bounds.values()):
+        return
+    for key, name in bounds.items():
+        if name:
+            value = float(numpy_helper.to_array(initializers[name]).item())
+            node.attribute.append(onnx.helper.make_attribute(key, value))
+    del node.input[1:]
+
+
 def drop_unused_initializers(graph):
-    # pool_globally orphans the axes tensors it no longer reads.
+    # The rewrites above orphan the tensors they no longer read.
     used = {name for node in graph.node for name in node.input}
     for initializer in list(graph.initializer):
         if initializer.name not in used:
@@ -177,6 +194,7 @@ def main(models: Path = Path(__file__).parent / "models"):
             initializers = {i.name: i for i in graph.initializer}
             for node in graph.node:
                 pool_globally(node, initializers)
+                clip_by_attributes(node, initializers)
             drop_unused_initializers(graph)
             onnx.save(exported, str(path))
             # The exporter also writes the weights to a sidecar; the
