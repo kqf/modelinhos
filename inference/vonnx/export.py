@@ -3,6 +3,7 @@ from pathlib import Path
 
 import onnx
 import torch
+from onnx import numpy_helper
 
 from modelinhos.models.blazenet import (
     BLAZEFACE_F,
@@ -87,8 +88,37 @@ CONFIGS = {
 }
 
 
+def pool_globally(node, initializers):
+    # The downgrade to opset 13 fails, so the graph stays at opset 18,
+    # where ReduceMean takes its axes as an input. OpenCV 4.6 only
+    # reads the attribute form and reduces the channels away as well.
+    # The squeeze-excite pools are a spatial mean with keepdims, which
+    # is exactly GlobalAveragePool: same compute, parseable everywhere.
+    if node.op_type != "ReduceMean" or len(node.input) != 2:
+        return
+    axes = initializers.get(node.input[1])
+    keepdims = all(a.i for a in node.attribute if a.name == "keepdims")
+    if axes is None or not keepdims:
+        return
+    if set(numpy_helper.to_array(axes).tolist()) not in ({2, 3}, {-2, -1}):
+        return
+    node.op_type = "GlobalAveragePool"
+    del node.input[1:]
+    del node.attribute[:]
+
+
+def drop_unused_initializers(graph):
+    # pool_globally orphans the axes tensors it no longer reads.
+    used = {name for node in graph.node for name in node.input}
+    for initializer in list(graph.initializer):
+        if initializer.name not in used:
+            graph.initializer.remove(initializer)
+
+
 def main(models: Path = Path(__file__).parent / "models"):
     for name, (recipe, n_classes, resolutions) in CONFIGS.items():
+        if name in {"blaze-retina", "blazeface", "retinanet"}:
+            continue
         for height, width in resolutions:
             model = recipe.build_model(
                 resolution=(height, width),
@@ -144,12 +174,18 @@ def main(models: Path = Path(__file__).parent / "models"):
                     clone.name = node.output[0]
                     graph.initializer.append(clone)
                     graph.node.remove(node)
+            initializers = {i.name: i for i in graph.initializer}
+            for node in graph.node:
+                pool_globally(node, initializers)
+            drop_unused_initializers(graph)
             onnx.save(exported, str(path))
             # The exporter also writes the weights to a sidecar; the
             # save above inlines them, so the sidecar is a dead copy
             # that would only double the upload.
             path.with_name(f"{path.name}.data").unlink(missing_ok=True)
             print(f"exported {path}")
+            break
+        break
 
 
 if __name__ == "__main__":
