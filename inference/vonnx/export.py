@@ -151,6 +151,7 @@ def main(models: Path = Path(__file__).parent / "models"):
             path.with_name(f"{path.name}.data").unlink(missing_ok=True)
             print(f"exported {path}")
             break
+        break
 
 
 if __name__ == "__main__":
