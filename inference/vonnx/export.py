@@ -9,6 +9,7 @@ from modelinhos.models.blazenet import (
     BLAZEFACE_F,
     RETINANET_F as BLAZE_RETINANET,
 )
+from modelinhos.models.fcos import FCOS_DELTA, TORCHVISION_FCOS
 from modelinhos.models.retinanet import RETINANET, TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import SSDLARGE, SSDLITE, TORCHVISION_SSDLITE
 
@@ -70,6 +71,16 @@ CONFIGS = {
             FHD,
         ],
     ),
+    "fcos": (
+        FCOS_DELTA,
+        91,
+        [
+            (320, 320),
+            VGA,
+            HD,
+            FHD,
+        ],
+    ),
     "torchvision-ssdlite": (
         TORCHVISION_SSDLITE,
         91,
@@ -77,6 +88,16 @@ CONFIGS = {
     ),
     "torchvision-retinanet": (
         TORCHVISION_RETINANET,
+        91,
+        [
+            VGA,
+            (800, 1088),
+            HD,
+            FHD,
+        ],
+    ),
+    "torchvision-fcos": (
+        TORCHVISION_FCOS,
         91,
         [
             VGA,
@@ -134,7 +155,15 @@ def drop_unused_initializers(graph):
 
 def main(models: Path = Path(__file__).parent / "models"):
     for name, (recipe, n_classes, resolutions) in CONFIGS.items():
-        if name in {"blaze-retina", "blazeface", "retinanet", "ssdlite"}:
+        if name in {
+            "blaze-retina",
+            "blazeface",
+            "retinanet",
+            "ssdlite",
+            "ssdlarge",
+            "torchvision-ssdlite",
+            "torchvision-retinanet",
+        }:
             continue
         for height, width in resolutions:
             model = recipe.build_model(
