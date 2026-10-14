@@ -89,7 +89,7 @@ CONFIGS = {
 
 
 def pool_globally(node, initializers):
-    # The downgrade to opset 13 fails, so the graph stays at opset 18,
+    # The exporter only emits opset 18 (a downgrade to 13 fails),
     # where ReduceMean takes its axes as an input. OpenCV 4.6 only
     # reads the attribute form and reduces the channels away as well.
     # The squeeze-excite pools are a spatial mean with keepdims, which
@@ -134,7 +134,7 @@ def drop_unused_initializers(graph):
 
 def main(models: Path = Path(__file__).parent / "models"):
     for name, (recipe, n_classes, resolutions) in CONFIGS.items():
-        if name in {"blaze-retina", "blazeface", "retinanet"}:
+        if name in {"blaze-retina", "blazeface", "retinanet", "ssdlite"}:
             continue
         for height, width in resolutions:
             model = recipe.build_model(
@@ -164,7 +164,7 @@ def main(models: Path = Path(__file__).parent / "models"):
                 str(path),
                 input_names=["image"],
                 output_names=["boxes", "classes"],
-                opset_version=13,
+                opset_version=18,
                 do_constant_folding=True,
             )
             # Heads shared across pyramid levels reuse the same
