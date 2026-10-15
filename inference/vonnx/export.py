@@ -6,6 +6,7 @@ import torch
 from onnx import numpy_helper
 
 from modelinhos.models.blazenet import (
+    BLAZEFACE_B,
     BLAZEFACE_F,
     RETINANET_F as BLAZE_RETINANET,
 )
@@ -21,6 +22,17 @@ VGA, HD, FHD = (480, 640), (736, 1280), (1088, 1920)
 CONFIGS = {
     "blazeface": (
         BLAZEFACE_F,
+        2,
+        [
+            (128, 128),
+            (256, 256),
+            VGA,
+            HD,
+            FHD,
+        ],
+    ),
+    "blazeface-back": (
+        BLAZEFACE_B,
         2,
         [
             (128, 128),
