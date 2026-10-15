@@ -8,6 +8,7 @@ from onnx import numpy_helper
 from modelinhos.models.blazenet import (
     BLAZEFACE_B,
     BLAZEFACE_F,
+    RETINANET_B as BLAZE_RETINANET_B,
     RETINANET_F as BLAZE_RETINANET,
 )
 from modelinhos.models.fcos import FCOS_DELTA, TORCHVISION_FCOS
@@ -44,6 +45,17 @@ CONFIGS = {
     ),
     "blaze-retina": (
         BLAZE_RETINANET,
+        91,
+        [
+            (256, 256),
+            (320, 320),
+            VGA,
+            HD,
+            FHD,
+        ],
+    ),
+    "blaze-retina-back": (
+        BLAZE_RETINANET_B,
         91,
         [
             (256, 256),
@@ -175,6 +187,7 @@ def main(models: Path = Path(__file__).parent / "models"):
             "ssdlarge",
             "torchvision-ssdlite",
             "torchvision-retinanet",
+            "blaze-retina-back",
         }:
             continue
         for height, width in resolutions:
