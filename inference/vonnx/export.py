@@ -179,17 +179,6 @@ def drop_unused_initializers(graph):
 
 def main(models: Path = Path(__file__).parent / "models"):
     for name, (recipe, n_classes, resolutions) in CONFIGS.items():
-        if name in {
-            "blaze-retina",
-            "blazeface",
-            "retinanet",
-            "ssdlite",
-            "ssdlarge",
-            "torchvision-ssdlite",
-            "torchvision-retinanet",
-            "blaze-retina-back",
-        }:
-            continue
         for height, width in resolutions:
             model = recipe.build_model(
                 resolution=(height, width),
