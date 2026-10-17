@@ -1,4 +1,5 @@
 import itertools
+import warnings
 from pathlib import Path
 
 import onnx
@@ -90,6 +91,34 @@ def drop_unused_initializers(graph):
             graph.initializer.remove(initializer)
 
 
+def initialize(model):
+    # Torchvision inits leave many byte-identical tensors (zero
+    # biases, unit norm scales); torch.onnx deduplicates those
+    # into Identity-of-initializer nodes that OpenCV 4.6 cannot
+    # parse, and their degenerate values (Mul by 1, Add 0) would
+    # let optimizers fold real per-layer work out of the graph.
+    # Random positive values keep every tensor unique and every
+    # op live, so the benchmark measures the trained-model cost.
+    tensors = [
+        tensor
+        for tensor in itertools.chain(model.parameters(), model.buffers())
+        if tensor.is_floating_point()
+    ]
+    # A tensor filled with a single value is exactly the degenerate
+    # case above; if there is none, the weights are already usable.
+    if not any(torch.all(t == t.flatten()[0]) for t in tensors if t.numel()):
+        return
+
+    warnings.warn(
+        f"{type(model).__name__} has constant tensors, "
+        "initializing the weights with random values",
+        stacklevel=2,
+    )
+    with torch.no_grad():
+        for tensor in tensors:
+            tensor.uniform_(0.01, 0.1)
+
+
 def main(models: Path = Path(__file__).parent / "models"):
     for name, (recipe, n_classes) in CONFIGS.items():
         for height, width in RESOLUTIONS:
@@ -98,20 +127,7 @@ def main(models: Path = Path(__file__).parent / "models"):
                 n_classes=n_classes,
             )
             model.eval()
-            # Torchvision inits leave many byte-identical tensors (zero
-            # biases, unit norm scales); torch.onnx deduplicates those
-            # into Identity-of-initializer nodes that OpenCV 4.6 cannot
-            # parse, and their degenerate values (Mul by 1, Add 0) would
-            # let optimizers fold real per-layer work out of the graph.
-            # Random positive values keep every tensor unique and every
-            # op live, so the benchmark measures the trained-model cost.
-            with torch.no_grad():
-                for tensor in itertools.chain(
-                    model.parameters(),
-                    model.buffers(),
-                ):
-                    if tensor.is_floating_point():
-                        tensor.uniform_(0.01, 0.1)
+            initialize(model)
             path = models / name / f"{height}-{width}.onnx"
             path.parent.mkdir(parents=True, exist_ok=True)
             torch.onnx.export(
@@ -123,6 +139,7 @@ def main(models: Path = Path(__file__).parent / "models"):
                 opset_version=18,
                 do_constant_folding=True,
             )
+
             # Heads shared across pyramid levels reuse the same
             # Parameter object; the exporter deduplicates it into one
             # initializer plus Identity aliases, which OpenCV 4.6
