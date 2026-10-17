@@ -15,121 +15,34 @@ from modelinhos.models.fcos import FCOS_DELTA, TORCHVISION_FCOS
 from modelinhos.models.retinanet import RETINANET, TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import SSDLARGE, SSDLITE, TORCHVISION_SSDLITE
 
-VGA, HD, FHD = (480, 640), (736, 1280), (1088, 1920)
+# Every model is exported at the same resolutions, so the benchmarks
+# compare them like for like.
+RESOLUTIONS = [
+    (128, 128),
+    (256, 256),
+    (320, 320),
+    (480, 640),
+    (512, 640),
+    (800, 1088),
+    (736, 1280),
+    (1088, 1920),
+]
 
-# recipe -> (preset, n_classes, resolutions); blazeface is the fixed
-# single-face-channel head (n_classes=2), everything else gets the COCO
-# label space (91 with background).
+# recipe -> (preset, n_classes); blazeface is the fixed single-face-channel
+# head (n_classes=2), everything else gets the COCO label space (91 with
+# background).
 CONFIGS = {
-    "blazeface": (
-        BLAZEFACE_F,
-        2,
-        [
-            (128, 128),
-            (256, 256),
-            VGA,
-            HD,
-            FHD,
-        ],
-    ),
-    "blazeface-back": (
-        BLAZEFACE_B,
-        2,
-        [
-            (128, 128),
-            (256, 256),
-            VGA,
-            HD,
-            FHD,
-        ],
-    ),
-    "blaze-retina": (
-        BLAZE_RETINANET,
-        91,
-        [
-            (256, 256),
-            (320, 320),
-            VGA,
-            HD,
-            FHD,
-        ],
-    ),
-    "blaze-retina-back": (
-        BLAZE_RETINANET_B,
-        91,
-        [
-            (256, 256),
-            (320, 320),
-            VGA,
-            HD,
-            FHD,
-        ],
-    ),
-    "ssdlite": (
-        SSDLITE,
-        91,
-        [
-            (320, 320),
-            VGA,
-            HD,
-            FHD,
-        ],
-    ),
-    "ssdlarge": (
-        SSDLARGE,
-        91,
-        [
-            (320, 320),
-            VGA,
-            HD,
-            FHD,
-        ],
-    ),
-    "retinanet": (
-        RETINANET,
-        91,
-        [
-            (320, 320),
-            VGA,
-            HD,
-            FHD,
-        ],
-    ),
-    "fcos": (
-        FCOS_DELTA,
-        91,
-        [
-            (320, 320),
-            VGA,
-            HD,
-            FHD,
-        ],
-    ),
-    "torchvision-ssdlite": (
-        TORCHVISION_SSDLITE,
-        91,
-        [(320, 320), VGA, HD, FHD],
-    ),
-    "torchvision-retinanet": (
-        TORCHVISION_RETINANET,
-        91,
-        [
-            VGA,
-            (800, 1088),
-            HD,
-            FHD,
-        ],
-    ),
-    "torchvision-fcos": (
-        TORCHVISION_FCOS,
-        91,
-        [
-            VGA,
-            (800, 1088),
-            HD,
-            FHD,
-        ],
-    ),
+    "blazeface": (BLAZEFACE_F, 2),
+    "blazeface-back": (BLAZEFACE_B, 2),
+    "blaze-retina": (BLAZE_RETINANET, 91),
+    "blaze-retina-back": (BLAZE_RETINANET_B, 91),
+    "ssdlite": (SSDLITE, 91),
+    "ssdlarge": (SSDLARGE, 91),
+    "retinanet": (RETINANET, 91),
+    "fcos": (FCOS_DELTA, 91),
+    "torchvision-ssdlite": (TORCHVISION_SSDLITE, 91),
+    "torchvision-retinanet": (TORCHVISION_RETINANET, 91),
+    "torchvision-fcos": (TORCHVISION_FCOS, 91),
 }
 
 
@@ -178,8 +91,8 @@ def drop_unused_initializers(graph):
 
 
 def main(models: Path = Path(__file__).parent / "models"):
-    for name, (recipe, n_classes, resolutions) in CONFIGS.items():
-        for height, width in resolutions:
+    for name, (recipe, n_classes) in CONFIGS.items():
+        for height, width in RESOLUTIONS:
             model = recipe.build_model(
                 resolution=(height, width),
                 n_classes=n_classes,
