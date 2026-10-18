@@ -91,6 +91,34 @@ def drop_unused_initializers(graph):
             graph.initializer.remove(initializer)
 
 
+def materialize_aliases(model):
+    # Heads shared across pyramid levels reuse the same Parameter
+    # object;
+    # the exporter deduplicates it into one initializer plus
+    # Identity aliases, which OpenCV 4.6 cannot parse. Materialize
+    # each alias as its own initializer and drop the Identity;
+    # chains resolve over iterations.
+    # Pure aliasing: no compute is removed.
+    graph = model.graph
+    while True:
+        initializers = {i.name: i for i in graph.initializer}
+        aliases = [
+            node
+            for node in graph.node
+            if node.op_type == "Identity" and node.input[0] in initializers
+        ]
+
+        if not aliases:
+            return
+
+        for node in aliases:
+            clone = onnx.TensorProto()
+            clone.CopyFrom(initializers[node.input[0]])
+            clone.name = node.output[0]
+            graph.initializer.append(clone)
+            graph.node.remove(node)
+
+
 def initialize(model):
     # Torchvision inits leave many byte-identical tensors (zero
     # biases, unit norm scales); torch.onnx deduplicates those
@@ -140,30 +168,9 @@ def main(models: Path = Path(__file__).parent / "models"):
                 do_constant_folding=True,
             )
 
-            # Heads shared across pyramid levels reuse the same
-            # Parameter object; the exporter deduplicates it into one
-            # initializer plus Identity aliases, which OpenCV 4.6
-            # cannot parse. Materialize each alias as its own
-            # initializer and drop the Identity; chains resolve over
-            # iterations. Pure aliasing: no compute is removed.
             exported = onnx.load(str(path))
+            materialize_aliases(exported)
             graph = exported.graph
-            while True:
-                initializers = {i.name: i for i in graph.initializer}
-                aliases = [
-                    node
-                    for node in graph.node
-                    if node.op_type == "Identity"
-                    and node.input[0] in initializers
-                ]
-                if not aliases:
-                    break
-                for node in aliases:
-                    clone = onnx.TensorProto()
-                    clone.CopyFrom(initializers[node.input[0]])
-                    clone.name = node.output[0]
-                    graph.initializer.append(clone)
-                    graph.node.remove(node)
             initializers = {i.name: i for i in graph.initializer}
             for node in graph.node:
                 pool_globally(node, initializers)
