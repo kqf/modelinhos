@@ -86,7 +86,7 @@ def clip_by_attributes(node, initializers):
 def drop_unused_initializers(graph):
     # The rewrites above orphan the tensors they no longer read.
     used = {name for node in graph.node for name in node.input}
-    for initializer in list(graph.initializer):
+    for initializer in graph.initializer:
         if initializer.name not in used:
             graph.initializer.remove(initializer)
 
@@ -166,6 +166,7 @@ def main(models: Path = Path(__file__).parent / "models"):
                 output_names=["boxes", "classes"],
                 opset_version=18,
                 do_constant_folding=True,
+                external_data=False,
             )
 
             exported = onnx.load(str(path))
@@ -177,13 +178,8 @@ def main(models: Path = Path(__file__).parent / "models"):
                 clip_by_attributes(node, initializers)
             drop_unused_initializers(graph)
             onnx.save(exported, str(path))
-            # The exporter also writes the weights to a sidecar; the
-            # save above inlines them, so the sidecar is a dead copy
-            # that would only double the upload.
-            path.with_name(f"{path.name}.data").unlink(missing_ok=True)
             print(f"exported {path}")
             break
-        break
 
 
 if __name__ == "__main__":
