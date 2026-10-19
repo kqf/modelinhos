@@ -5,7 +5,7 @@ EXPORTED = vonnx/models/.exported
 rpi5: $(EXPORTED)
 	ssh rpi5 'mkdir -p ~/modelinhos/inference/vonnx'
 	rsync -az --delete --progress vonnx/Makefile vonnx/infer.cpp $(REMOTE)
-	rsync -az --delete --progress vonnx/models $(REMOTE)
+# 	rsync -az --delete --progress vonnx/models $(REMOTE)
 	ssh rpi5 'make -C ~/modelinhos/inference/vonnx MODE=$(MODE)'
 
 $(EXPORTED):
