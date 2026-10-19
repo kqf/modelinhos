@@ -78,9 +78,17 @@ int main(int argc, char** argv) {
     double ram = usage.ru_maxrss / 1024.0;
 #endif
 
-    std::cout << std::fixed << std::setprecision(2) << path << "  " << mode
-              << "  w=" << w << " h=" << h << "  mean=" << mean
-              << " ms  std=" << std << " ms  fps=" << 1000.0 / mean
-              << "  ram=" << ram << " MB" << std::endl;
+    // Fixed-width columns so lines from consecutive runs form a table;
+    // text left-aligned, numbers right-aligned.
+    std::cout << std::fixed << std::setprecision(2)
+              << std::left << std::setw(48) << path
+              << "  " << std::setw(4) << mode
+              << std::right
+              << "  w=" << std::setw(5) << w
+              << "  h=" << std::setw(5) << h
+              << "  mean=" << std::setw(8) << mean << " ms"
+              << "  std=" << std::setw(7) << std << " ms"
+              << "  fps=" << std::setw(8) << 1000.0 / mean
+              << "  ram=" << std::setw(8) << ram << " MB" << std::endl;
     return 0;
 }
