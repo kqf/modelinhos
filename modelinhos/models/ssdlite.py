@@ -6,6 +6,8 @@ from torchvision.models.detection import (
     _utils as det_utils,
     ssdlite320_mobilenet_v3_large,
 )
+from torchvision.models.detection.anchor_utils import DefaultBoxGenerator
+from torchvision.models.detection.image_list import ImageList
 from torchvision.models.detection.ssdlite import (
     SSDLiteClassificationHead,
     SSDLiteRegressionHead,
@@ -121,9 +123,6 @@ class SSDPure(torch.nn.Module):
 
 
 def ssd_anchors(resolution: tuple[int, int], backbone) -> torch.Tensor:
-    from torchvision.models.detection.anchor_utils import DefaultBoxGenerator
-    from torchvision.models.detection.image_list import ImageList
-
     H, W = resolution
 
     # Get real feature map sizes from the backbone. Must run in eval mode:
