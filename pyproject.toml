@@ -18,12 +18,15 @@ extend-select = [
     # "C90", # mccabe
     # "D",  # pydocstyle
     "ERA",  # eradicate
+    "PL",  # pylint
 ]
 ignore = [
     "E203",
     "B008", # Do not perform function call
     "RUF009", # Don not perform partials
-    # "W503",
+    "PLR0913", # too-many-arguments: common for model/training configs
+    "PLR0917", # too-many-positional-arguments
+    "PLR2004", # magic-value-comparison: shapes and thresholds are fine
 ]
 
 [tool.ruff.lint.isort]
