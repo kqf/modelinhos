@@ -36,3 +36,13 @@ repos:
       - id: pyright
         language: system
         entry: env PYRIGHT_PYTHON_IGNORE_WARNINGS=1 pyright
+
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint (duplicate code)
+        language: system
+        entry: pylint modelinhos
+        types: [python]
+        pass_filenames: false
+        require_serial: true
