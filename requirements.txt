@@ -1,6 +1,7 @@
 pytest
 pytest-coverage
 pre-commit
+pylint
 ipdb
 pyright[nodejs]
 pandas-stubs
