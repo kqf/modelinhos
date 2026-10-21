@@ -32,6 +32,15 @@ ignore = [
 [tool.ruff.lint.isort]
 combine-as-imports = true
 
+[tool.pylint.main]
+# Ruff's "PL" rules cover the rest; pylint is only used for duplicate code
+disable = ["all"]
+enable = ["duplicate-code"]
+
+[tool.pylint.similarities]
+min-similarity-lines = 6
+ignore-imports = true
+
 [tool.mypy]
 python_version = "3.10"
 strict = false
