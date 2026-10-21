@@ -161,6 +161,8 @@ def simple_engine(
             collate=baked.collate,
             max_epochs=max_epochs,
             lr=lr,
+            # Same loader defaults as LightningEngine, by design
+            # pylint: disable=duplicate-code
             train_dataloader_builder=train_dataloader_builder
             or partial(
                 default_dataloader_builder,
@@ -174,6 +176,7 @@ def simple_engine(
                 batch_size=batch_size,
                 num_workers=num_workers,
             ),
+            # pylint: enable=duplicate-code
             **knobs,
         )
 
