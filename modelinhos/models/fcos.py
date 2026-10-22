@@ -2,15 +2,13 @@ from functools import partial
 
 import torch
 import torch.nn.functional as F
-from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
 from torchvision.models.detection.fcos import (
     FCOSClassificationHead,
     FCOSRegressionHead,
     fcos_resnet50_fpn,
 )
 from torchvision.models.detection.retinanet import LastLevelP6P7
-from torchvision.models.resnet import ResNet50_Weights, resnet50
-from torchvision.ops import generalized_box_iou_loss, sigmoid_focal_loss
+from torchvision.ops import generalized_box_iou_loss
 
 from modelinhos.detector import (
     DetectionRecipe,
@@ -26,7 +24,11 @@ from modelinhos.loss.subloss import (
     sum_normalized,
 )
 from modelinhos.models.anchors import tvison_anchors
-from modelinhos.models.retinanet import retina_anchors
+from modelinhos.models.retinanet import (
+    RetinaNetPure,
+    retina_anchors,
+    sigmoid_focal,
+)
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
 
 
@@ -90,42 +92,6 @@ class FCOSPureHead(torch.nn.Module):
         classes = self.classification_head(features)
         boxes, ctrness = self.regression_head(features)
         return boxes, torch.cat([classes, ctrness], dim=-1)
-
-
-class FCOSPure(torch.nn.Module):
-    def __init__(
-        self,
-        n_classes,
-        extra_blocks=None,
-        num_anchors=2,
-        signed_boxes=True,
-    ):
-        super().__init__()
-        backbone = resnet50(
-            weights=ResNet50_Weights.IMAGENET1K_V1,
-            progress=True,
-            norm_layer=torch.nn.BatchNorm2d,
-        )
-        # skip P2 because it generates too many anchors
-        self.backbone = _resnet_fpn_extractor(
-            backbone,
-            5,
-            returned_layers=[2, 3, 4],
-            extra_blocks=extra_blocks,
-        )
-
-        self.head = FCOSPureHead(
-            self.backbone.out_channels,
-            num_anchors=num_anchors,
-            n_classes=n_classes,
-            signed_boxes=signed_boxes,
-        )
-        self.last_feature = -1 if extra_blocks is None else None
-
-    def forward(self, images):
-        features = self.backbone(images.float())
-        features = list(features.values())[: self.last_feature]
-        return self.head(features)
 
 
 def fcos_anchors(resolution: tuple[int, int]) -> torch.Tensor:
@@ -328,27 +294,6 @@ def fcos_decoders(score_thresh: float) -> tuple:
     return decode_scores, decode_labels
 
 
-def sigmoid_focal(alpha: float, gamma: float):
-    """Focal loss over integer class ids, as in build_ret_loss: select()
-    hands over one id per location (0 for negatives); the sigmoid
-    convention wants per-class binary targets with background rows
-    all-off."""
-
-    def loss(y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
-        target = F.one_hot(y_true, num_classes=y_pred.shape[-1])
-        target = target.to(y_pred.dtype)
-        target[:, 0] = 0.0
-        return sigmoid_focal_loss(
-            y_pred,
-            target,
-            alpha=alpha,
-            gamma=gamma,
-            reduction="sum",
-        )
-
-    return loss
-
-
 # The single FCOS loss, trainable and decode-faithful at once, mirroring
 # torchvision's FCOSHead.compute_loss: sigmoid focal loss over the class
 # channels of every location (unmatched ones are plain negatives -- no
@@ -447,18 +392,21 @@ def build_fcos_delta_loss(
 
 
 def build_fcos_delta(n_classes, resolution: tuple[int, int]):
-    return FCOSPure(n_classes)
+    return RetinaNetPure(
+        n_classes,
+        head=partial(FCOSPureHead, signed_boxes=True),
+    )
 
 
 def build_torchvision_fcos(
     n_classes=91,
     resolution: tuple[int, int] = (800, 1088),
 ):
-    return FCOSPure(
+    return RetinaNetPure(
         n_classes,
         extra_blocks=LastLevelP6P7(256, 256),
         num_anchors=1,
-        signed_boxes=False,
+        head=partial(FCOSPureHead, signed_boxes=False),
     )
 
 

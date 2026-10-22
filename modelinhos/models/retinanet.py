@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from functools import partial
 
 import torch
@@ -52,7 +53,20 @@ class RetinaNetPureHead(torch.nn.Module):
 
 
 class RetinaNetPure(torch.nn.Module):
-    def __init__(self, n_classes, extra_blocks=None, num_anchors=2):
+    """ResNet50-FPN backbone plus a dense head. head is a factory:
+    head(out_channels, num_anchors=..., n_classes=...)
+    """
+
+    def __init__(
+        self,
+        n_classes,
+        extra_blocks=None,
+        num_anchors=2,
+        head: Callable = partial(
+            RetinaNetPureHead,
+            norm_layer=partial(torch.nn.GroupNorm, 32),
+        ),
+    ):
         super().__init__()
         backbone = resnet50(
             weights=ResNet50_Weights.IMAGENET1K_V1,
@@ -67,11 +81,10 @@ class RetinaNetPure(torch.nn.Module):
             extra_blocks=extra_blocks,
         )
 
-        self.head = RetinaNetPureHead(
+        self.head = head(
             self.backbone.out_channels,
             num_anchors=num_anchors,
             n_classes=n_classes,
-            norm_layer=partial(torch.nn.GroupNorm, 32),
         )
         self.last_feature = -1 if extra_blocks is None else None
 
@@ -118,6 +131,27 @@ def build_torchvision_retinanet(
     )
 
 
+def sigmoid_focal(alpha: float, gamma: float):
+    """Focal loss over integer class ids:
+    select() hands over one id per anchor (0 for the mined-in negatives);
+    the sigmoid convention wants per-class binary targets,
+    with background rows all-off."""
+
+    def loss(y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
+        target = F.one_hot(y_true, num_classes=y_pred.shape[-1])
+        target = target.to(y_pred.dtype)
+        target[:, 0] = 0.0
+        return sigmoid_focal_loss(
+            y_pred,
+            target,
+            alpha=alpha,
+            gamma=gamma,
+            reduction="sum",
+        )
+
+    return loss
+
+
 # The single RetinaNet loss, trainable and decode-faithful at once: it
 # uses the independent per-class sigmoid + focal loss convention the real
 # pretrained weights were trained under (arxiv.org/abs/1708.02002), so the
@@ -150,21 +184,6 @@ def build_ret_loss(
         probs[..., 0] = 0.0
         return probs.max(dim=-1)[0].unsqueeze(-1)
 
-    def focal_loss(y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
-        # select() hands over one integer class id per anchor (0 for the
-        # mined-in negatives); the sigmoid convention wants per-class
-        # binary targets, with background rows all-off.
-        target = F.one_hot(y_true, num_classes=y_pred.shape[-1])
-        target = target.to(y_pred.dtype)
-        target[:, 0] = 0.0
-        return sigmoid_focal_loss(
-            y_pred,
-            target,
-            alpha=alpha,
-            gamma=gamma,
-            reduction="sum",
-        )
-
     sublosses = Sublosses(
         bboxes=WeightedLoss(
             loss=sum_normalized(partial(F.smooth_l1_loss, reduction="sum")),
@@ -173,7 +192,7 @@ def build_ret_loss(
         ),
         scores=WeightedLoss(loss=None, dec_pred=decode_scores),
         labels=WeightedLoss(
-            loss=positive_normalized(focal_loss),
+            loss=positive_normalized(sigmoid_focal(alpha, gamma)),
             needs_negatives=True,
             dec_pred=decode_labels,
         ),
