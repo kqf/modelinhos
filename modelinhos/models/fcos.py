@@ -23,10 +23,9 @@ from modelinhos.loss.subloss import (
     positive_normalized,
     sum_normalized,
 )
-from modelinhos.models.anchors import tvison_anchors
+from modelinhos.models.anchors import retina_anchors, tvison_anchors
 from modelinhos.models.retinanet import (
     RetinaNetPure,
-    retina_anchors,
     sigmoid_focal,
 )
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes

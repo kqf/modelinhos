@@ -93,3 +93,14 @@ def tvison_anchors(
 ):
     sizes = [[int(base * s) for s in scales] for base in base_sizes]
     return anchors(resolution, sizes, steps, aspect_ratios, offset=0)
+
+
+def retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
+    """Anchors matching the BlazePure flavors -- a pure function of
+    resolution, the same grid as models.retinanet/models.ssdlite."""
+    return anchors(
+        resolution,
+        sizes=[[16, 32], [64, 128], [256, 512]],
+        steps=[8, 16, 32],
+        clip=False,
+    )

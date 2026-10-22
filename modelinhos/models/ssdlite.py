@@ -29,7 +29,7 @@ from modelinhos.loss.subloss import (
     positive_normalized,
     sum_normalized,
 )
-from modelinhos.models.anchors import anchors
+from modelinhos.models.anchors import anchors, retina_anchors
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
 from modelinhos.preprocess.image import normalize, rgb_normalized_image_encoder
 
@@ -309,16 +309,6 @@ ssd_normalize = partial(
     image_mean=(0.5, 0.5, 0.5),
     image_std=(0.5, 0.5, 0.5),
 )
-
-
-def retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
-    """Anchors matching build_retinanet -- a pure function of resolution."""
-    return anchors(
-        resolution,
-        sizes=[[16, 32], [64, 128], [256, 512]],
-        steps=[8, 16, 32],
-        clip=False,
-    )
 
 
 def build_retina_ssdlite(
