@@ -26,7 +26,7 @@ from modelinhos.loss.subloss import (
     positive_normalized,
     sum_normalized,
 )
-from modelinhos.models.anchors import anchors, tvison_anchors
+from modelinhos.models.anchors import retina_anchors, tvison_anchors
 from modelinhos.preprocess.boxes import decode_boxes, encode_boxes
 
 
@@ -92,16 +92,6 @@ class RetinaNetPure(torch.nn.Module):
         features = self.backbone(images.float())
         features = list(features.values())[: self.last_feature]
         return self.head(features)
-
-
-def retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
-    """Anchors matching bulid_retinanet -- a pure function of resolution."""
-    return anchors(
-        resolution,
-        sizes=[[16, 32], [64, 128], [256, 512]],
-        steps=[8, 16, 32],
-        clip=False,
-    )
 
 
 def torchvision_retina_anchors(resolution: tuple[int, int]) -> torch.Tensor:
