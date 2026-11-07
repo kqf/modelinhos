@@ -30,24 +30,19 @@ class Logger : public nvinfer1::ILogger {
     }
 };
 
-struct Destroy {
-    template <typename T>
-    void operator()(T* obj) const {
-        if (obj) obj->destroy();
-    }
-};
+// TensorRT 10 objects are released with plain delete (destroy() is gone).
 template <typename T>
-using Ptr = std::unique_ptr<T, Destroy>;
+using Ptr = std::unique_ptr<T>;
 
 static size_t element_size(nvinfer1::DataType type) {
     switch (type) {
-        case nvinfer1::DataType::kFLOAT: return 4;
         case nvinfer1::DataType::kHALF: return 2;
-        case nvinfer1::DataType::kINT32: return 4;
         case nvinfer1::DataType::kINT8: return 1;
         case nvinfer1::DataType::kBOOL: return 1;
+        case nvinfer1::DataType::kUINT8: return 1;
+        case nvinfer1::DataType::kINT64: return 8;
+        default: return 4;
     }
-    return 4;
 }
 
 static size_t volume(const nvinfer1::Dims& dims) {
@@ -97,40 +92,44 @@ int main(int argc, char** argv) {
     Ptr<nvinfer1::IExecutionContext> context(
         engine->createExecutionContext());
 
-    const int n = engine->getNbBindings();
-    std::vector<void*> bindings(n, nullptr);
+    const int n = engine->getNbIOTensors();
+    std::vector<const char*> names(n);
+    std::vector<bool> is_input(n);
+    std::vector<void*> buffers(n, nullptr);
     std::vector<size_t> bytes(n, 0);
     std::vector<std::vector<char>> host(n);
     for (int i = 0; i < n; i++) {
-        nvinfer1::Dims dims = engine->getBindingDimensions(i);
-        if (engine->bindingIsInput(i)) {
-            // Exports are static, but tolerate a dynamic batch/size.
-            bool dynamic = false;
-            for (int d = 0; d < dims.nbDims; d++) dynamic |= dims.d[d] < 0;
-            if (dynamic) {
-                dims = nvinfer1::Dims4{1, 3, h, w};
-                context->setBindingDimensions(i, dims);
-            }
-            if (dims.nbDims == 4 && (dims.d[2] != h || dims.d[3] != w)) {
-                std::cerr << path << ": engine input is " << dims.d[2]
-                          << "x" << dims.d[3] << ", expected " << h << "x"
-                          << w << "\n";
-                return 1;
-            }
+        names[i] = engine->getIOTensorName(i);
+        is_input[i] = engine->getTensorIOMode(names[i]) ==
+                      nvinfer1::TensorIOMode::kINPUT;
+        if (!is_input[i]) continue;
+        nvinfer1::Dims dims = engine->getTensorShape(names[i]);
+        // Exports are static, but tolerate a dynamic batch/size.
+        bool dynamic = false;
+        for (int d = 0; d < dims.nbDims; d++) dynamic |= dims.d[d] < 0;
+        if (dynamic) {
+            dims = nvinfer1::Dims4{1, 3, h, w};
+            context->setInputShape(names[i], dims);
+        }
+        if (dims.nbDims == 4 && (dims.d[2] != h || dims.d[3] != w)) {
+            std::cerr << path << ": engine input is " << dims.d[2] << "x"
+                      << dims.d[3] << ", expected " << h << "x" << w << "\n";
+            return 1;
         }
     }
+    // Output shapes are only known once every input shape is set.
     for (int i = 0; i < n; i++) {
-        nvinfer1::Dims dims = context->getBindingDimensions(i);
-        bytes[i] = volume(dims) * element_size(engine->getBindingDataType(i));
+        nvinfer1::Dims dims = context->getTensorShape(names[i]);
+        nvinfer1::DataType type = engine->getTensorDataType(names[i]);
+        bytes[i] = volume(dims) * element_size(type);
         host[i].resize(bytes[i]);
-        CHECK(cudaMalloc(&bindings[i], bytes[i]));
-        if (engine->bindingIsInput(i)) {
+        CHECK(cudaMalloc(&buffers[i], bytes[i]));
+        context->setTensorAddress(names[i], buffers[i]);
+        if (is_input[i] && type == nvinfer1::DataType::kFLOAT) {
             std::mt19937 rng(0);
             std::uniform_real_distribution<float> uniform(0.0f, 1.0f);
-            if (engine->getBindingDataType(i) == nvinfer1::DataType::kFLOAT) {
-                float* data = reinterpret_cast<float*>(host[i].data());
-                for (size_t k = 0; k < bytes[i] / 4; k++) data[k] = uniform(rng);
-            }
+            float* data = reinterpret_cast<float*>(host[i].data());
+            for (size_t k = 0; k < bytes[i] / 4; k++) data[k] = uniform(rng);
         }
     }
 
@@ -142,16 +141,16 @@ int main(int argc, char** argv) {
     // with the CPU runner, where setInput/forward cover the same work.
     auto run = [&]() {
         for (int i = 0; i < n; i++)
-            if (engine->bindingIsInput(i))
-                CHECK(cudaMemcpyAsync(bindings[i], host[i].data(), bytes[i],
+            if (is_input[i])
+                CHECK(cudaMemcpyAsync(buffers[i], host[i].data(), bytes[i],
                                       cudaMemcpyHostToDevice, stream));
-        if (!context->enqueueV2(bindings.data(), stream, nullptr)) {
+        if (!context->enqueueV3(stream)) {
             std::cerr << path << ": enqueue failed\n";
             std::exit(1);
         }
         for (int i = 0; i < n; i++)
-            if (!engine->bindingIsInput(i))
-                CHECK(cudaMemcpyAsync(host[i].data(), bindings[i], bytes[i],
+            if (!is_input[i])
+                CHECK(cudaMemcpyAsync(host[i].data(), buffers[i], bytes[i],
                                       cudaMemcpyDeviceToHost, stream));
         CHECK(cudaStreamSynchronize(stream));
     };
@@ -188,7 +187,7 @@ int main(int argc, char** argv) {
     double ram = usage.ru_maxrss / 1024.0 + device;
 
     CHECK(cudaStreamDestroy(stream));
-    for (void* b : bindings) CHECK(cudaFree(b));
+    for (void* b : buffers) CHECK(cudaFree(b));
 
     // Same fixed-width columns as the OpenCV runner, so the tables line up.
     std::cout << std::fixed << std::setprecision(2)
