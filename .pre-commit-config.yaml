@@ -46,3 +46,8 @@ repos:
         types: [python]
         pass_filenames: false
         require_serial: true
+
+  - repo: https://github.com/kqf/dejalint
+    rev: 0.0.5
+    hooks:
+      - id: dejalint
