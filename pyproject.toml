@@ -28,6 +28,7 @@ ignore = [
     "PLR0917", # too-many-positional-arguments
     "PLR2004", # magic-value-comparison: shapes and thresholds are fine
 ]
+external = ["DJL"]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
