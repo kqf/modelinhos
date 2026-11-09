@@ -43,7 +43,7 @@ class LitDetection(pl.LightningModule):
         self.lr = lr
         self.optimizer_builder = optimizer_builder
 
-    def forward(self, images):
+    def forward(self, images):  # noqa: DJL006
         return self.model(images)
 
     def _shared_step(self, batch, stage: str):
