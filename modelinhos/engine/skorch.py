@@ -86,12 +86,12 @@ class SkorchEngine:
         self.net.fit(dataset, y=None)
         return self
 
-    def predict(self, dataset) -> list[Sample[TrainAnnotation]]:
+    def predict(self, dataset) -> list[Sample[TrainAnnotation]]:  # noqa: DJL006
         return self.net.predict_samples(dataset)
 
     def predict_single(
         self, blob: torch.Tensor
-    ) -> list[Sample[TrainAnnotation]]:
+    ) -> list[Sample[TrainAnnotation]]:  # noqa: DJL006
         return self.net.predict_single(blob)
 
 

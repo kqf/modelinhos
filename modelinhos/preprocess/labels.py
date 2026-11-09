@@ -108,7 +108,7 @@ class LabelEncoder:
 
     def fit_transform(
         self, samples: list[Sample[Annotation]]
-    ) -> list[Sample[TrainAnnotation]]:
+    ) -> list[Sample[TrainAnnotation]]:  # noqa: DJL006
         return self.fit(samples).transform(samples)
 
     def inverse_transform(
