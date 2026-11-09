@@ -88,3 +88,7 @@ version_scheme = "post-release" # Uses Git tags for versioning
 
 [tool.setuptools.packages.find]
 include = ["modelinhos*"]
+
+[tool.dejalint]
+paths = ["modelinhos", "tests"]
+format = "rule"
