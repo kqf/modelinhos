@@ -129,6 +129,16 @@ P2 -- hygiene before there are external users (renames get expensive later):
 Someday:
 
 - [ ] Add the fcos inference
+- [ ] Drop the zoo builders entirely: give DetectionRecipe a
+      `pretrained` field (the checkpoint enum it mirrors) and default
+      build_detector's weights to warm_start(arch.pretrained), so
+      build_ssd/build_retina/build_fcos/build_blaze (now just partials
+      pinning arch + weights) become plain build_detector(arch=...).
+      Trade-off: couples recipes to checkpoints -- the trimmed flavors
+      (SSDLITE, SSDLARGE, RETINANET, RETINANET_F/B, FCOS_DELTA) currently
+      borrow their family's checkpoint via the zoo defaults, so each
+      would need `pretrained` set explicitly; a `None` would mean
+      from_scratch.
 
 Decided against (deliberate, don't re-propose):
 
