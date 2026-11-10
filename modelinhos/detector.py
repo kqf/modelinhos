@@ -160,9 +160,9 @@ EngineBuilder = Callable[[Baked], Engine]
 
 
 def build_detector(
-    arch: DetectionRecipe,
-    lencoder: SampleEncoder,
     resolution: tuple[int, int],
+    lencoder: SampleEncoder,
+    arch: DetectionRecipe,
     engine: EngineBuilder,
     th: float = 0.4,
     weights: Weights = from_scratch,
