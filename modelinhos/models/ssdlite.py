@@ -49,7 +49,7 @@ class SSDPureHead(torch.nn.Module):
             norm_layer=norm_layer,
         )
 
-    def forward(self, features):
+    def forward(self, features):  # noqa: DJL001
         classes = self.classification_head(features)
         boxes = self.regression_head(features)
         return boxes, classes
