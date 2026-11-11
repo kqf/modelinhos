@@ -38,7 +38,7 @@ class Sample(Generic[AnnotationT]):
     annotations: list[AnnotationT]
 
 
-def to_sample(entry: dict[str, Any]) -> Sample[Annotation]:
+def to_sample(entry: dict[str, Any]) -> Sample[Annotation]:  # noqa: DJL002
     try:
         return from_dict(
             data_class=Sample[Annotation],
