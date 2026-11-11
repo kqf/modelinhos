@@ -112,7 +112,7 @@ def rename(
     return dataset
 
 
-def normalize(data: list[Sample]) -> list[Sample]:
+def normalize_boxes(data: list[Sample]) -> list[Sample]:
     def process(sample: Sample) -> Sample:
         image = cv2.imread(str(sample.file_name))
         if image is None:

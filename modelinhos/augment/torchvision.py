@@ -25,7 +25,7 @@ from modelinhos.sample import TrainAnnotation
 def augment(
     ops: list,
     min_visibility: float = 0.3,
-) -> Augmentation:
+) -> Augmentation:  # noqa: DJL002
     """Wrap a list of torchvision.transforms.v2 ops into an Augmentation.
 
     min_visibility matches the albumentations wrapper: the fraction of a
