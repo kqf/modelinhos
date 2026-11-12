@@ -51,7 +51,10 @@ def pad(image: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
 
 
 @pytest.fixture
-def frame(resolution, path: str = "tests/assets/person.jpg") -> np.ndarray:
+def frame(
+    resolution,
+    path: str = "tests/assets/person.jpg",
+) -> np.ndarray:  # noqa: DJL002
     image = cv2.imread(path)
     if image is None:
         raise OSError(f"Asset {path} is not found")
