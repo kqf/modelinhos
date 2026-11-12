@@ -17,7 +17,7 @@ SSDLITE_ANCHOR_CONFIG = AnchorConfig(
 
 
 @pytest.fixture
-def resolution() -> tuple[int, int]:
+def resolution() -> tuple[int, int]:  # noqa: DJL002
     # Overrides the 800x1088 shared fixture -- matching doesn't need a
     # real training resolution and small grids keep the test readable.
     return 128, 128
