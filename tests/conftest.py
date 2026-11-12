@@ -8,7 +8,7 @@ from modelinhos.sample import Annotation, Sample, save_samples
 
 
 @pytest.fixture
-def resolution() -> tuple[int, int]:
+def resolution() -> tuple[int, int]:  # noqa: DJL002
     return 120, 160
 
 
@@ -40,5 +40,5 @@ def data(
 
 
 @pytest.fixture
-def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:
+def dataset(data, tmp_path: pathlib.Path) -> pathlib.Path:  # noqa: DJL002
     return save_samples(data, tmp_path / "data" / "annotations.json")

@@ -23,7 +23,7 @@ def resolution() -> tuple[int, int]:
 def dataset(
     resolution: tuple[int, int],
     tmp_path: pathlib.Path,
-) -> list[Sample]:
+) -> list[Sample]:  # noqa: DJL002
     h, w = resolution
     image = np.full((h, w, 3), 255, dtype=np.uint8)
     file_names = []
