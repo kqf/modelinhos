@@ -22,7 +22,7 @@ def sample(n_boxes: int) -> Sample[TrainAnnotation]:
 
 
 @pytest.fixture
-def dataset():
+def dataset():  # noqa: DJL002
     def build(samples, augment=None):
         return SampleDataset(
             samples,
