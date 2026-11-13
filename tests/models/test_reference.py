@@ -293,6 +293,6 @@ def test_references_match(
 
 
 @pytest.fixture
-def resolution() -> tuple[int, int]:
+def resolution() -> tuple[int, int]:  # noqa: DJL002
     # This is magic resolution to avoid additional geometric conversion
     return 800, 1088
