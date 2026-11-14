@@ -12,7 +12,7 @@ from modelinhos.sample import Annotation, Sample
 
 
 @pytest.fixture
-def y_true() -> list[Sample]:
+def y_true() -> list[Sample]:  # noqa: DJL002
     return [
         Sample(
             file_name=Path("frame.jpg"),
@@ -25,7 +25,7 @@ def y_true() -> list[Sample]:
 
 
 @pytest.fixture
-def y_pred() -> list[Sample]:
+def y_pred() -> list[Sample]:  # noqa: DJL002
     return [
         Sample(
             file_name=Path("frame.jpg"),
