@@ -148,3 +148,126 @@ Decided against (deliberate, don't re-propose):
 - No geometric-IoU mAP switch: too expensive, keeping the
   mean_average_precision VOC-style (+1) backend and its `resolution`
   parameter.
+
+Review findings (2026-11-15, trainings/ excluded):
+
+Test status at review time: 57 pass; the SSDLite parity test
+(tests/models/test_reference.py:82) fails locally -- score 0.94236 vs
+0.94185 against a 1e-4 tolerance. ruff / format / pylint are clean.
+
+R0 -- breaks in real use (fit -> predict -> checkpoint path first):
+
+- [ ] Detector.transform cannot predict on unlabelled images: it
+      routes through the training SampleDataset, whose field_specs
+      raises "no annotated sample" (data.py:39). An unseen label is a
+      bare KeyError, and predictions come back with
+      file_name="fake-file.png" (containers.py:121) -- reattach the
+      input file names.
+- [ ] `resolution` is not enforced: it sizes the anchors, but the
+      default image encoder never resizes (preprocess/image.py:17). An
+      image of another size fails at decode with a shape mismatch,
+      mixed sizes fail in torch.stack. Only grayscale_image_encoder
+      resizes.
+- [ ] num_workers > 0 fails under spawn/forkserver (macOS and Windows
+      always, Linux from Python 3.14): the image encoder is built from
+      lambdas and cannot be pickled; the augment closures have the same
+      shape. The README advertises num_workers=8.
+- [ ] Checkpoints only round-trip for skorch: models/load.py:78 strips
+      one `model.` prefix, but Lightning keys are `model.model.*` plus
+      `loss.priors`, and SimpleTrainer never saves. warm_start on a
+      Lightning checkpoint silently loads zero tensors --
+      load_with_mismatch ignores unmatched keys without reporting.
+- [ ] RetinaNetPure always downloads ImageNet ResNet50 weights
+      (models/retinanet.py:71): from_scratch is not from scratch, and
+      restore / export need network. Contradicts the recipe contract
+      (detector.py:107); affects the RetinaNet and FCOS flavors.
+- [ ] Stray `break` in inference/vonnx/export.py:182 exports only
+      128x128 per model. The exporter also uses random weights and raw
+      heads: there is no path from a trained checkpoint to a deployable
+      model with decode and NMS, which README step 5 implies.
+- [ ] The SSD matcher gives background-only images zero negatives, so
+      zero loss (loss/matching.py:192) -- the field_specs effort to
+      support empty images buys nothing for the mined losses.
+- [ ] The skorch engine cannot predict before fit: a pretrained zoo
+      detector raises NotInitializedError.
+- [ ] coco_label_encoder has 82 i2l entries for 91 channels (the
+      duplicate "N/A" slots collapse), so a prediction on one of those
+      channels is a KeyError in inverse_transform.
+
+R1 -- architectural flaws:
+
+- [ ] The loss owns decode and the score threshold: `th` is baked in
+      at build time (detector.py:131), so changing the operating
+      threshold means rebuilding the detector, while the README
+      workflow is "evaluate, then pick thresholds". The NMS IoU of 0.5
+      is hard-coded in Collate() and unreachable from the recipe or
+      build_detector.
+- [ ] Per-field decode is strained: softmax is computed twice, the
+      threshold is encoded as label = -1, and FCOS smuggles centerness
+      through by concatenating it onto the class logits, which to_preds
+      then duplicates into two slots.
+- [ ] detector.py is a hub (DetectionModel, Detector, Baked,
+      DetectionRecipe, build_detector, torchvision_reference); every
+      model and engine imports it. Give Baked and the recipe their own
+      module.
+- [ ] The Engine protocol is too wide and too narrow: each engine
+      re-implements the same predict loop (could live once in
+      Detector), while saving, loading and device are not in the
+      protocol -- the root of the checkpoint item above.
+- [ ] evaluation.py mixes metrics with blocking plt.show() views, and
+      async_mode=True starts a manager and worker process on every
+      mean_average_precision() call (once per validation epoch in the
+      training scripts).
+- [ ] Fragile upstream coupling: torchvision private APIs
+      (_mobilenet_extractor, _resnet_fpn_extractor, _utils, _is_cn)
+      with no version bounds; blaze weights come from a third-party
+      raw/master URL with no pinned commit or hash
+      (models/blazenet.py:289).
+
+R2 -- misconfigurations:
+
+- [ ] pyproject dependencies: pandas and typing_extensions are
+      imported but undeclared (transitive only); dadinhos, joblib and
+      onnx are declared but unused by the package; mlflow is in every
+      extra but never imported by the library; no requires-python
+      (the code needs >= 3.10).
+- [ ] requirements.txt: pytest-coverage is a placeholder alias for
+      pytest-cov.
+- [ ] CI (tests.yml): tests only 3.12 while the tooling targets 3.10;
+      tests run against the source tree, not the installed wheel (how
+      the packages= bug slipped through); every run re-downloads
+      pretrained weights with no cache; checkout@v3 and
+      setup-python@v4 are outdated.
+- [ ] publish.yml fires on `release: created` with no test gate.
+- [ ] Linters: pyright has no config, so locally it scans cachedir/
+      (9 errors); mypy runs with ignore_missing_imports in an isolated
+      env, so torch is Any and it checks very little; ruff ignores
+      B008 / RUF009 but neither rule set is selected; pre-commit-hooks
+      is pinned to a 2021 release.
+
+R3 -- loose ends:
+
+- [ ] Dead code: masked_loss (also swaps pred and target,
+      loss/subloss.py:45), retina_confidence_loss (divides by zero
+      with no positives), Collate.un_batch, AnchorConfig (test only),
+      the empty tests/test_all.py, and DoNothingEncoder -- the
+      Detector default, which cannot work with SampleDataset.
+- [ ] Stale comments: the 30-line BatchNorm note about a test in
+      models/ssdlite.py:272, the dangling `reference` field comment at
+      detector.py:122, the mypy v0.921 mention in
+      augment/__init__.py:23, and the torchvision adapter docstring
+      pointing at a nonexistent albumentations_augment.
+- [ ] Typos in public names (renames get expensive later): overalp,
+      iterative_mathing, bulid_retinanet, tvison_anchors. RETINANET_F/B
+      in blazenet also collide with retinanet.RETINANET -- export.py
+      has to alias them.
+- [ ] Untested: both augment adapters, coco.py, and inference on
+      unlabelled data.
+- [ ] README drift: it says test_trains.py crosses every family with
+      every engine; it runs only simple_engine, the engines are
+      crossed for one model in test_engine.py.
+- [ ] trainings/ drift: the scripts call net.predict(X), which now
+      raises TypeError -- the method is predict_samples.
+- [ ] This file: the geometric-IoU mAP switch is listed both as an
+      open item (above) and under "Decided against" -- drop the open
+      one.
