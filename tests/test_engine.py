@@ -4,14 +4,15 @@ from collections.abc import Callable
 import matplotlib
 import pytest
 
+from modelinhos.detector import build_detector
 from modelinhos.engine.lit import lightning_engine
 from modelinhos.engine.simple import simple_engine
 from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import mean_average_precision
-from modelinhos.models.blazenet import RETINANET_F
+from modelinhos.models.blazenet import RETINANET_F, BlazeNet_Weights
+from modelinhos.models.load import warm_start
 from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import read_samples
-from modelinhos.zoo import build_blaze
 
 
 @pytest.mark.parametrize(
@@ -36,10 +37,11 @@ def test_engine(
     ).fit(data)
 
     # It's the smallest one, check it overfits
-    model = build_blaze(
-        arch=RETINANET_F,
+    model = build_detector(
         resolution=resolution,
         lencoder=lencoder,
+        arch=RETINANET_F,
+        weights=warm_start(BlazeNet_Weights.FRONT_V1),
         engine=engine,
     )
     model.fit(data)

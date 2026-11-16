@@ -3,6 +3,8 @@ import numpy as np
 import pytest
 import torch
 
+from modelinhos.detector import build_detector
+from modelinhos.engine.simple import simple_engine
 from modelinhos.models.anchors import retina_anchors
 from modelinhos.models.blazenet import (
     BLAZEFACE_F,
@@ -20,7 +22,7 @@ from modelinhos.models.blazenet import (
     predict_on_image,
 )
 from modelinhos.models.load import restore
-from modelinhos.zoo import blaze_label_encoder, build_blaze
+from modelinhos.zoo import blaze_label_encoder
 
 # Reference output of the original BlazeFace-PyTorch implementation
 # (hollance's blazeface.py, weights + anchors.npy from that repo) on its
@@ -118,10 +120,12 @@ def test_blazeface_recipe_matches_reference(frame):
     assert BLAZEFACE_F.reference is not None
     reference = BLAZEFACE_F.reference(weights, [frame], th=0.75)[0]
 
-    detector = build_blaze(
+    detector = build_detector(
         resolution=weights.meta["resolution"],
         lencoder=blaze_label_encoder(weights),
+        arch=BLAZEFACE_F,
         weights=restore(weights),
+        engine=simple_engine(),
         th=0.75,
     )
     preds = detector.transform_single(frame)[0]
