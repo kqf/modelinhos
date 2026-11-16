@@ -29,14 +29,18 @@ from pathlib import Path
 
 import mlflow
 from skorch.callbacks import Checkpoint, EpochScoring, MlflowLogger
+from torchvision.models.detection import (
+    SSDLite320_MobileNet_V3_Large_Weights,
+)
 
+from modelinhos.detector import build_detector
 from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import mean_average_precision
 from modelinhos.models.anchors import anchors
+from modelinhos.models.load import warm_start
 from modelinhos.models.ssdlite import SSDLITE
 from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import Annotation, Sample, read_samples
-from modelinhos.zoo import build_ssd
 
 
 def main(
@@ -90,9 +94,10 @@ def main(
         f_criterion=None,  # type: ignore
     )
 
-    detector = build_ssd(
+    detector = build_detector(
         resolution,
         lencoder=lencoder,
+        weights=warm_start(SSDLite320_MobileNet_V3_Large_Weights.COCO_V1),
         arch=replace(
             SSDLITE,
             anchors=partial(

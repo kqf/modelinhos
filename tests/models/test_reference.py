@@ -11,18 +11,15 @@ from torchvision.models.detection.retinanet import (
     RetinaNet_ResNet50_FPN_V2_Weights,
 )
 
+from modelinhos.detector import build_detector
+from modelinhos.engine.simple import simple_engine
 from modelinhos.models.fcos import TORCHVISION_FCOS
 from modelinhos.models.load import warm_start
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.plot import plot
 from modelinhos.sample import Annotation, Sample
-from modelinhos.zoo import (
-    build_fcos,
-    build_retina,
-    build_ssd,
-    coco_label_encoder,
-)
+from modelinhos.zoo import coco_label_encoder
 
 
 def pad(image: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
@@ -85,12 +82,11 @@ def assert_same_sample(preds, expect):
 
 
 @pytest.mark.parametrize(
-    "resolution, arch, build_custom, weights, tv_expected, md_expected",
+    "resolution, arch, weights, tv_expected, md_expected",
     [
         pytest.param(
             (320, 320),
             TORCHVISION_SSDLITE,
-            build_ssd,
             SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             Sample(
                 file_name=Path("fake-file.png"),
@@ -131,7 +127,6 @@ def assert_same_sample(preds, expect):
                 1088,
             ),
             TORCHVISION_RETINANET,
-            build_retina,
             RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             Sample(
                 file_name=Path("fake-file.png"),
@@ -191,7 +186,6 @@ def assert_same_sample(preds, expect):
                 1088,
             ),
             TORCHVISION_FCOS,
-            build_fcos,
             FCOS_ResNet50_FPN_Weights.COCO_V1,
             Sample(
                 file_name=Path("fake-file.png"),
@@ -270,7 +264,6 @@ def assert_same_sample(preds, expect):
 def test_references_match(
     frame,
     arch,
-    build_custom,
     weights,
     tv_expected,
     md_expected,
@@ -282,11 +275,12 @@ def test_references_match(
     # NB: We accept the difference between Custom and TV
     assert_same_sample(tv_preds, tv_expected)
 
-    detector = build_custom(
+    detector = build_detector(
         resolution=shape,
         lencoder=coco_label_encoder(weights),
         arch=arch,
         weights=warm_start(weights),
+        engine=simple_engine(),
     )
     md_preds = _show(frame, detector.transform_single(frame)[0], headless)
     assert_same_sample(md_preds, md_expected)

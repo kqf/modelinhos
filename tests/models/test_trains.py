@@ -1,45 +1,56 @@
 import pathlib
-from collections.abc import Callable
-from functools import partial
 
 import matplotlib
 import pytest
+from torchvision.models import WeightsEnum
+from torchvision.models.detection import (
+    SSDLite320_MobileNet_V3_Large_Weights,
+)
+from torchvision.models.detection.fcos import FCOS_ResNet50_FPN_Weights
+from torchvision.models.detection.retinanet import (
+    RetinaNet_ResNet50_FPN_V2_Weights,
+)
 
+from modelinhos.detector import DetectionRecipe, build_detector
 from modelinhos.engine.simple import simple_engine
 from modelinhos.evaluation import (
     mean_average_precision,
     per_sample_metrics,
     visualize_fp_fn,
 )
-from modelinhos.models.blazenet import RETINANET_F
-from modelinhos.models.fcos import FCOS_DELTA
-from modelinhos.models.retinanet import RETINANET
-from modelinhos.models.ssdlite import SSDLITE
+from modelinhos.models.blazenet import RETINANET_F, BlazeNet_Weights
+from modelinhos.models.fcos import FCOS_DELTA, TORCHVISION_FCOS
+from modelinhos.models.load import warm_start
+from modelinhos.models.retinanet import RETINANET, TORCHVISION_RETINANET
+from modelinhos.models.ssdlite import SSDLITE, TORCHVISION_SSDLITE
 from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import read_samples
-from modelinhos.zoo import build_blaze, build_fcos, build_retina, build_ssd
 
 
 @pytest.mark.parametrize(
-    "build_model, max_epochs",
+    "arch, checkpoint, max_epochs",
     [
         pytest.param(
-            partial(build_retina, arch=RETINANET),
+            RETINANET,
+            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             1,
             id="retinanet",
         ),
         pytest.param(
-            partial(build_ssd, arch=SSDLITE),
+            SSDLITE,
+            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             1,
             id="ssdlite",
         ),
         pytest.param(
-            build_retina,
+            TORCHVISION_RETINANET,
+            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             1,
             id="torchvision_retinanet",
         ),
         pytest.param(
-            build_ssd,
+            TORCHVISION_SSDLITE,
+            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             1,
             id="torchvision_ssdlite",
         ),
@@ -47,7 +58,8 @@ from modelinhos.zoo import build_blaze, build_fcos, build_retina, build_ssd
         # anchors, which never match a small box -- only the retina-
         # anchored trainable flavor can learn this dataset.
         pytest.param(
-            partial(build_blaze, arch=RETINANET_F),
+            RETINANET_F,
+            BlazeNet_Weights.FRONT_V1,
             1,
             id="blazenet",
         ),
@@ -59,19 +71,22 @@ from modelinhos.zoo import build_blaze, build_fcos, build_retina, build_ssd
         # unlearned before the delta codec works), so it needs a larger
         # epoch budget than the rest.
         pytest.param(
-            partial(build_fcos, arch=FCOS_DELTA),
+            FCOS_DELTA,
+            FCOS_ResNet50_FPN_Weights.COCO_V1,
             5,
             id="fcos",
         ),
         pytest.param(
-            build_fcos,
+            TORCHVISION_FCOS,
+            FCOS_ResNet50_FPN_Weights.COCO_V1,
             1,
             id="torchvision_fcos",
         ),
     ],
 )
 def test_pipeline(
-    build_model: Callable,
+    arch: DetectionRecipe,
+    checkpoint: WeightsEnum,
     max_epochs: int,
     resolution: tuple[int, int],
     dataset: pathlib.Path,
@@ -83,9 +98,11 @@ def test_pipeline(
         l2i={"__background__": 0, "dot": 1},
     ).fit(data)
 
-    model = build_model(
+    model = build_detector(
         resolution=resolution,
         lencoder=lencoder,
+        arch=arch,
+        weights=warm_start(checkpoint, progress=False),
         engine=simple_engine(max_epochs=max_epochs),
     )
     model.fit(data)

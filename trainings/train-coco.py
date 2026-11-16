@@ -55,28 +55,35 @@ from skorch.callbacks import (
     LRScheduler,
     MlflowLogger,
 )
+from torchvision.models.detection import (
+    SSDLite320_MobileNet_V3_Large_Weights,
+)
+from torchvision.models.detection.retinanet import (
+    RetinaNet_ResNet50_FPN_V2_Weights,
+)
 from torchvision.transforms import v2
 
 from modelinhos.augment.torchvision import augment
 from modelinhos.coco import load_samples
+from modelinhos.detector import build_detector
 from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import mean_average_precision
+from modelinhos.models.load import warm_start
 from modelinhos.models.retinanet import RETINANET
 from modelinhos.models.ssdlite import SSDLARGE
 from modelinhos.preprocess.image import grayscale_image_encoder
 from modelinhos.preprocess.labels import LabelEncoder
-from modelinhos.zoo import build_retina, build_ssd
 
 CONFIGS: dict[str, dict[str, Any]] = {
     "ssdlarge": {
-        "build": build_ssd,
         "arch": SSDLARGE,
+        "weights": SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
         "lr": 1e-3,
         "batch_size": 32,
     },
     "retinanet": {
-        "build": build_retina,
         "arch": RETINANET,
+        "weights": RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
         "lr": 1e-4,
         "batch_size": 16,
     },
@@ -141,9 +148,10 @@ def main(
         f_criterion=None,  # type: ignore
     )
 
-    detector = config["build"](
+    detector = build_detector(
         resolution,
         lencoder=lencoder,
+        weights=warm_start(config["weights"], progress=False),
         arch=replace(
             config["arch"],
             iencoder=grayscale_image_encoder(resolution),
