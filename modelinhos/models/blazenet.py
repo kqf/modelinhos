@@ -289,7 +289,7 @@ class BlazeNetBack(BlazeNet):
 _BLAZE_REPO = "https://github.com/hollance/BlazeFace-PyTorch/raw/master"
 
 _COMMON_META = {
-    "categories": ["face"],
+    "categories": ["__background__", "face"],
     "num_anchors": 896,
     "recipe": "https://github.com/hollance/BlazeFace-PyTorch",
     "_docs": "MediaPipe BlazeFace weights converted from TFLite; "
@@ -753,7 +753,7 @@ def blaze_reference(
     model: BlazeNet = weights.meta["model"]()
     model.load_state_dict(weights.get_state_dict(progress=True))
     model.anchors = load_repo_anchors(weights)
-    label = weights.meta["categories"][0]
+    label = weights.meta["categories"][1]
     results: list[Sample[Annotation]] = []
     for frame in frames:
         detections = predict_on_image(
