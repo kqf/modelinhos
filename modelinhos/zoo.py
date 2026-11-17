@@ -14,17 +14,3 @@ def coco_label_encoder(weights) -> LabelEncoder:
     return LabelEncoder(
         l2i={label: i for i, label in enumerate(labels)},
     )
-
-
-def blaze_label_encoder(weights) -> LabelEncoder:
-    """Label encoder over a blaze checkpoint's categories. Unlike the
-    COCO checkpoints, blaze meta carries no background slot (the vanilla
-    net emits a single sigmoid face channel), so indices start at 1 and
-    0 keeps the background convention -- n_classes comes out as 2."""
-    labels = weights.meta["categories"]
-    return LabelEncoder(
-        l2i={
-            "__background__": 0,
-            **{label: i for i, label in enumerate(labels, start=1)},
-        },
-    )
