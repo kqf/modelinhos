@@ -22,7 +22,7 @@ from modelinhos.models.blazenet import (
     predict_on_image,
 )
 from modelinhos.models.load import restore
-from modelinhos.zoo import coco_label_encoder
+from modelinhos.preprocess.labels import coco_label_encoder
 
 # Reference output of the original BlazeFace-PyTorch implementation
 # (hollance's blazeface.py, weights + anchors.npy from that repo) on its

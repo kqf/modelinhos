@@ -144,3 +144,12 @@ class DoNothingEncoder:
 
     def inverse_transform(self, samples: list[Sample]) -> list[Sample]:
         return samples
+
+
+def coco_label_encoder(weights) -> LabelEncoder:
+    """Label encoder over the checkpoint's own COCO categories -- 91
+    channels, so the mismatch-tolerant load is a passthrough."""
+    labels = weights.meta["categories"]
+    return LabelEncoder(
+        l2i={label: i for i, label in enumerate(labels)},
+    )
