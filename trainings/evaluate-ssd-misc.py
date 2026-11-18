@@ -19,7 +19,7 @@ from modelinhos.evaluation import (
 )
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.plot import plot
-from modelinhos.preprocess.labels import SampleEncoder, coco_label_encoder
+from modelinhos.preprocess.labels import SampleEncoder, default_encoder
 from modelinhos.sample import Sample
 
 memory = joblib.Memory("./cachedir", verbose=0)
@@ -48,7 +48,7 @@ def infer(
     assert TORCHVISION_SSDLITE.reference is not None
     with timer("inference"):
         y_pred = TORCHVISION_SSDLITE.reference(weights, frames)
-    return y_pred, coco_label_encoder(weights)
+    return y_pred, default_encoder(weights)
 
 
 def main(
