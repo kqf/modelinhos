@@ -146,9 +146,7 @@ class DoNothingEncoder:
         return samples
 
 
-def coco_label_encoder(weights) -> LabelEncoder:
-    """Label encoder over the checkpoint's own COCO categories -- 91
-    channels, so the mismatch-tolerant load is a passthrough."""
+def default_encoder(weights) -> LabelEncoder:
     labels = weights.meta["categories"]
     return LabelEncoder(
         l2i={label: i for i, label in enumerate(labels)},

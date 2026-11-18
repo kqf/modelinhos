@@ -18,7 +18,7 @@ from modelinhos.models.load import warm_start
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.plot import plot
-from modelinhos.preprocess.labels import coco_label_encoder
+from modelinhos.preprocess.labels import default_encoder
 from modelinhos.sample import Annotation, Sample
 
 
@@ -277,7 +277,7 @@ def test_references_match(
 
     detector = build_detector(
         resolution=shape,
-        lencoder=coco_label_encoder(weights),
+        lencoder=default_encoder(weights),
         arch=arch,
         weights=warm_start(weights),
         engine=simple_engine(),

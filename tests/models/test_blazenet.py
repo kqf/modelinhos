@@ -22,7 +22,7 @@ from modelinhos.models.blazenet import (
     predict_on_image,
 )
 from modelinhos.models.load import restore
-from modelinhos.preprocess.labels import coco_label_encoder
+from modelinhos.preprocess.labels import default_encoder
 
 # Reference output of the original BlazeFace-PyTorch implementation
 # (hollance's blazeface.py, weights + anchors.npy from that repo) on its
@@ -122,7 +122,7 @@ def test_blazeface_recipe_matches_reference(frame):
 
     detector = build_detector(
         resolution=weights.meta["resolution"],
-        lencoder=coco_label_encoder(weights),
+        lencoder=default_encoder(weights),
         arch=BLAZEFACE_F,
         weights=restore(weights),
         engine=simple_engine(),
