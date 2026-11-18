@@ -19,9 +19,8 @@ from modelinhos.evaluation import (
 )
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.plot import plot
-from modelinhos.preprocess.labels import SampleEncoder
+from modelinhos.preprocess.labels import SampleEncoder, coco_label_encoder
 from modelinhos.sample import Sample
-from modelinhos.zoo import coco_label_encoder
 
 memory = joblib.Memory("./cachedir", verbose=0)
 

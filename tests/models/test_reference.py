@@ -18,8 +18,8 @@ from modelinhos.models.load import warm_start
 from modelinhos.models.retinanet import TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import TORCHVISION_SSDLITE
 from modelinhos.plot import plot
+from modelinhos.preprocess.labels import coco_label_encoder
 from modelinhos.sample import Annotation, Sample
-from modelinhos.zoo import coco_label_encoder
 
 
 def pad(image: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
