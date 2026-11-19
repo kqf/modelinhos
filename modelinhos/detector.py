@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from torchvision.models import WeightsEnum
 
 from modelinhos.augment import Augmentation, identity, no_augment
 from modelinhos.containers import Collate, to_preds
@@ -119,6 +120,13 @@ class DetectionRecipe:
     # BGR uint8 HWC ndarray -> normalized float CHW tensor. Must be a
     # built encoder, not the rgb_normalized_image_encoder factory itself.
     iencoder: Callable = field(default_factory=rgb_normalized_image_encoder)
+    # The checkpoint this family is best started from -- the default
+    # source for warm_start (training) and, where the head layout and
+    # label space match, for restore (inference of the existing model).
+    # Any torchvision-style WeightsEnum (BlazeNet_Weights included).
+    # Informational only: bake() never reads it, weights stay explicit.
+    # None means the family has no checkpoint -- from_scratch.
+    pretraining: WeightsEnum | None = None
     # (weights, frames, th) -> list[Sample]: the torchvision-native
     # upstream this recipe mirrors (see torchvision_reference), used as
     # the ground truth in parity tests. None when there is no upstream.

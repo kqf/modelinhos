@@ -128,7 +128,7 @@ P2 -- hygiene before there are external users (renames get expensive later):
 
 Someday:
 
-- [ ] Add the fcos inference
+- [x] Add the fcos inference
 - [ ] Drop the zoo builders entirely: give DetectionRecipe a
       `pretrained` field (the checkpoint enum it mirrors) and default
       build_detector's weights to warm_start(arch.pretrained), so
@@ -149,11 +149,7 @@ Decided against (deliberate, don't re-propose):
   mean_average_precision VOC-style (+1) backend and its `resolution`
   parameter.
 
-Review findings (2026-11-15, trainings/ excluded):
-
-Test status at review time: 57 pass; the SSDLite parity test
-(tests/models/test_reference.py:82) fails locally -- score 0.94236 vs
-0.94185 against a 1e-4 tolerance. ruff / format / pylint are clean.
+Review findings:
 
 R0 -- breaks in real use (fit -> predict -> checkpoint path first):
 
