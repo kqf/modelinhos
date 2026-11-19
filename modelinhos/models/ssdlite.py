@@ -9,6 +9,7 @@ from torchvision.models.detection import (
 from torchvision.models.detection.anchor_utils import DefaultBoxGenerator
 from torchvision.models.detection.image_list import ImageList
 from torchvision.models.detection.ssdlite import (
+    SSDLite320_MobileNet_V3_Large_Weights,
     SSDLiteClassificationHead,
     SSDLiteRegressionHead,
     _mobilenet_extractor,
@@ -328,6 +329,7 @@ SSDLARGE = DetectionRecipe(
     anchors=retina_anchors,
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(ssd_normalize),
+    pretraining=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
 )
 
 
@@ -336,6 +338,7 @@ SSDLITE = DetectionRecipe(
     anchors=ssdlite_anchors,
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(ssd_normalize),
+    pretraining=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
 )
 
 # Faithful-to-torchvision configuration: torchvision's own anchors and
@@ -347,5 +350,6 @@ TORCHVISION_SSDLITE = ReferencedDetectionRecipe(
     anchors=torchvision_ssdlite_anchors,
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(ssd_normalize),
+    pretraining=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
     reference=torchvision_reference(ssdlite320_mobilenet_v3_large),
 )

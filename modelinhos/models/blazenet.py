@@ -893,6 +893,7 @@ BLAZEFACE_F = ReferencedDetectionRecipe(
     anchors=blaze_anchors,
     loss=build_blaze_loss,
     iencoder=rgb_normalized_image_encoder(blaze_normalize),
+    pretraining=BlazeNet_Weights.FRONT_V1,
     reference=blaze_reference,
 )
 
@@ -903,6 +904,7 @@ BLAZEFACE_B = ReferencedDetectionRecipe(
     anchors=blaze_back_anchors,
     loss=partial(build_blaze_loss, scale=256.0),
     iencoder=rgb_normalized_image_encoder(blaze_normalize),
+    pretraining=BlazeNet_Weights.BACK_V1,
     reference=blaze_reference,
 )
 
@@ -915,6 +917,7 @@ RETINANET_F = DetectionRecipe(
     anchors=retina_anchors,
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(blaze_normalize),
+    pretraining=BlazeNet_Weights.FRONT_V1,
 )
 
 RETINANET_B = DetectionRecipe(
@@ -922,4 +925,5 @@ RETINANET_B = DetectionRecipe(
     anchors=retina_anchors,
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(blaze_normalize),
+    pretraining=BlazeNet_Weights.BACK_V1,
 )

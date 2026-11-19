@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
 from torchvision.models.detection.retinanet import (
     LastLevelP6P7,
+    RetinaNet_ResNet50_FPN_V2_Weights,
     RetinaNetClassificationHead,
     RetinaNetRegressionHead,
     retinanet_resnet50_fpn_v2,
@@ -199,6 +200,7 @@ RETINANET = DetectionRecipe(
     build_model=bulid_retinanet,
     anchors=retina_anchors,
     loss=build_ret_loss,
+    pretraining=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
 )
 
 # Faithful-to-torchvision configuration -- same loss, torchvision's own
@@ -209,5 +211,6 @@ TORCHVISION_RETINANET = ReferencedDetectionRecipe(
     build_model=build_torchvision_retinanet,
     anchors=torchvision_retina_anchors,
     loss=build_ret_loss,
+    pretraining=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
     reference=torchvision_reference(retinanet_resnet50_fpn_v2),
 )
