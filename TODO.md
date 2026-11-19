@@ -173,6 +173,18 @@ R0 -- breaks in real use (fit -> predict -> checkpoint path first):
       `loss.priors`, and SimpleTrainer never saves. warm_start on a
       Lightning checkpoint silently loads zero tensors --
       load_with_mismatch ignores unmatched keys without reporting.
+- [ ] SSDLARGE does not warm-start from its pretraining checkpoint
+      (SSDLite320_MobileNet_V3_Large_Weights.COCO_V1, also what
+      trainings/train-coco.py uses): only 6/356 params load. The
+      backbone keys diverge -- the model has backbone.features.N.*
+      (mobilenet_c3c4c5_extractor keeps the flat MobileNet layout), the
+      checkpoint has backbone.features.0.N.* / features.1.* (torchvision
+      splits the features into two stages). Only 6 head tensors match by
+      name, and those sit at different strides than in SSDLite. The
+      SSDLARGE COCO runs were likely trained without the COCO backbone.
+      Fix: remap the keys (in the extractor, or a prefix rewrite in
+      load.state_dict like modernize_fpn), and have load_with_mismatch
+      report unmatched keys.
 - [ ] RetinaNetPure always downloads ImageNet ResNet50 weights
       (models/retinanet.py:71): from_scratch is not from scratch, and
       restore / export need network. Contradicts the recipe contract
