@@ -105,6 +105,11 @@ class DetectionRecipe:
     (resolution) arrive at bake() time. Presets live next to their model
     definitions in modelinhos/models/."""
 
+    pretraining: WeightsEnum
+    # (weights, frames, th) -> list[Sample]: the torchvision-native
+    # upstream this recipe mirrors (see torchvision_reference), used as
+    # the ground truth in parity tests. None when there is no upstream.
+
     # (resolution, n_classes) -> nn.Module, freshly initialized; weight
     # loading is not its concern -- bake() applies the Weights loader to
     # its result
@@ -126,10 +131,6 @@ class DetectionRecipe:
     # Any torchvision-style WeightsEnum (BlazeNet_Weights included).
     # Informational only: bake() never reads it, weights stay explicit.
     # None means the family has no checkpoint -- from_scratch.
-    pretraining: WeightsEnum | None = None
-    # (weights, frames, th) -> list[Sample]: the torchvision-native
-    # upstream this recipe mirrors (see torchvision_reference), used as
-    # the ground truth in parity tests. None when there is no upstream.
 
     def bake(
         self,
