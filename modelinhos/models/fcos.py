@@ -3,6 +3,7 @@ from functools import partial
 import torch
 import torch.nn.functional as F
 from torchvision.models.detection.fcos import (
+    FCOS_ResNet50_FPN_Weights,
     FCOSClassificationHead,
     FCOSRegressionHead,
     fcos_resnet50_fpn,
@@ -415,6 +416,7 @@ FCOS_DELTA = DetectionRecipe(
     build_model=build_fcos_delta,
     anchors=retina_anchors,
     loss=build_fcos_delta_loss,
+    pretraining=FCOS_ResNet50_FPN_Weights.COCO_V1,
 )
 
 # Faithful-to-torchvision configuration: FCOS's own point grid, linear
@@ -425,5 +427,6 @@ TORCHVISION_FCOS = ReferencedDetectionRecipe(
     build_model=build_torchvision_fcos,
     anchors=fcos_anchors,
     loss=build_fcos_loss,
+    pretraining=FCOS_ResNet50_FPN_Weights.COCO_V1,
     reference=torchvision_reference(fcos_resnet50_fpn),
 )
