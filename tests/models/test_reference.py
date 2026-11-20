@@ -3,13 +3,6 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pytest
-from torchvision.models.detection import (
-    SSDLite320_MobileNet_V3_Large_Weights,
-)
-from torchvision.models.detection.fcos import FCOS_ResNet50_FPN_Weights
-from torchvision.models.detection.retinanet import (
-    RetinaNet_ResNet50_FPN_V2_Weights,
-)
 
 from modelinhos.detector import build_detector
 from modelinhos.engine.simple import simple_engine
@@ -82,12 +75,11 @@ def assert_same_sample(preds, expect):
 
 
 @pytest.mark.parametrize(
-    "resolution, arch, weights, tv_expected, md_expected",
+    "resolution, arch, tv_expected, md_expected",
     [
         pytest.param(
             (320, 320),
             TORCHVISION_SSDLITE,
-            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             Sample(
                 file_name=Path("fake-file.png"),
                 annotations=[
@@ -127,7 +119,6 @@ def assert_same_sample(preds, expect):
                 1088,
             ),
             TORCHVISION_RETINANET,
-            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             Sample(
                 file_name=Path("fake-file.png"),
                 annotations=[
@@ -186,7 +177,6 @@ def assert_same_sample(preds, expect):
                 1088,
             ),
             TORCHVISION_FCOS,
-            FCOS_ResNet50_FPN_Weights.COCO_V1,
             Sample(
                 file_name=Path("fake-file.png"),
                 annotations=[
@@ -264,12 +254,12 @@ def assert_same_sample(preds, expect):
 def test_references_match(
     frame,
     arch,
-    weights,
     tv_expected,
     md_expected,
     headless,
 ):
     shape = frame.shape[:2]
+    weights = arch.pretraining
     assert arch.reference is not None
     tv_preds = _show(frame, arch.reference(weights, [frame])[0], headless)
     # NB: We accept the difference between Custom and TV

@@ -2,14 +2,6 @@ import pathlib
 
 import matplotlib
 import pytest
-from torchvision.models import WeightsEnum
-from torchvision.models.detection import (
-    SSDLite320_MobileNet_V3_Large_Weights,
-)
-from torchvision.models.detection.fcos import FCOS_ResNet50_FPN_Weights
-from torchvision.models.detection.retinanet import (
-    RetinaNet_ResNet50_FPN_V2_Weights,
-)
 
 from modelinhos.detector import DetectionRecipe, build_detector
 from modelinhos.engine.simple import simple_engine
@@ -18,7 +10,7 @@ from modelinhos.evaluation import (
     per_sample_metrics,
     visualize_fp_fn,
 )
-from modelinhos.models.blazenet import RETINANET_F, BlazeNet_Weights
+from modelinhos.models.blazenet import RETINANET_F
 from modelinhos.models.fcos import FCOS_DELTA, TORCHVISION_FCOS
 from modelinhos.models.load import warm_start
 from modelinhos.models.retinanet import RETINANET, TORCHVISION_RETINANET
@@ -28,29 +20,25 @@ from modelinhos.sample import read_samples
 
 
 @pytest.mark.parametrize(
-    "arch, checkpoint, max_epochs",
+    "arch, max_epochs",
     [
         pytest.param(
             RETINANET,
-            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             1,
             id="retinanet",
         ),
         pytest.param(
             SSDLITE,
-            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             1,
             id="ssdlite",
         ),
         pytest.param(
             TORCHVISION_RETINANET,
-            RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
             1,
             id="torchvision_retinanet",
         ),
         pytest.param(
             TORCHVISION_SSDLITE,
-            SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
             1,
             id="torchvision_ssdlite",
         ),
@@ -59,7 +47,6 @@ from modelinhos.sample import read_samples
         # anchored trainable flavor can learn this dataset.
         pytest.param(
             RETINANET_F,
-            BlazeNet_Weights.FRONT_V1,
             1,
             id="blazenet",
         ),
@@ -72,13 +59,11 @@ from modelinhos.sample import read_samples
         # epoch budget than the rest.
         pytest.param(
             FCOS_DELTA,
-            FCOS_ResNet50_FPN_Weights.COCO_V1,
             5,
             id="fcos",
         ),
         pytest.param(
             TORCHVISION_FCOS,
-            FCOS_ResNet50_FPN_Weights.COCO_V1,
             1,
             id="torchvision_fcos",
         ),
@@ -86,7 +71,6 @@ from modelinhos.sample import read_samples
 )
 def test_pipeline(
     arch: DetectionRecipe,
-    checkpoint: WeightsEnum,
     max_epochs: int,
     resolution: tuple[int, int],
     dataset: pathlib.Path,
@@ -102,7 +86,7 @@ def test_pipeline(
         resolution=resolution,
         lencoder=lencoder,
         arch=arch,
-        weights=warm_start(checkpoint, progress=False),
+        weights=warm_start(arch.pretraining, progress=False),
         engine=simple_engine(max_epochs=max_epochs),
     )
     model.fit(data)

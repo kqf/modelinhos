@@ -116,7 +116,7 @@ def test_vanilla_blazenet_matches_repo(face):
 
 
 def test_blazeface_recipe_matches_reference(frame):
-    weights = BlazeNet_Weights.FRONT_V1
+    weights = BLAZEFACE_F.pretraining
     assert BLAZEFACE_F.reference is not None
     reference = BLAZEFACE_F.reference(weights, [frame], th=0.75)[0]
 

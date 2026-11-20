@@ -9,7 +9,7 @@ from modelinhos.engine.lit import lightning_engine
 from modelinhos.engine.simple import simple_engine
 from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import mean_average_precision
-from modelinhos.models.blazenet import RETINANET_F, BlazeNet_Weights
+from modelinhos.models.blazenet import RETINANET_F
 from modelinhos.models.load import warm_start
 from modelinhos.preprocess.labels import LabelEncoder
 from modelinhos.sample import read_samples
@@ -41,7 +41,7 @@ def test_engine(
         resolution=resolution,
         lencoder=lencoder,
         arch=RETINANET_F,
-        weights=warm_start(BlazeNet_Weights.FRONT_V1),
+        weights=warm_start(RETINANET_F.pretraining),
         engine=engine,
     )
     model.fit(data)
