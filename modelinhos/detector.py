@@ -105,11 +105,13 @@ class DetectionRecipe:
     (resolution) arrive at bake() time. Presets live next to their model
     definitions in modelinhos/models/."""
 
+    # The checkpoint this family is best started from -- what
+    # build_detector warm-starts from when no weights are given, and,
+    # where the head layout and label space match, the source for
+    # restore (inference of the existing model). Any torchvision-style
+    # WeightsEnum (BlazeNet_Weights included). bake() never reads it:
+    # at that level weights stay explicit.
     pretraining: WeightsEnum
-    # (weights, frames, th) -> list[Sample]: the torchvision-native
-    # upstream this recipe mirrors (see torchvision_reference), used as
-    # the ground truth in parity tests. None when there is no upstream.
-
     # (resolution, n_classes) -> nn.Module, freshly initialized; weight
     # loading is not its concern -- bake() applies the Weights loader to
     # its result
@@ -125,12 +127,6 @@ class DetectionRecipe:
     # BGR uint8 HWC ndarray -> normalized float CHW tensor. Must be a
     # built encoder, not the rgb_normalized_image_encoder factory itself.
     iencoder: Callable = field(default_factory=rgb_normalized_image_encoder)
-    # The checkpoint this family is best started from -- the default
-    # source for warm_start (training) and, where the head layout and
-    # label space match, for restore (inference of the existing model).
-    # Any torchvision-style WeightsEnum (BlazeNet_Weights included).
-    # Informational only: bake() never reads it, weights stay explicit.
-    # None means the family has no checkpoint -- from_scratch.
 
     def bake(
         self,
@@ -162,6 +158,10 @@ class DetectionRecipe:
 
 @dataclass(frozen=True)
 class ReferencedDetectionRecipe(DetectionRecipe):
+    # (weights, frames, th) -> list[Sample]: the torchvision-native
+    # upstream this recipe mirrors (see torchvision_reference), used as
+    # the ground truth in parity tests -- typically called with
+    # recipe.pretraining.
     reference: Callable = lambda x: x
 
 
@@ -173,13 +173,15 @@ def build_detector(
     lencoder: SampleEncoder,
     arch: DetectionRecipe,
     engine: EngineBuilder,
+    weights: Weights,
     th: float = 0.4,
-    weights: Weights = from_scratch,
 ) -> Detector:
     """Compose the three independent choices -- architecture (recipe),
     label space (lencoder) and training backend (engine) -- into a
     Detector. The classification head is sized from lencoder.n_classes,
-    so the encoder must be fit before building."""
+    so the encoder must be fit before building. weights is explicit:
+    typically warm_start(arch.pretraining) for training, restore(...)
+    to load a trained model, or from_scratch."""
     baked = arch.bake(
         n_classes=lencoder.n_classes,
         resolution=resolution,
