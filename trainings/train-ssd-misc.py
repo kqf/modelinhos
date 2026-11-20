@@ -29,9 +29,6 @@ from pathlib import Path
 
 import mlflow
 from skorch.callbacks import Checkpoint, EpochScoring, MlflowLogger
-from torchvision.models.detection import (
-    SSDLite320_MobileNet_V3_Large_Weights,
-)
 
 from modelinhos.detector import build_detector
 from modelinhos.engine.skorch import skorch_engine
@@ -97,7 +94,7 @@ def main(
     detector = build_detector(
         resolution,
         lencoder=lencoder,
-        weights=warm_start(SSDLite320_MobileNet_V3_Large_Weights.COCO_V1),
+        weights=warm_start(SSDLITE.pretraining),
         arch=replace(
             SSDLITE,
             anchors=partial(

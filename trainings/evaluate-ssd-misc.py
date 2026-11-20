@@ -4,9 +4,6 @@ from pathlib import Path
 
 import cv2
 import joblib
-from torchvision.models.detection import (
-    SSDLite320_MobileNet_V3_Large_Weights,
-)
 
 from modelinhos.coco import load_samples
 from modelinhos.evaluation import (
@@ -42,7 +39,7 @@ def timer(name):
 @memory.cache()
 def infer(
     samples: list[Sample],
-    weights=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+    weights=TORCHVISION_SSDLITE.pretraining,
 ) -> tuple[list[Sample], SampleEncoder]:
     frames = [cv2.imread(str(sample.file_name)) for sample in samples]
     assert TORCHVISION_SSDLITE.reference is not None
