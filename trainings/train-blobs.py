@@ -3,9 +3,6 @@ from pathlib import Path
 import cv2
 from dadinhos.generate import make_detection_task
 from joblib import Memory
-from torchvision.models.detection import (
-    SSDLite320_MobileNet_V3_Large_Weights,
-)
 
 from modelinhos.detector import build_detector
 from modelinhos.engine.simple import simple_engine
@@ -32,7 +29,7 @@ def infer(
         resolution,
         lencoder=lencoder,
         arch=SSDLITE,
-        weights=warm_start(SSDLite320_MobileNet_V3_Large_Weights.COCO_V1),
+        weights=warm_start(SSDLITE.pretraining),
         engine=simple_engine(max_epochs=10),
     )
     model.fit(samples)
