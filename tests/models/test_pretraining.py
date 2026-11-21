@@ -53,17 +53,7 @@ def test_pretraining_restores_strictly(arch: DetectionRecipe):
         pytest.param(RETINANET, ("head.",), id="retinanet"),
         pytest.param(SSDLITE, ("head.",), id="ssdlite"),
         pytest.param(FCOS_DELTA, ("head.",), id="fcos_delta"),
-        pytest.param(
-            SSDLARGE,
-            ("head.",),
-            id="ssdlarge",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="backbone.features is flat, the checkpoint nests it"
-                " one level deeper (features.0.0.0...), so warm_start"
-                " loads almost nothing",
-            ),
-        ),
+        pytest.param(SSDLARGE, ("head.",), id="ssdlarge"),
         pytest.param(
             RETINANET_F,
             # BlazeFace-front stops at stride 16: the stride-32 stage
