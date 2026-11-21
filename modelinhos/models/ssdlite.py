@@ -68,18 +68,26 @@ def mobilenet_c3c4c5_extractor(backbone, norm_layer):
     pre-downsampling stride -- the same trick torchvision uses for its
     single split, applied at both of the last two stride-changing blocks
     (7 and 13 for mobilenet_v3_large with reduced_tail).
+
+    The taps are traced on top of torchvision's own extractor rather than
+    the flat MobileNet, so parameter names keep its two-stage layout
+    (features.0 = C1..C4 expansion, features.1 = C4 depthwise..C5) and
+    line up with the COCO SSDLite checkpoint key for key. Its C4 split
+    already is the stride-16 tap; C3 keeps its index inside features.0.
+    The unused extra blocks are dropped by the tracer.
     """
-    features = backbone.features
     strided = [
-        i for i, b in enumerate(features) if getattr(b, "_is_cn", False)
+        i
+        for i, b in enumerate(backbone.features)
+        if getattr(b, "_is_cn", False)
     ]
-    c3_pos, c4_pos = strided[-2:]
+    c3_pos = strided[-2]
     return create_feature_extractor(
-        backbone,
+        _mobilenet_extractor(backbone, 6, norm_layer),
         {
-            f"features.{c3_pos}.block.0": "0",  # stride 8
-            f"features.{c4_pos}.block.0": "1",  # stride 16
-            f"features.{len(features) - 1}": "2",  # stride 32
+            f"features.0.{c3_pos}.block.0": "0",  # stride 8
+            "features.0": "1",  # stride 16
+            "features.1": "2",  # stride 32
         },
     )
 
