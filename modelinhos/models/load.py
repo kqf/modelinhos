@@ -81,6 +81,11 @@ def state_dict(source, progress: bool = True) -> dict:
     return modernize_fpn(source.get_state_dict(progress=progress))
 
 
+class PartialWarmStart(UserWarning):
+    """warm_start left parameters outside the expected-fresh prefixes
+    at their initialization or reshaped them to fit."""
+
+
 def signature(state: dict) -> set[tuple[str, tuple[int, ...]]]:
     return {
         (name, tuple(param.shape))
@@ -115,7 +120,7 @@ def warm_start(
     starting point, not the final model, so parameters sized for a
     different label set are patched by load_with_mismatch (repeat/trim).
     Parameters under the `fresh` prefixes (typically the heads) are
-    expected to deviate; any other deviation raises a warning.
+    expected to deviate; any other deviation raises PartialWarmStart.
     Never use it for evaluation or export -- a mismatch there means the
     rebuilt model is not the trained one; that is what restore guards."""
 
@@ -128,6 +133,7 @@ def warm_start(
             warnings.warn(
                 f"warm_start: {len(missed)} parameter(s) outside {fresh} "
                 f"are missing from the checkpoint or reshaped:\n{listed}",
+                PartialWarmStart,
                 stacklevel=2,
             )
         return load_with_mismatch(model, checkpoint)

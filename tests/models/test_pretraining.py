@@ -1,5 +1,3 @@
-import warnings
-
 import pytest
 
 from modelinhos.detector import DetectionRecipe
@@ -40,6 +38,7 @@ def test_pretraining_restores_strictly(arch: DetectionRecipe):
     restore(arch.pretraining, progress=False)(build(arch))
 
 
+@pytest.mark.filterwarnings("error::modelinhos.models.load.PartialWarmStart")
 @pytest.mark.parametrize(
     "arch, fresh",
     [
@@ -66,6 +65,4 @@ def test_pretraining_fits_all_but_heads(
     fresh: tuple[str, ...],
 ):
     model = build(arch)
-    with warnings.catch_warnings():
-        warnings.filterwarnings("error", message="warm_start")
-        warm_start(arch.pretraining, fresh=fresh, progress=False)(model)
+    warm_start(arch.pretraining, fresh=fresh, progress=False)(model)
