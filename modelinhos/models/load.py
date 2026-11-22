@@ -1,4 +1,5 @@
 import re
+import warnings
 from pathlib import Path
 from typing import Protocol, TypeVar
 
@@ -80,15 +81,56 @@ def state_dict(source, progress: bool = True) -> dict:
     return modernize_fpn(source.get_state_dict(progress=progress))
 
 
-def warm_start(source, progress: bool = True) -> Weights:
+def signature(state: dict) -> set[tuple[str, tuple[int, ...]]]:
+    return {
+        (name, tuple(param.shape))
+        for name, param in state.items()
+        # BatchNorm fills in the counter when a checkpoint lacks it
+        if not name.endswith("num_batches_tracked")
+    }
+
+
+def unmatched(
+    model_state: dict,
+    checkpoint: dict,
+    fresh: tuple[str, ...] = (),
+) -> set[tuple[str, tuple[int, ...]]]:
+    """Model parameters the checkpoint does not cover as-is: either
+    absent from it or shaped differently (load_with_mismatch would
+    repeat/trim those). Names under the `fresh` prefixes are expected
+    to deviate and are skipped."""
+    return {
+        (name, shape)
+        for name, shape in signature(model_state) - signature(checkpoint)
+        if not name.startswith(fresh)
+    }
+
+
+def warm_start(
+    source,
+    fresh: tuple[str, ...] = (),
+    progress: bool = True,
+) -> Weights:
     """Mismatch-tolerant loader for training: the checkpoint is a
     starting point, not the final model, so parameters sized for a
     different label set are patched by load_with_mismatch (repeat/trim).
+    Parameters under the `fresh` prefixes (typically the heads) are
+    expected to deviate; any other deviation raises a warning.
     Never use it for evaluation or export -- a mismatch there means the
     rebuilt model is not the trained one; that is what restore guards."""
 
     def load(model: M) -> M:
-        return load_with_mismatch(model, state_dict(source, progress))
+        checkpoint = state_dict(source, progress)
+        if missed := unmatched(model.state_dict(), checkpoint, fresh):
+            listed = "\n".join(
+                f"  {name} {list(shape)}" for name, shape in sorted(missed)
+            )
+            warnings.warn(
+                f"warm_start: {len(missed)} parameter(s) outside {fresh} "
+                f"are missing from the checkpoint or reshaped:\n{listed}",
+                stacklevel=2,
+            )
+        return load_with_mismatch(model, checkpoint)
 
     return load
 
