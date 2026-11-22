@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 
 from modelinhos.detector import DetectionRecipe
@@ -8,7 +10,7 @@ from modelinhos.models.blazenet import (
     RETINANET_F,
 )
 from modelinhos.models.fcos import FCOS_DELTA, TORCHVISION_FCOS
-from modelinhos.models.load import restore, state_dict, warm_start
+from modelinhos.models.load import restore, warm_start
 from modelinhos.models.retinanet import RETINANET, TORCHVISION_RETINANET
 from modelinhos.models.ssdlite import (
     SSDLARGE,
@@ -22,15 +24,6 @@ def build(arch: DetectionRecipe):
     # that mirrors the checkpoint layout matches shape for shape
     n_classes = len(arch.pretraining.meta["categories"])
     return arch.build_model(resolution=(320, 320), n_classes=n_classes)
-
-
-def signature(state: dict) -> set[tuple[str, tuple[int, ...]]]:
-    return {
-        (name, tuple(param.shape))
-        for name, param in state.items()
-        # BatchNorm fills in the counter when a checkpoint lacks it
-        if not name.endswith("num_batches_tracked")
-    }
 
 
 @pytest.mark.parametrize(
@@ -48,7 +41,7 @@ def test_pretraining_restores_strictly(arch: DetectionRecipe):
 
 
 @pytest.mark.parametrize(
-    "arch, new",
+    "arch, fresh",
     [
         pytest.param(RETINANET, ("head.",), id="retinanet"),
         pytest.param(SSDLITE, ("head.",), id="ssdlite"),
@@ -70,16 +63,9 @@ def test_pretraining_restores_strictly(arch: DetectionRecipe):
 )
 def test_pretraining_fits_all_but_heads(
     arch: DetectionRecipe,
-    new: tuple[str, ...],
+    fresh: tuple[str, ...],
 ):
     model = build(arch)
-    checkpoint = state_dict(arch.pretraining, progress=False)
-
-    unmatched = {
-        (name, shape)
-        for name, shape in signature(model.state_dict())
-        - signature(checkpoint)
-        if not name.startswith(new)
-    }
-    assert not unmatched
-    warm_start(arch.pretraining, progress=False)(model)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="warm_start")
+        warm_start(arch.pretraining, fresh=fresh, progress=False)(model)
