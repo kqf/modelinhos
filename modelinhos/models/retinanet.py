@@ -201,6 +201,7 @@ RETINANET = DetectionRecipe(
     anchors=retina_anchors,
     loss=build_ret_loss,
     pretraining=RetinaNet_ResNet50_FPN_V2_Weights.COCO_V1,
+    diff=("head.",),
 )
 
 # Faithful-to-torchvision configuration -- same loss, torchvision's own

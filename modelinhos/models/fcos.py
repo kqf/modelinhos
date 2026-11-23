@@ -417,6 +417,7 @@ FCOS_DELTA = DetectionRecipe(
     anchors=retina_anchors,
     loss=build_fcos_delta_loss,
     pretraining=FCOS_ResNet50_FPN_Weights.COCO_V1,
+    diff=("head.",),
 )
 
 # Faithful-to-torchvision configuration: FCOS's own point grid, linear
