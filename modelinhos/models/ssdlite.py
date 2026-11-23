@@ -338,6 +338,7 @@ SSDLARGE = DetectionRecipe(
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(ssd_normalize),
     pretraining=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+    diff=("head.",),
 )
 
 
@@ -347,6 +348,7 @@ SSDLITE = DetectionRecipe(
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(ssd_normalize),
     pretraining=SSDLite320_MobileNet_V3_Large_Weights.COCO_V1,
+    diff=("head.",),
 )
 
 # Faithful-to-torchvision configuration: torchvision's own anchors and

@@ -40,29 +40,16 @@ def test_pretraining_restores_strictly(arch: DetectionRecipe):
 
 @pytest.mark.filterwarnings("error::modelinhos.models.load.PartialWarmStart")
 @pytest.mark.parametrize(
-    "arch, fresh",
+    "arch",
     [
-        pytest.param(RETINANET, ("head.",), id="retinanet"),
-        pytest.param(SSDLITE, ("head.",), id="ssdlite"),
-        pytest.param(FCOS_DELTA, ("head.",), id="fcos_delta"),
-        pytest.param(SSDLARGE, ("head.",), id="ssdlarge"),
-        pytest.param(
-            RETINANET_F,
-            # BlazeFace-front stops at stride 16: the stride-32 stage
-            # has no counterpart in the checkpoint
-            ("classifiers.", "regressors.", "backbone3."),
-            id="retinanet_f",
-        ),
-        pytest.param(
-            RETINANET_B,
-            ("classifiers.", "regressors."),
-            id="retinanet_b",
-        ),
+        pytest.param(RETINANET, id="retinanet"),
+        pytest.param(SSDLITE, id="ssdlite"),
+        pytest.param(FCOS_DELTA, id="fcos_delta"),
+        pytest.param(SSDLARGE, id="ssdlarge"),
+        pytest.param(RETINANET_F, id="retinanet_f"),
+        pytest.param(RETINANET_B, id="retinanet_b"),
     ],
 )
-def test_pretraining_fits_all_but_heads(
-    arch: DetectionRecipe,
-    fresh: tuple[str, ...],
-):
+def test_pretraining_fits_all_but_diff(arch: DetectionRecipe):
     model = build(arch)
-    warm_start(arch.pretraining, fresh=fresh, progress=False)(model)
+    warm_start(arch.pretraining, fresh=arch.diff, progress=False)(model)

@@ -127,6 +127,11 @@ class DetectionRecipe:
     # BGR uint8 HWC ndarray -> normalized float CHW tensor. Must be a
     # built encoder, not the rgb_normalized_image_encoder factory itself.
     iencoder: Callable = field(default_factory=rgb_normalized_image_encoder)
+    # State-dict prefixes where build_model departs from the pretraining
+    # checkpoint's layout (new or reshaped modules): the parameters
+    # warm_start is expected to leave fresh. Empty when the model
+    # mirrors the checkpoint.
+    diff: tuple[str, ...] = ()
 
     def bake(
         self,

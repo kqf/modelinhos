@@ -918,6 +918,9 @@ RETINANET_F = DetectionRecipe(
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(blaze_normalize),
     pretraining=BlazeNet_Weights.FRONT_V1,
+    # BlazeFace-front stops at stride 16: the stride-32 stage has
+    # no counterpart in the checkpoint
+    diff=("classifiers.", "regressors.", "backbone3."),
 )
 
 RETINANET_B = DetectionRecipe(
@@ -926,4 +929,5 @@ RETINANET_B = DetectionRecipe(
     loss=build_ssd_loss,
     iencoder=rgb_normalized_image_encoder(blaze_normalize),
     pretraining=BlazeNet_Weights.BACK_V1,
+    diff=("classifiers.", "regressors."),
 )
