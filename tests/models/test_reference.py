@@ -269,7 +269,7 @@ def test_references_match(
         resolution=shape,
         lencoder=default_encoder(weights),
         arch=arch,
-        weights=warm_start(weights),
+        weights=warm_start(weights, fresh=arch.diff),
         engine=simple_engine(),
     )
     md_preds = _show(frame, detector.transform_single(frame)[0], headless)

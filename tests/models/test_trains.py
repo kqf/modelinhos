@@ -86,7 +86,11 @@ def test_pipeline(
         resolution=resolution,
         lencoder=lencoder,
         arch=arch,
-        weights=warm_start(arch.pretraining, progress=False),
+        weights=warm_start(
+            arch.pretraining,
+            fresh=arch.diff,
+            progress=False,
+        ),
         engine=simple_engine(max_epochs=max_epochs),
     )
     model.fit(data)

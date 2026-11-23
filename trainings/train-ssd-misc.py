@@ -94,7 +94,7 @@ def main(
     detector = build_detector(
         resolution,
         lencoder=lencoder,
-        weights=warm_start(SSDLITE.pretraining),
+        weights=warm_start(SSDLITE.pretraining, fresh=SSDLITE.diff),
         arch=replace(
             SSDLITE,
             anchors=partial(

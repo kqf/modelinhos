@@ -29,7 +29,7 @@ def infer(
         resolution,
         lencoder=lencoder,
         arch=SSDLITE,
-        weights=warm_start(SSDLITE.pretraining),
+        weights=warm_start(SSDLITE.pretraining, fresh=SSDLITE.diff),
         engine=simple_engine(max_epochs=10),
     )
     model.fit(samples)
