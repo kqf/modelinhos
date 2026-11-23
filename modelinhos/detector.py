@@ -185,8 +185,8 @@ def build_detector(
     label space (lencoder) and training backend (engine) -- into a
     Detector. The classification head is sized from lencoder.n_classes,
     so the encoder must be fit before building. weights is explicit:
-    typically warm_start(arch.pretraining) for training, restore(...)
-    to load a trained model, or from_scratch."""
+    typically warm_start(arch.pretraining, fresh=arch.diff) for
+    training, restore(...) to load a trained model, or from_scratch."""
     baked = arch.bake(
         n_classes=lencoder.n_classes,
         resolution=resolution,

@@ -41,7 +41,7 @@ def test_engine(
         resolution=resolution,
         lencoder=lencoder,
         arch=RETINANET_F,
-        weights=warm_start(RETINANET_F.pretraining),
+        weights=warm_start(RETINANET_F.pretraining, fresh=RETINANET_F.diff),
         engine=engine,
     )
     model.fit(data)

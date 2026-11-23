@@ -143,7 +143,11 @@ def main(
     detector = build_detector(
         resolution,
         lencoder=lencoder,
-        weights=warm_start(config["arch"].pretraining, progress=False),
+        weights=warm_start(
+            config["arch"].pretraining,
+            fresh=config["arch"].diff,
+            progress=False,
+        ),
         arch=replace(
             config["arch"],
             iencoder=grayscale_image_encoder(resolution),
