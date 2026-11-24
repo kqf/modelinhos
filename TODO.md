@@ -129,7 +129,7 @@ P2 -- hygiene before there are external users (renames get expensive later):
 Someday:
 
 - [x] Add the fcos inference
-- [ ] Drop the zoo builders entirely: give DetectionRecipe a
+- [x] Drop the zoo builders entirely: give DetectionRecipe a
       `pretrained` field (the checkpoint enum it mirrors) and default
       build_detector's weights to warm_start(arch.pretrained), so
       build_ssd/build_retina/build_fcos/build_blaze (now just partials

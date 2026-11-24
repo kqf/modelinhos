@@ -141,6 +141,15 @@ def warm_start(
     return load
 
 
+def safe_save(wrapped: torch.nn.Module, path: str | Path) -> None:
+    raw = getattr(wrapped, "model", None)
+    if not isinstance(raw, torch.nn.Module):
+        raise TypeError(
+            f"save expects the DetectionModel wrapper, got {type(wrapped)}"
+        )
+    torch.save(raw.state_dict(), path)
+
+
 def restore(source, progress: bool = True) -> Weights:
     """Strict loader for evaluation and export: the checkpoint IS the
     model, so every key and shape must match exactly or loading raises

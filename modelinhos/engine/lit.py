@@ -6,6 +6,7 @@ Importing this module requires lightning
 
 from collections.abc import Callable
 from functools import partial
+from pathlib import Path
 
 import torch
 
@@ -23,6 +24,7 @@ from modelinhos.engine.simple import (
     default_dataloader_builder,
     default_optimizer_builder,
 )
+from modelinhos.models.load import safe_save as mdl_save
 
 
 class LitDetection(pl.LightningModule):
@@ -122,6 +124,9 @@ class LightningEngine:
         with torch.no_grad():
             preds = self.decode(self.module(blob.to(self.module.device)))
         return self.collate.un_batch_nms(preds)
+
+    def save(self, path: str | Path) -> None:
+        mdl_save(self.module.model, path)
 
 
 def lightning_engine(
