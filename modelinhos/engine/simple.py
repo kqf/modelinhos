@@ -11,8 +11,7 @@ from pathlib import Path
 import torch
 import tqdm
 
-from modelinhos.detector import Baked
-from modelinhos.models.load import safe_save
+from modelinhos.detector import Baked, DetectionModel
 
 DLBuilder = Callable[
     [torch.utils.data.Dataset, Callable],
@@ -50,7 +49,7 @@ class SimpleTrainer:
 
     def __init__(
         self,
-        model: torch.nn.Module,
+        model: DetectionModel,
         loss_fn: Callable,
         decode: Callable,
         collate,
@@ -141,7 +140,7 @@ class SimpleTrainer:
         return self.collate.un_batch_nms(preds)
 
     def save(self, path: Path) -> None:
-        safe_save(self.model, path)
+        torch.save(self.model.model.state_dict(), path)
 
 
 def simple_engine(

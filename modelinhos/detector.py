@@ -93,7 +93,7 @@ class Baked:
     engine consumes. The loss owns the codec -- decoding raw model
     output is loss.decode."""
 
-    model: torch.nn.Module
+    model: DetectionModel
     loss: DetectionLoss
     collate: Collate
     iencoder: Callable
