@@ -140,7 +140,7 @@ class SimpleTrainer:
             preds = self.decode(self.model(blob.to(self.device)))
         return self.collate.un_batch_nms(preds)
 
-    def save(self, path: str | Path) -> None:
+    def save(self, path: Path) -> None:
         safe_save(self.model, path)
 
 

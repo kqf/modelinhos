@@ -125,7 +125,7 @@ class LightningEngine:
             preds = self.decode(self.module(blob.to(self.module.device)))
         return self.collate.un_batch_nms(preds)
 
-    def save(self, path: str | Path) -> None:
+    def save(self, path: Path) -> None:
         mdl_save(self.module.model, path)
 
 

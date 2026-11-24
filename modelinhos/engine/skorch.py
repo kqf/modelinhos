@@ -96,7 +96,7 @@ class SkorchEngine:
     ) -> list[Sample[TrainAnnotation]]:  # noqa: DJL006
         return self.net.predict_single(blob)
 
-    def save(self, path: str | Path) -> None:
+    def save(self, path: Path) -> None:
         safe_save(self.net.module_, path)
 
 

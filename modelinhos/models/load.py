@@ -141,7 +141,7 @@ def warm_start(
     return load
 
 
-def safe_save(wrapped: torch.nn.Module, path: str | Path) -> None:
+def safe_save(wrapped: torch.nn.Module, path: Path) -> None:
     raw = getattr(wrapped, "model", None)
     if not isinstance(raw, torch.nn.Module):
         raise TypeError(

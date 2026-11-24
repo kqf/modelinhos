@@ -29,8 +29,8 @@ class Engine(Protocol):
         self, blob: torch.Tensor
     ) -> list[Sample[TrainAnnotation]]: ...
 
-    def save(self, path: str | Path) -> None:
+    def save(self, path: Path) -> None:
         """Write the raw model's weights as a plain .pt (see
-        modelinhos.models.load.save) -- loadable by restore/warm_start
+        modelinhos.models.load.safe_save) -- loadable by restore/warm_start
         whichever engine trained it."""
         ...
