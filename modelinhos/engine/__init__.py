@@ -7,6 +7,7 @@ optional: importing modelinhos.engine.skorch requires skorch, importing
 this package does not.
 """
 
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 import torch
@@ -27,3 +28,9 @@ class Engine(Protocol):
     def predict_single(
         self, blob: torch.Tensor
     ) -> list[Sample[TrainAnnotation]]: ...
+
+    def save(self, path: Path) -> None:
+        """Write the raw model's weights as a plain .pt (see
+        modelinhos.models.load.safe_save) -- loadable by restore/warm_start
+        whichever engine trained it."""
+        ...

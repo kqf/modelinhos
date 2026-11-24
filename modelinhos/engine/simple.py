@@ -6,11 +6,13 @@ label encoders."""
 
 from collections.abc import Callable
 from functools import partial
+from pathlib import Path
 
 import torch
 import tqdm
 
 from modelinhos.detector import Baked
+from modelinhos.models.load import safe_save
 
 DLBuilder = Callable[
     [torch.utils.data.Dataset, Callable],
@@ -137,6 +139,9 @@ class SimpleTrainer:
         with torch.no_grad():
             preds = self.decode(self.model(blob.to(self.device)))
         return self.collate.un_batch_nms(preds)
+
+    def save(self, path: Path) -> None:
+        safe_save(self.model, path)
 
 
 def simple_engine(

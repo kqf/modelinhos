@@ -8,6 +8,7 @@ criterion_.decode. Importing this module requires skorch
 (pip install modelinhos[skorch])."""
 
 from collections.abc import Callable
+from pathlib import Path
 
 import torch
 from torch import nn
@@ -24,6 +25,7 @@ except ImportError as e:
 from modelinhos.containers import Collate
 from modelinhos.detector import Baked
 from modelinhos.loss.loss import DetectionLoss
+from modelinhos.models.load import safe_save
 from modelinhos.sample import Sample, TrainAnnotation
 from modelinhos.tasks.standard import PerBatchEncoded
 
@@ -93,6 +95,9 @@ class SkorchEngine:
         self, blob: torch.Tensor
     ) -> list[Sample[TrainAnnotation]]:  # noqa: DJL006
         return self.net.predict_single(blob)
+
+    def save(self, path: Path) -> None:
+        safe_save(self.net.module_, path)
 
 
 def skorch_engine(

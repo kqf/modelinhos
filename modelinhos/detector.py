@@ -80,6 +80,11 @@ class Detector:
         preds = self._engine.predict_single(blob)
         return self.label_encoder.inverse_transform(preds)
 
+    def save(self, path: Path) -> None:
+        """Plain .pt of the raw model's weights; reload with
+        build_detector(..., weights=restore(path))."""
+        self._engine.save(path)
+
 
 @dataclass(frozen=True)
 class Baked:
