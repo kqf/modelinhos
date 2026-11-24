@@ -30,6 +30,13 @@ class DetectionModel(torch.nn.Module):
         return to_preds(self.model(x))
 
 
+def safe_save(wrapped: DetectionModel, path: Path) -> None:
+    """The one checkpoint format every engine writes: the raw model's
+    state dict (what build_model produces) as a plain .pt -- no wrapper
+    prefix, no optimizer, no loss buffers."""
+    torch.save(wrapped.model.state_dict(), path)
+
+
 class Detector:
     """The stable public API: samples in, samples out, regardless of
     which model family or training engine sits behind it. Converts
@@ -93,7 +100,7 @@ class Baked:
     engine consumes. The loss owns the codec -- decoding raw model
     output is loss.decode."""
 
-    model: torch.nn.Module
+    model: DetectionModel
     loss: DetectionLoss
     collate: Collate
     iencoder: Callable

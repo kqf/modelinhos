@@ -31,6 +31,6 @@ class Engine(Protocol):
 
     def save(self, path: Path) -> None:
         """Write the raw model's weights as a plain .pt (see
-        modelinhos.models.load.safe_save) -- loadable by restore/warm_start
+        modelinhos.detector.safe_save) -- loadable by restore/warm_start
         whichever engine trained it."""
         ...
