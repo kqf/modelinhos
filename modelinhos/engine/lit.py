@@ -18,7 +18,7 @@ except ImportError as e:
         "pip install modelinhos[lightning]"
     ) from e
 
-from modelinhos.detector import Baked, DetectionModel, safe_save
+from modelinhos.detector import Baked, DetectionModel
 from modelinhos.engine.simple import (
     DLBuilder,
     default_dataloader_builder,
@@ -125,7 +125,7 @@ class LightningEngine:
         return self.collate.un_batch_nms(preds)
 
     def save(self, path: Path) -> None:
-        safe_save(self.module.model, path)
+        torch.save(self.module.model.model.state_dict(), path)
 
 
 def lightning_engine(

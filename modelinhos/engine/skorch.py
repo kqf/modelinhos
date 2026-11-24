@@ -22,7 +22,7 @@ except ImportError as e:
     ) from e
 
 from modelinhos.containers import Collate
-from modelinhos.detector import Baked, DetectionModel, safe_save
+from modelinhos.detector import Baked, DetectionModel
 from modelinhos.loss.loss import DetectionLoss
 from modelinhos.sample import Sample, TrainAnnotation
 from modelinhos.tasks.standard import PerBatchEncoded
@@ -95,7 +95,7 @@ class SkorchEngine:
         return self.net.predict_single(blob)
 
     def save(self, path: Path) -> None:
-        safe_save(self.net.module_, path)
+        torch.save(self.net.module_.model.state_dict(), path)
 
 
 def skorch_engine(
