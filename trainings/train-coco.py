@@ -23,10 +23,11 @@ knob. Everything else is shared and logged to MLflow as params.
 The schedule is one built-in: OneCycleLR ramps up over the first
 `warmup` fraction of steps (from max_lr/25), then cosine-anneals --
 stepped per batch. EarlyStopping watches the same validation mAP as the
-Checkpoint, so a stalled run exits after `patience` epochs with the
-best weights already on disk. val_map additionally records the
-precision/recall operating point at confidence 0.5 (IoU 0.5) into the
-history, so MLflow tracks all three curves per epoch.
+WeightsCheckpoint, so a stalled run exits after `patience` epochs with
+the best weights already on disk (a plain .pt, restore-able). val_map
+additionally records the precision/recall operating point at
+confidence 0.5 (IoU 0.5) into the history, so MLflow tracks all three
+curves per epoch.
 
 Data is the val2017-derived annotations (data/coco/annotations.json,
 5k images) randomly split -- enough for first trainings; for the real
@@ -49,7 +50,6 @@ from typing import Any
 import mlflow
 import torch
 from skorch.callbacks import (
-    Checkpoint,
     EarlyStopping,
     EpochScoring,
     LRScheduler,
@@ -60,7 +60,7 @@ from torchvision.transforms import v2
 from modelinhos.augment.torchvision import augment
 from modelinhos.coco import load_samples
 from modelinhos.detector import build_detector
-from modelinhos.engine.skorch import skorch_engine
+from modelinhos.engine.skorch import WeightsCheckpoint, skorch_engine
 from modelinhos.evaluation import mean_average_precision
 from modelinhos.models.load import warm_start
 from modelinhos.models.retinanet import RETINANET
@@ -133,11 +133,9 @@ def main(
         )
         return float(result["mAP"].iloc[0])
 
-    checkpoint = Checkpoint(
+    checkpoint = WeightsCheckpoint(
         monitor="valid_mAP_best",
         dirname=str(checkpoints),
-        f_optimizer=None,  # type: ignore
-        f_criterion=None,  # type: ignore
     )
 
     detector = build_detector(
@@ -219,7 +217,7 @@ def main(
         val, y_pred, l2i=lencoder.l2i, resolution=resolution
     )
     print(f"final val mAP: {final['mAP'].iloc[0]:.4f}")
-    print(f"best weights: {checkpoints / checkpoint.f_params}")
+    print(f"best weights: {checkpoint.weights_path}")
 
 
 if __name__ == "__main__":
