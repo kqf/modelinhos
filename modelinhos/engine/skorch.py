@@ -14,6 +14,7 @@ import torch
 
 try:
     from skorch import NeuralNet
+    from skorch.callbacks import Checkpoint
     from skorch.helper import predefined_split
 except ImportError as e:
     raise ImportError(
@@ -70,6 +71,52 @@ class DetectionNet(NeuralNet):
         with torch.no_grad():
             preds = self.criterion_.decode(self.module_(blob.to(self.device)))
         return self.collate.un_batch_nms(preds)
+
+
+class WeightsCheckpoint(Checkpoint):  # noqa: DJL002 this is skorch variant
+    """skorch Checkpoint writing the Engine.save format: the raw model's
+    state dict as a plain .pt at dirname/fn_prefix+weights. Optimizer,
+    criterion and history are written only when their f_* argument is
+    given. skorch's own f_params (the wrapped DetectionModel's dict) is
+    never written; load_best reloads the plain file instead."""
+
+    def __init__(
+        self,
+        monitor="valid_loss_best",
+        weights: str = "params.pt",
+        f_optimizer: str | None = None,
+        f_criterion: str | None = None,
+        f_history: str | None = None,
+        **kwargs,
+    ):
+        # skorch types f_* as str, but None is its documented "skip"
+        super().__init__(
+            monitor=monitor,
+            f_params=None,  # type: ignore
+            f_optimizer=f_optimizer,  # type: ignore
+            f_criterion=f_criterion,  # type: ignore
+            f_history=f_history,  # type: ignore
+            **kwargs,
+        )
+        self.weights = weights
+
+    @property
+    def weights_path(self) -> Path:
+        return Path(self.dirname) / f"{self.fn_prefix}{self.weights}"
+
+    def save_model(self, net: DetectionNet) -> None:
+        # The extras asked for, if any -- f_params is None for skorch
+        super().save_model(net)
+        torch.save(net.module_.model.state_dict(), self.weights_path)
+
+    def on_train_end(self, net: DetectionNet, **kwargs) -> None:
+        super().on_train_end(net, **kwargs)
+        if self.load_best and self.monitor is not None:
+            net.module_.model.load_state_dict(
+                torch.load(
+                    self.weights_path, map_location="cpu", weights_only=True
+                )
+            )
 
 
 class SkorchEngine:
