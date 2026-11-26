@@ -107,7 +107,7 @@ class WeightsCheckpoint(Checkpoint):  # noqa: DJL002 this is skorch variant
     def save_model(self, net: DetectionNet) -> None:
         # The extras asked for, if any -- f_params is None for skorch
         super().save_model(net)
-        torch.save(net.module_.model.state_dict(), self.weights_path)
+        net.module_.save(self.weights_path)
 
     def on_train_end(self, net: DetectionNet, **kwargs) -> None:
         super().on_train_end(net, **kwargs)
@@ -142,7 +142,7 @@ class SkorchEngine:
         return self.net.predict_single(blob)
 
     def save(self, path: Path) -> None:
-        torch.save(self.net.module_.model.state_dict(), path)
+        self.net.module_.save(path)
 
 
 def skorch_engine(
