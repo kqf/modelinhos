@@ -140,7 +140,7 @@ class SimpleTrainer:
         return self.collate.un_batch_nms(preds)
 
     def save(self, path: Path) -> None:
-        torch.save(self.model.model.state_dict(), path)
+        self.model.save(path)
 
 
 def simple_engine(

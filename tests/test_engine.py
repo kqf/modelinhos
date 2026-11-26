@@ -97,12 +97,14 @@ def skorch_checkpointed(
 def lightning_checkpointed(
     dirpath: pathlib.Path,
 ) -> tuple[Callable, pathlib.Path]:
-    checkpoint = LitWeights(dirpath=dirpath)
+    checkpoint = LitWeights(
+        dirpath=dirpath, filename="params", monitor="val_loss"
+    )
     engine = lightning_engine(
         max_epochs=1,
         trainer_kwargs={"callbacks": [checkpoint]},
     )
-    return engine, checkpoint.path
+    return engine, dirpath / "params.pt"
 
 
 @pytest.mark.parametrize(

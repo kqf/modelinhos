@@ -7,12 +7,12 @@ Importing this module requires lightning
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-from typing import Literal
 
 import torch
 
 try:
     import lightning.pytorch as pl
+    from lightning.pytorch.callbacks import ModelCheckpoint
 except ImportError as e:
     raise ImportError(
         "the lightning engine needs lightning installed -- "
@@ -72,44 +72,22 @@ class LitDetection(pl.LightningModule):
         return self.optimizer_builder(self.parameters(), self.lr)
 
 
-class WeightsCheckpoint(pl.Callback):
-    """Writes the Engine.save format -- the raw model's state dict as a
-    plain .pt at dirpath/filename -- after every validation epoch that
-    improves `monitor` (a metric LitDetection logs: val_loss by default).
-    No .ckpt, no optimizer state; needs validation data to trigger."""
+class WeightsCheckpoint(ModelCheckpoint):
+    """Stock ModelCheckpoint (monitor, mode, save_top_k, filename, ...)
+    writing the Engine.save format -- a plain .pt via DetectionModel.save
+    -- instead of a .ckpt. Find the file at best_model_path."""
 
-    def __init__(
-        self,
-        dirpath: Path,
-        monitor: str = "val_loss",
-        mode: Literal["min", "max"] = "min",
-        filename: str = "params.pt",
-    ):
-        self.path = dirpath / filename
-        self.monitor = monitor
-        self.mode = mode
-        self.best: float | None = None
+    FILE_EXTENSION = ".pt"
 
-    def _improved(self, value: float) -> bool:
-        if self.best is None:
-            return True
-        return value < self.best if self.mode == "min" else value > self.best
-
-    def on_validation_end(
-        self, trainer: pl.Trainer, pl_module: pl.LightningModule
-    ) -> None:
-        if trainer.sanity_checking or not trainer.is_global_zero:
-            return
-        current = trainer.callback_metrics.get(self.monitor)
-        if current is None or not self._improved(float(current)):
-            return
-        if not isinstance(pl_module, LitDetection):
-            raise TypeError(
-                f"WeightsCheckpoint needs LitDetection, got {type(pl_module)}"
-            )
-        self.best = float(current)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(pl_module.model.model.state_dict(), self.path)
+    def _save_checkpoint(self, trainer: pl.Trainer, filepath: str) -> None:
+        # Replaces trainer.save_checkpoint; keeps the base bookkeeping
+        if trainer.is_global_zero:
+            module = trainer.lightning_module
+            if not isinstance(module, LitDetection):
+                raise TypeError(f"needs LitDetection, got {type(module)}")
+            module.model.save(Path(filepath))
+        self._last_global_step_saved = trainer.global_step
+        self._last_checkpoint_saved = filepath
 
 
 class LightningEngine:
@@ -166,7 +144,7 @@ class LightningEngine:
         return self.collate.un_batch_nms(preds)
 
     def save(self, path: Path) -> None:
-        torch.save(self.module.model.model.state_dict(), path)
+        self.module.model.save(path)
 
 
 def lightning_engine(
@@ -183,7 +161,12 @@ def lightning_engine(
     batch_size/num_workers cover the common case (same vocabulary as the
     other engines); pass a *_dataloader_builder to take over loader
     construction entirely -- it wins over the knobs. trainer_kwargs are
-    merged over the quiet defaults (no logger, no checkpointing)."""
+    merged over the quiet defaults (no logger, no checkpointing unless
+    a ModelCheckpoint such as WeightsCheckpoint is among the callbacks)."""
+    kwargs = trainer_kwargs or {}
+    checkpointing = any(
+        isinstance(cb, ModelCheckpoint) for cb in kwargs.get("callbacks", [])
+    )
 
     def build(baked: Baked) -> LightningEngine:
         return LightningEngine(
@@ -211,8 +194,8 @@ def lightning_engine(
             trainer_kwargs={
                 "max_epochs": max_epochs,
                 "logger": False,
-                "enable_checkpointing": False,
-                **(trainer_kwargs or {}),
+                "enable_checkpointing": checkpointing,
+                **kwargs,
             },
         )
 

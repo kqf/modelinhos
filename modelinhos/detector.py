@@ -29,6 +29,12 @@ class DetectionModel(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> PerBatchEncoded:
         return to_preds(self.model(x))
 
+    def save(self, path: Path) -> None:
+        """The one weights format: the raw model's state dict as a plain
+        .pt -- what every Engine.save and checkpoint writes."""
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.model.state_dict(), path)
+
 
 class Detector:
     """The stable public API: samples in, samples out, regardless of
