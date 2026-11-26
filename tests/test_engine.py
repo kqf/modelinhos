@@ -91,7 +91,7 @@ def skorch_checkpointed(
 ) -> tuple[Callable, pathlib.Path]:
     checkpoint = SkorchWeights(dirname=str(dirpath))
     engine = skorch_engine(max_epochs=1, callbacks=[checkpoint])
-    return engine, checkpoint.weights_path
+    return engine, dirpath / "params.pt"
 
 
 def lightning_checkpointed(

@@ -74,49 +74,14 @@ class DetectionNet(NeuralNet):
 
 
 class WeightsCheckpoint(Checkpoint):  # noqa: DJL002 this is skorch variant
-    """skorch Checkpoint writing the Engine.save format: the raw model's
-    state dict as a plain .pt at dirname/fn_prefix+weights. Optimizer,
-    criterion and history are written only when their f_* argument is
-    given. skorch's own f_params (the wrapped DetectionModel's dict) is
-    never written; load_best reloads the plain file instead."""
-
-    def __init__(
-        self,
-        monitor="valid_loss_best",
-        weights: str = "params.pt",
-        f_optimizer: str | None = None,
-        f_criterion: str | None = None,
-        f_history: str | None = None,
-        **kwargs,
-    ):
-        # skorch types f_* as str, but None is its documented "skip"
-        super().__init__(
-            monitor=monitor,
-            f_params=None,  # type: ignore
-            f_optimizer=f_optimizer,  # type: ignore
-            f_criterion=f_criterion,  # type: ignore
-            f_history=f_history,  # type: ignore
-            **kwargs,
-        )
-        self.weights = weights
-
-    @property
-    def weights_path(self) -> Path:
-        return Path(self.dirname) / f"{self.fn_prefix}{self.weights}"
+    """Stock skorch Checkpoint (monitor, dirname, fn_prefix, f_params
+    templating) writing only the Engine.save format -- a plain .pt via
+    DetectionModel.save at the f_params target. The other f_* files are
+    not written, and load_best is unsupported: reload with restore()."""
 
     def save_model(self, net: DetectionNet) -> None:
-        # The extras asked for, if any -- f_params is None for skorch
-        super().save_model(net)
-        net.module_.save(self.weights_path)
-
-    def on_train_end(self, net: DetectionNet, **kwargs) -> None:
-        super().on_train_end(net, **kwargs)
-        if self.load_best and self.monitor is not None:
-            net.module_.model.load_state_dict(
-                torch.load(
-                    self.weights_path, map_location="cpu", weights_only=True
-                )
-            )
+        if path := self._format_target(net, self.f_params, -1):
+            net.module_.save(Path(path))
 
 
 class SkorchEngine:
