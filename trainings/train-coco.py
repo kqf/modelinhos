@@ -217,7 +217,7 @@ def main(
         val, y_pred, l2i=lencoder.l2i, resolution=resolution
     )
     print(f"final val mAP: {final['mAP'].iloc[0]:.4f}")
-    print(f"best weights: {checkpoints / checkpoint.f_params}")
+    print(f"best weights: {checkpoint.weights_path}")
 
 
 if __name__ == "__main__":
