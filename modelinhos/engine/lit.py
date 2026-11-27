@@ -72,24 +72,6 @@ class LitDetection(pl.LightningModule):
         return self.optimizer_builder(self.parameters(), self.lr)
 
 
-class WeightsCheckpoint(ModelCheckpoint):
-    """Stock ModelCheckpoint (monitor, mode, save_top_k, filename, ...)
-    writing the Engine.save format -- a plain .pt via DetectionModel.save
-    -- instead of a .ckpt. Find the file at best_model_path."""
-
-    FILE_EXTENSION = ".pt"
-
-    def _save_checkpoint(self, trainer: pl.Trainer, filepath: str) -> None:
-        # Replaces trainer.save_checkpoint; keeps the base bookkeeping
-        if trainer.is_global_zero:
-            module = trainer.lightning_module
-            if not isinstance(module, LitDetection):
-                raise TypeError(f"needs LitDetection, got {type(module)}")
-            module.model.save(Path(filepath))
-        self._last_global_step_saved = trainer.global_step
-        self._last_checkpoint_saved = filepath
-
-
 class LightningEngine:
     """Maps the Engine protocol onto pl.Trainer. Prediction is a plain
     eval loop -- no Trainer needed to run a forward pass."""
@@ -162,7 +144,8 @@ def lightning_engine(
     other engines); pass a *_dataloader_builder to take over loader
     construction entirely -- it wins over the knobs. trainer_kwargs are
     merged over the quiet defaults (no logger, no checkpointing unless
-    a ModelCheckpoint such as WeightsCheckpoint is among the callbacks)."""
+    a ModelCheckpoint is among the callbacks; its .ckpt loads with
+    restore(), best with save_weights_only=True)."""
     kwargs = trainer_kwargs or {}
     checkpointing = any(
         isinstance(cb, ModelCheckpoint) for cb in kwargs.get("callbacks", [])
