@@ -4,6 +4,7 @@ from collections.abc import Callable
 import matplotlib
 import pytest
 import torch
+from skorch.callbacks import Checkpoint
 
 from modelinhos.detector import build_detector
 from modelinhos.engine.lit import (
@@ -11,10 +12,7 @@ from modelinhos.engine.lit import (
     lightning_engine,
 )
 from modelinhos.engine.simple import simple_engine
-from modelinhos.engine.skorch import (
-    WeightsCheckpoint as SkorchWeights,
-    skorch_engine,
-)
+from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import mean_average_precision
 from modelinhos.models.blazenet import RETINANET_F
 from modelinhos.models.load import restore, warm_start
@@ -89,7 +87,15 @@ def test_engine(
 def skorch_checkpointed(
     dirpath: pathlib.Path,
 ) -> tuple[Callable, pathlib.Path]:
-    checkpoint = SkorchWeights(dirname=str(dirpath))
+    # Stock Checkpoint, weights only: f_params holds the DetectionModel
+    # wrapper's dict, whose model. prefix restore() strips
+    checkpoint = Checkpoint(
+        dirname=str(dirpath),
+        f_params="params.pt",
+        f_optimizer=None,  # type: ignore
+        f_criterion=None,  # type: ignore
+        f_history=None,  # type: ignore
+    )
     engine = skorch_engine(max_epochs=1, callbacks=[checkpoint])
     return engine, dirpath / "params.pt"
 
@@ -114,7 +120,7 @@ def lightning_checkpointed(
         pytest.param(lightning_checkpointed, id="lightning"),
     ],
 )
-def test_best_epoch_checkpoint_is_plain(
+def test_best_epoch_checkpoint_restores(
     checkpointed: Callable,
     resolution: tuple[int, int],
     dataset: pathlib.Path,
@@ -135,10 +141,7 @@ def test_best_epoch_checkpoint_is_plain(
         engine=engine,
     ).fit(data, data)
 
-    # Same format as Engine.save: raw-model keys only, so the strict
-    # restore accepts it
-    state = torch.load(path, weights_only=True)
-    assert not any(name.startswith("model.") for name in state)
+    # The strict restore accepts the checkpoint as written
     build_detector(
         resolution=resolution,
         lencoder=lencoder,
