@@ -5,8 +5,8 @@ Annotations must be in relative coordinates ([0, 1] fractions of the
 image size) -- read_samples rejects pixel-space boxes.
 
 Everything is stock building blocks wired together: skorch engine,
-EpochScoring computes validation mAP each epoch, WeightsCheckpoint
-keeps the best-mAP weights as a plain .pt, MlflowLogger sends the
+EpochScoring computes validation mAP each epoch, Checkpoint keeps the
+best-mAP weights as params.pt (restore-able), MlflowLogger sends the
 history to MLflow.
 
 The one deviation from the SSDLITE preset: anchor sizes. The preset's
@@ -29,10 +29,10 @@ from functools import partial
 from pathlib import Path
 
 import mlflow
-from skorch.callbacks import EpochScoring, MlflowLogger
+from skorch.callbacks import Checkpoint, EpochScoring, MlflowLogger
 
 from modelinhos.detector import build_detector
-from modelinhos.engine.skorch import WeightsCheckpoint, skorch_engine
+from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import mean_average_precision
 from modelinhos.models.anchors import anchors
 from modelinhos.models.load import warm_start
@@ -85,9 +85,11 @@ def main(
         )
         return float(result["mAP"].iloc[0])
 
-    checkpoint = WeightsCheckpoint(
+    # Weights only -- restore() reads params.pt directly
+    checkpoint = Checkpoint(
         monitor="valid_mAP_best",
         dirname=str(checkpoints),
+        f_params="params.pt",
     )
 
     detector = build_detector(
@@ -134,7 +136,7 @@ def main(
         val, y_pred, l2i=lencoder.l2i, resolution=resolution
     )
     print(f"final val mAP: {final['mAP'].iloc[0]:.4f}")
-    print(f"best weights: {checkpoint.weights_path}")
+    print(f"best weights: {checkpoints / checkpoint.f_params}")
 
 
 if __name__ == "__main__":
