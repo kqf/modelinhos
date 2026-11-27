@@ -67,15 +67,32 @@ def modernize_fpn(state: dict) -> dict:
     }
 
 
+def unwrap_lightning(state: dict, prefix="model.") -> dict:
+    """A Lightning .ckpt nests the weights under "state_dict", keyed
+    from LitDetection: keep the model.* entries (dropping the loss
+    buffers) and strip that prefix. Anything else passes through."""
+    if "state_dict" not in state:
+        return state
+
+    return {
+        name.removeprefix(prefix): param
+        for name, param in state["state_dict"].items()
+        if name.startswith(prefix)
+    }
+
+
 def state_dict(source, progress: bool = True) -> dict:
     """Normalize a weights source into a plain state dict. A source is
     either a torchvision-style weights object (anything with
     .get_state_dict()) or a checkpoint path. Engine checkpoints hold the
     DetectionModel wrapper's dict (model.-prefixed keys); the prefix is
     stripped -- and legacy FPN keys renamed -- so the result always
-    addresses the raw model that build_model produces."""
+    addresses the raw model that build_model produces. Lightning .ckpt
+    files are unwrapped to that same dict first."""
     if isinstance(source, str | Path):
-        state = torch.load(source, map_location="cpu", weights_only=True)
+        state = unwrap_lightning(
+            torch.load(source, map_location="cpu", weights_only=True)
+        )
         consume_prefix_in_state_dict_if_present(state, "model.")
         return modernize_fpn(state)
     return modernize_fpn(source.get_state_dict(progress=progress))
