@@ -14,7 +14,6 @@ import torch
 
 try:
     from skorch import NeuralNet
-    from skorch.callbacks import Checkpoint
     from skorch.helper import predefined_split
 except ImportError as e:
     raise ImportError(
@@ -71,17 +70,6 @@ class DetectionNet(NeuralNet):
         with torch.no_grad():
             preds = self.criterion_.decode(self.module_(blob.to(self.device)))
         return self.collate.un_batch_nms(preds)
-
-
-class WeightsCheckpoint(Checkpoint):  # noqa: DJL002 this is skorch variant
-    """Stock skorch Checkpoint (monitor, dirname, fn_prefix, f_params
-    templating) writing only the Engine.save format -- a plain .pt via
-    DetectionModel.save at the f_params target. The other f_* files are
-    not written, and load_best is unsupported: reload with restore()."""
-
-    def save_model(self, net: DetectionNet) -> None:
-        if path := self._format_target(net, self.f_params, -1):
-            net.module_.save(Path(path))
 
 
 class SkorchEngine:
