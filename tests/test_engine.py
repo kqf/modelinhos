@@ -4,13 +4,11 @@ from collections.abc import Callable
 import matplotlib
 import pytest
 import torch
+from lightning.pytorch.callbacks import ModelCheckpoint
 from skorch.callbacks import Checkpoint
 
 from modelinhos.detector import build_detector
-from modelinhos.engine.lit import (
-    WeightsCheckpoint as LitWeights,
-    lightning_engine,
-)
+from modelinhos.engine.lit import lightning_engine
 from modelinhos.engine.simple import simple_engine
 from modelinhos.engine.skorch import skorch_engine
 from modelinhos.evaluation import mean_average_precision
@@ -103,14 +101,19 @@ def skorch_checkpointed(
 def lightning_checkpointed(
     dirpath: pathlib.Path,
 ) -> tuple[Callable, pathlib.Path]:
-    checkpoint = LitWeights(
-        dirpath=dirpath, filename="params", monitor="val_loss"
+    # Stock ModelCheckpoint, weights only: the .ckpt nests LitDetection's
+    # state dict, which restore() unwraps
+    checkpoint = ModelCheckpoint(
+        dirpath=dirpath,
+        filename="params",
+        monitor="val_loss",
+        save_weights_only=True,
     )
     engine = lightning_engine(
         max_epochs=1,
         trainer_kwargs={"callbacks": [checkpoint]},
     )
-    return engine, dirpath / "params.pt"
+    return engine, dirpath / "params.ckpt"
 
 
 @pytest.mark.parametrize(
