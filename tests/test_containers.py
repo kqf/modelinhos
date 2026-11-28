@@ -4,9 +4,10 @@ import numpy as np
 import pytest
 import torch
 
-from modelinhos.containers import Collate, field_specs
+from modelinhos.containers import Collate
 from modelinhos.data import SampleDataset
 from modelinhos.sample import Sample, TrainAnnotation
+from modelinhos.tasks.standard import STANDARD_SPECS
 
 
 def sample(n_boxes: int) -> Sample[TrainAnnotation]:
@@ -27,6 +28,7 @@ def dataset():  # noqa: DJL002
         return SampleDataset(
             samples,
             encode_images=lambda image: torch.from_numpy(image).float(),
+            specs=STANDARD_SPECS,
             read_image=lambda file_name: np.zeros((4, 4, 3), dtype=np.uint8),
             **({"augment": augment} if augment else {}),
         )
@@ -34,18 +36,20 @@ def dataset():  # noqa: DJL002
     return build
 
 
-def test_specs_come_from_the_first_annotated_sample():
-    assert field_specs([sample(0), sample(2)]) == {
-        "bboxes": (torch.float32, 4),
-        "labels": (torch.int64, 1),
-        "scores": (torch.float32, 1),
-    }
+def test_standard_specs_match_what_annotations_produce(dataset):
+    # The given specs must agree with what a real annotated image
+    # yields, or an empty image would not stack with an annotated one.
+    _, per_image = dataset([sample(2)])[0]
+    assert {
+        name: (column.dtype, column.shape[1])
+        for name, column in vars(per_image).items()
+    } == STANDARD_SPECS
 
 
-def test_dataset_without_a_single_box_explodes_at_construction(dataset):
-    data = [sample(0), sample(0)]
-    with pytest.raises(ValueError, match="no annotated sample"):
-        dataset(data)
+def test_dataset_without_a_single_box_builds(dataset):
+    # Unlabelled images (inference) need no annotated sample anymore
+    _, per_image = dataset([sample(0), sample(0)])[0]
+    assert per_image.labels.shape == (0, 1)
 
 
 # The two ways a batch ends up with nothing to infer dtypes from. Both

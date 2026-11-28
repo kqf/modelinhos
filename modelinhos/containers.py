@@ -12,10 +12,9 @@ from modelinhos.tasks.standard import (
     PerBatch,
     PerBatchEncoded,
     PerImage,
+    Specs,
     map_fields,
 )
-
-Specs = dict[str, tuple[torch.dtype, int]]
 
 
 def columns(annotations: list[TrainAnnotation]) -> dict[str, torch.Tensor]:
@@ -23,30 +22,6 @@ def columns(annotations: list[TrainAnnotation]) -> dict[str, torch.Tensor]:
         f.name: torch.tensor([getattr(a, f.name) for a in annotations])
         for f in fields(PerImage)
     }
-
-
-def field_specs(samples: list[Sample[TrainAnnotation]]) -> Specs:
-    """Field dtypes and widths, taken from the first annotated sample.
-
-    An annotation-less image carries no dtype or width of its own, and
-    a batch of nothing but those has none to lend it -- a background
-    image at batch_size 1, or an augmentation that cropped every box
-    away, and there is no sample left to ask. So the tie is broken once
-    per dataset instead of once per batch, which is the scope where an
-    annotated sample really is guaranteed: a detection dataset without a
-    single box is the thing worth exploding over, and this explodes at
-    construction rather than at some random batch hours into training.
-    """
-    for sample in samples:
-        if sample.annotations:
-            return {
-                name: (column.dtype, column.shape[1])
-                for name, column in columns(sample.annotations).items()
-            }
-    raise ValueError(
-        "no annotated sample in the dataset -- there is nothing to "
-        "detect, and nothing to take field dtypes and widths from"
-    )
 
 
 def anno2tensors(
