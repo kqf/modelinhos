@@ -32,14 +32,6 @@ Things to do:
 - [x] Move to_preds to a model wrapper
 - [x] Add the BlazeNet inference (anchors parametrization)
 - [x] Implement the BlazeNet tests
-- [ ] Switch the mAP backend to geometric IoU (torchmetrics'
-      MeanAveragePrecision or an in-house AP over torchvision box_iou):
-      the mean_average_precision package uses the VOC inclusive-pixel
-      (+1) IoU convention, which is why evaluation currently needs a
-      `resolution` parameter and inflates IoU for small objects (~1/size
-      per dimension). After the switch, evaluate directly on relative
-      coordinates and drop `resolution` except for pixel-denominated
-      breakdowns (area buckets, sub-Npx diagnostics).
 - [x] Make Detection behave like any classification model
 - [x] Finish trainings/study-ssd-misc.py -- needs modelinhos.infos
       (rule: if the answer changes when you swap the model, it goes to
@@ -94,7 +86,7 @@ P1 -- deployable and measurable. Check retina vs ssd backbone effects
       - [x] Verify correctness
       - [x] Clean the code -> simplify
 - [x] Download the coco dataset but unpack it to data/ location
-- [ ] DO the first trainings on COCO dataset:
+- [x] DO the first trainings on COCO dataset:
   - [x] Train the COCO dataset with warmups probably on grayscale no normalization:
   - [x] Validatoin map
   - [x] Extend add the precision recall @p=0.5,
@@ -128,6 +120,16 @@ P2 -- hygiene before there are external users (renames get expensive later):
 
 Someday:
 
+- [ ] Switch the mAP backend to geometric IoU (torchmetrics'
+      MeanAveragePrecision or an in-house AP over torchvision box_iou):
+      the mean_average_precision package uses the VOC inclusive-pixel
+      (+1) IoU convention, which is why evaluation currently needs a
+      `resolution` parameter and inflates IoU for small objects (~1/size
+      per dimension). After the switch, evaluate directly on relative
+      coordinates and drop `resolution` except for pixel-denominated
+      breakdowns (area buckets, sub-Npx diagnostics). Expensive --
+      until then, keep the VOC-style (+1) backend and its `resolution`.
+
 - [x] Add the fcos inference
 - [x] Drop the zoo builders entirely: give DetectionRecipe a
       `pretrained` field (the checkpoint enum it mirrors) and default
@@ -145,9 +147,6 @@ Decided against (deliberate, don't re-propose):
 - No detector cards / config persistence next to weights: every
   training is tied to a commit hash, the script at that commit IS the
   config.
-- No geometric-IoU mAP switch: too expensive, keeping the
-  mean_average_precision VOC-style (+1) backend and its `resolution`
-  parameter.
 
 Review findings:
 
@@ -167,40 +166,16 @@ R0 -- breaks in real use (fit -> predict -> checkpoint path first):
 - [ ] num_workers > 0 fails under spawn/forkserver (macOS and Windows
       always, Linux from Python 3.14): the image encoder is built from
       lambdas and cannot be pickled; the augment closures have the same
-      shape. The README advertises num_workers=8.
-- [ ] Checkpoints only round-trip for skorch: models/load.py:78 strips
-      one `model.` prefix, but Lightning keys are `model.model.*` plus
-      `loss.priors`, and SimpleTrainer never saves. warm_start on a
-      Lightning checkpoint silently loads zero tensors --
-      load_with_mismatch ignores unmatched keys without reporting.
-- [ ] SSDLARGE does not warm-start from its pretraining checkpoint
-      (SSDLite320_MobileNet_V3_Large_Weights.COCO_V1, also what
-      trainings/train-coco.py uses): only 6/356 params load. The
-      backbone keys diverge -- the model has backbone.features.N.*
-      (mobilenet_c3c4c5_extractor keeps the flat MobileNet layout), the
-      checkpoint has backbone.features.0.N.* / features.1.* (torchvision
-      splits the features into two stages). Only 6 head tensors match by
-      name, and those sit at different strides than in SSDLite. The
-      SSDLARGE COCO runs were likely trained without the COCO backbone.
-      Fix: remap the keys (in the extractor, or a prefix rewrite in
-      load.state_dict like modernize_fpn), and have load_with_mismatch
-      report unmatched keys.
+      shape. The trainings/ scripts default to num_workers=8.
 - [ ] RetinaNetPure always downloads ImageNet ResNet50 weights
       (models/retinanet.py:71): from_scratch is not from scratch, and
       restore / export need network. Contradicts the recipe contract
       (detector.py:107); affects the RetinaNet and FCOS flavors.
-- [ ] Stray `break` in inference/vonnx/export.py:182 exports only
-      128x128 per model. The exporter also uses random weights and raw
-      heads: there is no path from a trained checkpoint to a deployable
-      model with decode and NMS, which README step 5 implies.
 - [ ] The SSD matcher gives background-only images zero negatives, so
       zero loss (loss/matching.py:192) -- the field_specs effort to
       support empty images buys nothing for the mined losses.
 - [ ] The skorch engine cannot predict before fit: a pretrained zoo
       detector raises NotInitializedError.
-- [ ] coco_label_encoder has 82 i2l entries for 91 channels (the
-      duplicate "N/A" slots collapse), so a prediction on one of those
-      channels is a KeyError in inverse_transform.
 
 R1 -- architectural flaws:
 
@@ -220,17 +195,11 @@ R1 -- architectural flaws:
       module.
 - [ ] The Engine protocol is too wide and too narrow: each engine
       re-implements the same predict loop (could live once in
-      Detector), while saving, loading and device are not in the
-      protocol -- the root of the checkpoint item above.
+      Detector), while device is not in the protocol (save already is).
 - [ ] evaluation.py mixes metrics with blocking plt.show() views, and
       async_mode=True starts a manager and worker process on every
       mean_average_precision() call (once per validation epoch in the
       training scripts).
-- [ ] Fragile upstream coupling: torchvision private APIs
-      (_mobilenet_extractor, _resnet_fpn_extractor, _utils, _is_cn)
-      with no version bounds; blaze weights come from a third-party
-      raw/master URL with no pinned commit or hash
-      (models/blazenet.py:289).
 
 R2 -- misconfigurations:
 
@@ -271,11 +240,8 @@ R3 -- loose ends:
       has to alias them.
 - [ ] Untested: both augment adapters, coco.py, and inference on
       unlabelled data.
-- [ ] README drift: it says test_trains.py crosses every family with
+- [x] README drift: it says test_trains.py crosses every family with
       every engine; it runs only simple_engine, the engines are
       crossed for one model in test_engine.py.
 - [ ] trainings/ drift: the scripts call net.predict(X), which now
       raises TypeError -- the method is predict_samples.
-- [ ] This file: the geometric-IoU mAP switch is listed both as an
-      open item (above) and under "Decided against" -- drop the open
-      one.
