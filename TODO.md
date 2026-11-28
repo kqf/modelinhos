@@ -166,7 +166,7 @@ R0 -- breaks in real use (fit -> predict -> checkpoint path first):
 - [ ] num_workers > 0 fails under spawn/forkserver (macOS and Windows
       always, Linux from Python 3.14): the image encoder is built from
       lambdas and cannot be pickled; the augment closures have the same
-      shape. The README advertises num_workers=8.
+      shape. The trainings/ scripts default to num_workers=8.
 - [ ] RetinaNetPure always downloads ImageNet ResNet50 weights
       (models/retinanet.py:71): from_scratch is not from scratch, and
       restore / export need network. Contradicts the recipe contract
@@ -240,7 +240,7 @@ R3 -- loose ends:
       has to alias them.
 - [ ] Untested: both augment adapters, coco.py, and inference on
       unlabelled data.
-- [ ] README drift: it says test_trains.py crosses every family with
+- [x] README drift: it says test_trains.py crosses every family with
       every engine; it runs only simple_engine, the engines are
       crossed for one model in test_engine.py.
 - [ ] trainings/ drift: the scripts call net.predict(X), which now
