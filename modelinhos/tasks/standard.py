@@ -10,6 +10,16 @@ U = TypeVar("U")
 D = TypeVar("D", bound="StandardDetection")
 
 
+Specs = dict[str, tuple[torch.dtype, int]]
+
+
+STANDARD_SPECS: Specs = {
+    "bboxes": (torch.float32, 4),
+    "labels": (torch.int64, 1),
+    "scores": (torch.float32, 1),
+}
+
+
 @dataclass(frozen=True)
 class StandardDetection(Generic[T]):
     """One record of the standard detection task: something that has
