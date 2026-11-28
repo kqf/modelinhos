@@ -17,7 +17,7 @@ from modelinhos.data import SampleDataset
 from modelinhos.detector import DetectionRecipe
 from modelinhos.preprocess.labels import SampleEncoder
 from modelinhos.sample import Annotation, Sample
-from modelinhos.tasks.standard import PerBatchEncoded
+from modelinhos.tasks.standard import STANDARD_SPECS, PerBatchEncoded
 
 
 def summarize(
@@ -111,6 +111,7 @@ def matchability(
         SampleDataset(
             lencoder.transform(samples),
             encode_images=recipe.iencoder,
+            specs=STANDARD_SPECS,
             read_image=lambda file_name: frame,
         ),
         batch_size=1,
