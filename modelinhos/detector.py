@@ -15,7 +15,11 @@ from modelinhos.models.load import Weights, from_scratch
 from modelinhos.preprocess.image import rgb_normalized_image_encoder
 from modelinhos.preprocess.labels import DoNothingEncoder, SampleEncoder
 from modelinhos.sample import Annotation, Sample
-from modelinhos.tasks.standard import PerBatchEncoded
+from modelinhos.tasks.standard import (
+    STANDARD_SPECS,
+    PerBatchEncoded,
+    Specs,
+)
 
 
 class DetectionModel(torch.nn.Module):
@@ -49,11 +53,13 @@ class Detector:
         image_encoder: Callable,
         label_encoder: SampleEncoder | None = None,
         augment: Augmentation = identity,
+        specs: Specs = STANDARD_SPECS,
     ):
         self._engine = engine
         self.image_encoder = image_encoder
         self.label_encoder = label_encoder or DoNothingEncoder()
         self.augment = augment
+        self.specs = specs
 
     def fit(
         self, samples: list[Sample], val_samples: list[Sample] | None = None
@@ -64,20 +70,25 @@ class Detector:
         dataset = SampleDataset(
             encoded,
             self.image_encoder,
+            self.specs,
             augment=self.augment,
         )
 
         val_dataset = None
         if val_samples is not None:
             val_encoded = self.label_encoder.transform(val_samples)
-            val_dataset = SampleDataset(val_encoded, self.image_encoder)
+            val_dataset = SampleDataset(
+                val_encoded,
+                self.image_encoder,
+                self.specs,
+            )
 
         self._engine.fit(dataset, val_dataset)
         return self
 
     def transform(self, samples: list[Sample]) -> list[Sample]:
         encoded = self.label_encoder.transform(samples)
-        dataset = SampleDataset(encoded, self.image_encoder)
+        dataset = SampleDataset(encoded, self.image_encoder, self.specs)
         preds = self._engine.predict(dataset)
         return self.label_encoder.inverse_transform(preds)
 
@@ -87,8 +98,6 @@ class Detector:
         return self.label_encoder.inverse_transform(preds)
 
     def save(self, path: Path) -> None:
-        """Plain .pt of the raw model's weights; reload with
-        build_detector(..., weights=restore(path))."""
         self._engine.save(path)
 
 
